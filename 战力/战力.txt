@@ -1,0 +1,2558 @@
+//============================================
+// 自动装备检测与战力排行系统
+// 版本: 2.1
+// 作者: 基于原战力33.txt优化
+// 更新: 整合formatted_items卡片属性
+//============================================
+
+// 创建必要的数据库表
+// 自动检测并创建所需的数据库表
+
+-	script	DatabaseInitializer	-1,{
+    OnInit:
+        // ============================================
+        // 统一数据库表规划方案
+        // ============================================
+        // 表命名规范: power_前缀 + 模块名 + 表类型
+        // 字段命名规范: 统一使用下划线分隔
+        // 字符集: utf8mb4 (支持更全面的字符)
+        // 存储引擎: InnoDB (支持事务和外键)
+        
+        // 1. 玩家装备数据表 - 存储玩家当前装备信息
+        query_sql(
+            "CREATE TABLE IF NOT EXISTS `power_equipment_data` ("+
+            "`char_id` int(11) NOT NULL COMMENT '玩家ID',"+
+            "`char_name` varchar(30) NOT NULL COMMENT '玩家名称',"+
+            "`head_top` int(11) DEFAULT 0 COMMENT '头上装备ID',"+
+            "`head_mid` int(11) DEFAULT 0 COMMENT '头中装备ID',"+
+            "`head_low` int(11) DEFAULT 0 COMMENT '头下装备ID',"+
+            "`weapon` int(11) DEFAULT 0 COMMENT '武器装备ID',"+
+            "`armor` int(11) DEFAULT 0 COMMENT '盔甲装备ID',"+
+            "`garment` int(11) DEFAULT 0 COMMENT '披风装备ID',"+
+            "`shield` int(11) DEFAULT 0 COMMENT '副手装备ID',"+
+            "`shoes` int(11) DEFAULT 0 COMMENT '鞋子装备ID',"+
+            "`acc_left` int(11) DEFAULT 0 COMMENT '左饰品装备ID',"+
+            "`acc_right` int(11) DEFAULT 0 COMMENT '右饰品装备ID',"+
+            "`costume_head_top` int(11) DEFAULT 0 COMMENT '时装头上装备ID',"+
+            "`costume_head_mid` int(11) DEFAULT 0 COMMENT '时装头中装备ID',"+
+            "`costume_head_low` int(11) DEFAULT 0 COMMENT '时装头下装备ID',"+
+            "`costume_garment` int(11) DEFAULT 0 COMMENT '时装披风装备ID',"+
+            "`shadow_armor` int(11) DEFAULT 0 COMMENT '影装盔甲装备ID',"+
+            "`shadow_weapon` int(11) DEFAULT 0 COMMENT '影装武器装备ID',"+
+            "`shadow_shield` int(11) DEFAULT 0 COMMENT '影装副手装备ID',"+
+            "`shadow_shoes` int(11) DEFAULT 0 COMMENT '影装鞋子装备ID',"+
+            "`shadow_acc_left` int(11) DEFAULT 0 COMMENT '影装左饰品装备ID',"+
+            "`shadow_acc_right` int(11) DEFAULT 0 COMMENT '影装右饰品装备ID',"+
+            "`last_update` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后更新时间',"+
+            "PRIMARY KEY (`char_id`), "+
+            "KEY `idx_char_name` (`char_name`),"+
+            "KEY `idx_last_update` (`last_update` DESC)"+
+            ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='玩家装备数据表'"
+        );
+        
+        // 2. 战力排行榜表 - 存储玩家战力排名信息
+        query_sql(
+            "CREATE TABLE IF NOT EXISTS `power_ranking` ("+
+            "`char_id` int(11) NOT NULL COMMENT '玩家ID',"+
+            "`char_name` varchar(30) NOT NULL COMMENT '玩家名称',"+
+            "`total_score` int(11) NOT NULL DEFAULT 0 COMMENT '总战力分数',"+
+            "`combat_rating` varchar(10) NOT NULL DEFAULT 'D' COMMENT '战力评级',"+
+            "`equipment_count` int(11) NOT NULL DEFAULT 0 COMMENT '装备数量',"+
+            "`last_calculation` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后计算时间',"+
+            "`ranking` int(11) DEFAULT 0 COMMENT '当前排名',"+
+            "`previous_ranking` int(11) DEFAULT 0 COMMENT '上次排名',"+
+            "`ranking_change` int(11) DEFAULT 0 COMMENT '排名变化',"+
+            "PRIMARY KEY (`char_id`), "+
+            "UNIQUE KEY `uk_char_id` (`char_id`),"+
+            "KEY `idx_total_score_ranking` (`total_score` DESC, `ranking` ASC),"+
+            "KEY `idx_ranking_total_score` (`ranking` ASC, `total_score` DESC),"+
+            "KEY `idx_combat_rating` (`combat_rating`, `total_score` DESC),"+
+            "KEY `idx_last_calculation` (`last_calculation` DESC),"+
+            "KEY `idx_char_name` (`char_name`),"+
+            "KEY `idx_ranking_change` (`ranking_change`)"+
+            ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='战力排行榜表'"
+        );
+        
+        // 3. 装备评分详情表 - 存储每个装备的详细评分
+        query_sql(
+            "CREATE TABLE IF NOT EXISTS `power_equipment_scores` ("+
+            "`id` int(11) NOT NULL AUTO_INCREMENT COMMENT '主键ID',"+
+            "`char_id` int(11) NOT NULL COMMENT '玩家ID',"+
+            "`slot_type` varchar(30) NOT NULL COMMENT '装备槽位类型',"+
+            "`item_id` int(11) NOT NULL COMMENT '装备ID',"+
+            "`item_name` varchar(100) NOT NULL COMMENT '装备名称',"+
+            "`base_score` int(11) DEFAULT 0 COMMENT '基础分数',"+
+            "`refine_score` int(11) DEFAULT 0 COMMENT '精炼分数',"+
+            "`card_score` int(11) DEFAULT 0 COMMENT '卡片分数',"+
+            "`enchant_score` int(11) DEFAULT 0 COMMENT '附魔分数',"+
+            "`random_score` int(11) DEFAULT 0 COMMENT '随机属性分数',"+
+            "`total_score` int(11) DEFAULT 0 COMMENT '总分',"+
+            "`calculation_time` timestamp DEFAULT CURRENT_TIMESTAMP COMMENT '计算时间',"+
+            "PRIMARY KEY (`id`), "+
+            "KEY `idx_char_id_slot_type` (`char_id`, `slot_type`),"+
+            "KEY `idx_char_id_total_score` (`char_id`, `total_score` DESC),"+
+            "KEY `idx_slot_type_total_score` (`slot_type`, `total_score` DESC),"+
+            "KEY `idx_item_id` (`item_id`),"+
+            "KEY `idx_calculation_time` (`calculation_time` DESC),"+
+            "KEY `idx_total_score` (`total_score` DESC)"+
+            ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='装备评分详情表'"
+        );
+        
+        // 4. 战力镜像表 - 存储战力榜前三名玩家的镜像数据
+        query_sql(
+            "CREATE TABLE IF NOT EXISTS `power_mirrors` ("+
+            "`id` int(11) NOT NULL AUTO_INCREMENT COMMENT '主键ID',"+
+            "`char_id` int(11) NOT NULL COMMENT '镜像玩家ID',"+
+            "`original_char_id` int(11) NOT NULL COMMENT '原始玩家ID',"+
+            "`char_name` varchar(30) NOT NULL COMMENT '玩家名称',"+
+            "`job_class` smallint(6) NOT NULL COMMENT '职业类型',"+
+            "`total_score` int(11) NOT NULL COMMENT '总战力分数',"+
+            "`combat_rating` varchar(10) NOT NULL COMMENT '战力评级',"+
+            "`ranking_position` int(11) NOT NULL COMMENT '排名位置',"+
+            "`created_time` timestamp DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',"+
+            "`expire_time` timestamp NULL DEFAULT NULL COMMENT '过期时间',"+
+            "`is_active` tinyint(1) DEFAULT 1 COMMENT '是否激活',"+
+            "PRIMARY KEY (`id`), "+
+            "UNIQUE KEY `uk_char_id_ranking` (`char_id`, `ranking_position`),"+
+            "KEY `idx_original_char_id` (`original_char_id`),"+
+            "KEY `idx_total_score` (`total_score` DESC),"+
+            "KEY `idx_ranking_position` (`ranking_position`),"+
+            "KEY `idx_created_time` (`created_time` DESC),"+
+            "KEY `idx_is_active` (`is_active`),"+
+            "KEY `idx_expire_time` (`expire_time`)"+
+            ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='战力镜像表'"
+        );
+        
+        // 5. 战力更新日志表 - 记录战力变化历史
+        query_sql(
+            "CREATE TABLE IF NOT EXISTS `power_update_logs` ("+
+            "`id` int(11) NOT NULL AUTO_INCREMENT COMMENT '主键ID',"+
+            "`char_id` int(11) NOT NULL COMMENT '玩家ID',"+
+            "`char_name` varchar(30) NOT NULL COMMENT '玩家名称',"+
+            "`old_score` int(11) DEFAULT 0 COMMENT '旧战力分数',"+
+            "`new_score` int(11) NOT NULL COMMENT '新战力分数',"+
+            "`score_diff` int(11) DEFAULT 0 COMMENT '分数变化',"+
+            "`old_ranking` int(11) DEFAULT 0 COMMENT '旧排名',"+
+            "`new_ranking` int(11) DEFAULT 0 COMMENT '新排名',"+
+            "`ranking_diff` int(11) DEFAULT 0 COMMENT '排名变化',"+
+            "`update_reason` varchar(50) DEFAULT '装备更换' COMMENT '更新原因',"+
+            "`update_time` timestamp DEFAULT CURRENT_TIMESTAMP COMMENT '更新时间',"+
+            "`trigger_type` varchar(20) DEFAULT '自动' COMMENT '触发类型',"+
+            "PRIMARY KEY (`id`), "+
+            "KEY `idx_char_id_update_time` (`char_id`, `update_time` DESC),"+
+            "KEY `idx_update_time` (`update_time` DESC),"+
+            "KEY `idx_score_diff` (`score_diff`),"+
+            "KEY `idx_ranking_diff` (`ranking_diff`),"+
+            "KEY `idx_trigger_type` (`trigger_type`),"+
+            "KEY `idx_update_reason` (`update_reason`)"+
+            ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='战力更新日志表'"
+        );
+        
+		// 6. 系统日志表 - 记录系统操作日志
+        query_sql(
+            "CREATE TABLE IF NOT EXISTS `power_system_logs` ("+
+            "`id` int(11) NOT NULL AUTO_INCREMENT COMMENT '主键ID',"+
+            "`log_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '日志时间',"+
+            "`char_id` int(11) DEFAULT 0 COMMENT '玩家ID',"+
+            "`source_id` int(11) DEFAULT 0 COMMENT '来源ID',"+
+            "`log_type` char(1) DEFAULT 'I' COMMENT '日志类型(I:信息, W:警告, E:错误)',"+
+            "`log_message` text COMMENT '日志内容',"+
+            "`operation_type` varchar(20) DEFAULT '' COMMENT '操作类型',"+
+            "`affected_rows` int(11) DEFAULT 0 COMMENT '影响行数',"+
+            "`execution_time` int(11) DEFAULT 0 COMMENT '执行时间(毫秒)',"+
+            "PRIMARY KEY (`id`), "+
+            "KEY `idx_log_time` (`log_time` DESC),"+
+            "KEY `idx_char_id` (`char_id`),"+
+            "KEY `idx_log_type` (`log_type`),"+
+            "KEY `idx_operation_type` (`operation_type`)"+
+            ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='系统日志表'"
+        );
+        
+        // 修复：使用正确的日志输出方式
+        debugmes "数据库表初始化完成";
+        
+        // 使用initnpctimer来设置服务器启动时的延迟恢复
+        initnpctimer;
+        end;
+        
+    OnTimer5000:
+        // 服务器启动5秒后恢复镜像数据
+        debugmes "[战力系统] 开始恢复战力榜镜像...";
+        
+        // 恢复战力榜镜像
+        callfunc "RestoreCombatPowerMirrors";
+        
+        // 启动自动扫描和更新（使用直接的函数调用方式）
+        callfunc "StartCombatPowerScanner";
+        
+        // 输出初始化信息
+        debugmes "[战力系统] 服务器启动完成，战力榜镜像已恢复";
+        stopnpctimer;
+        end;
+}
+
+//============================================
+// 主NPC - 战力检测系统
+//============================================
+
+1@pop3,56,43,2	script	战力检测	100,{
+    mes "[战力检测系统]";
+    mes "欢迎使用全自动战力检测系统！";
+    mes "系统会自动扫描所有玩家的装备";
+    mes "并生成战力排行榜。";
+    mes "==============================";
+    next;
+    
+    switch(select("更新并查看我的战力", "查看战力排行榜", "更新战力榜镜像", "管理员: 全服扫描", "压力测试控制台", "关闭")) {
+    case 1:
+        set .@total_score, callfunc("UpdatePlayerCombatPower", getcharid(0));
+        callfunc "DisplayPlayerDetails", getcharid(0);
+        close;
+        
+    case 2:
+        callfunc "DisplayCombatRanking";
+        close;
+        
+    case 3:
+        if (getgmlevel() < 60) {
+            mes "[权限错误]";
+            mes "只有管理员可以更新战力榜镜像。";
+            close;
+        }
+        mes "[镜像更新]";
+        mes "确定要更新战力榜前三名玩家镜像吗？";
+        next;
+        if (select("开始更新", "取消") == 1) {
+            callfunc "UpdateCombatPowerMirrors";
+            mes "[更新完成]";
+            mes "战力榜镜像已更新！";
+        }
+        close;
+        
+    case 4:
+        if (getgmlevel() < 60) {
+            mes "[权限错误]";
+            mes "只有管理员可以执行全服扫描。";
+            close;
+        }
+        mes "[管理员功能]";
+        mes "确定要执行全服玩家战力扫描吗？";
+        mes "这可能会消耗一些服务器资源。";
+        next;
+        if (select("开始扫描", "取消") == 1) {
+            callfunc "ScanAllPlayersCombatPower";
+            mes "[扫描完成]";
+            mes "全服玩家战力扫描已完成！";
+        }
+        close;
+        
+    case 5:
+        if (getgmlevel() < 60) {
+            mes "[权限错误]";
+            mes "只有管理员可以访问压力测试控制台。";
+            close;
+        }
+        callfunc "OpenStressTestConsole";
+        close;
+        
+    case 6:
+        close;
+    }
+}
+
+//============================================
+// 压力测试控制台NPC
+//============================================
+
+1@pop3,56,41,2	script	战力压力测试控制台	100,{
+    mes "[战力系统 - 压力测试控制台]";
+    mes "========================================";
+    mes "本控制台用于战力系统的压力测试和性能监控";
+    mes "========================================";
+    next;
+    
+    switch(select("执行全服战力扫描", "更新战力榜镜像", "优化数据库表", "清除战力数据", "查看性能统计", "返回")) {
+    case 1:
+        mes "[压力测试] 全服战力扫描";
+        mes "确定要执行全服玩家战力扫描吗？";
+        mes "这将对服务器造成较大压力！";
+        next;
+        if (select("开始扫描", "取消") == 1) {
+            set .@start_time, gettimetick(2);
+            callfunc "ScanAllPlayersCombatPower";
+            set .@end_time, gettimetick(2);
+            set .@duration, .@end_time - .@start_time;
+            mes "[压力测试] 扫描完成！";
+            mes "耗时: " + .@duration + " 毫秒";
+            next;
+        }
+        close;
+        
+    case 2:
+        mes "[压力测试] 更新战力榜镜像";
+        mes "确定要更新战力榜镜像吗？";
+        next;
+        if (select("开始更新", "取消") == 1) {
+            set .@start_time, gettimetick(2);
+            callfunc "UpdateCombatPowerMirrors";
+            set .@end_time, gettimetick(2);
+            set .@duration, .@end_time - .@start_time;
+            mes "[压力测试] 镜像更新完成！";
+            mes "耗时: " + .@duration + " 毫秒";
+            next;
+        }
+        close;
+        
+    case 3:
+        mes "[压力测试] 优化数据库表";
+        mes "确定要优化所有战力相关的数据库表吗？";
+        next;
+        if (select("开始优化", "取消") == 1) {
+            set .@start_time, gettimetick(2);
+            callfunc "OptimizeCombatPowerTables";
+            set .@end_time, gettimetick(2);
+            set .@duration, .@end_time - .@start_time;
+            mes "[压力测试] 数据库表优化完成！";
+            mes "耗时: " + .@duration + " 毫秒";
+            next;
+        }
+        close;
+        
+    case 4:
+        mes "[压力测试] 清除战力数据";
+        mes "警告: 这将清除所有玩家的战力数据！";
+        mes "确定要继续吗？";
+        next;
+        if (select("确认清除", "取消") == 1) {
+            set .@start_time, gettimetick(2);
+            callfunc "ClearCombatPowerData";
+            set .@end_time, gettimetick(2);
+            set .@duration, .@end_time - .@start_time;
+            mes "[压力测试] 数据清除完成！";
+            mes "耗时: " + .@duration + " 毫秒";
+            next;
+        }
+        close;
+        
+    case 5:
+        callfunc "DisplayPerformanceStats";
+        close;
+        
+    case 6:
+        close;
+    }
+}
+
+//============================================
+// 压力测试相关函数
+//============================================
+
+// 打开压力测试控制台
+function	script	OpenStressTestConsole	{
+    mes "[战力系统 - 压力测试控制台]";
+    mes "========================================";
+    mes "本控制台用于战力系统的压力测试和性能监控";
+    mes "========================================";
+    next;
+    
+    switch(select("执行全服战力扫描", "更新战力榜镜像", "优化数据库表", "清除战力数据", "查看性能统计", "返回")) {
+    case 1:
+        mes "[压力测试] 全服战力扫描";
+        mes "确定要执行全服玩家战力扫描吗？";
+        mes "这将对服务器造成较大压力！";
+        next;
+        if (select("开始扫描", "取消") == 1) {
+            set .@start_time, gettimetick(2);
+            callfunc "ScanAllPlayersCombatPower";
+            set .@end_time, gettimetick(2);
+            set .@duration, .@end_time - .@start_time;
+            mes "[压力测试] 扫描完成！";
+            mes "耗时: " + .@duration + " 毫秒";
+            next;
+        }
+        close;
+        
+    case 2:
+        mes "[压力测试] 更新战力榜镜像";
+        mes "确定要更新战力榜镜像吗？";
+        next;
+        if (select("开始更新", "取消") == 1) {
+            set .@start_time, gettimetick(2);
+            callfunc "UpdateCombatPowerMirrors";
+            set .@end_time, gettimetick(2);
+            set .@duration, .@end_time - .@start_time;
+            mes "[压力测试] 镜像更新完成！";
+            mes "耗时: " + .@duration + " 毫秒";
+            next;
+        }
+        close;
+        
+    case 3:
+        mes "[压力测试] 优化数据库表";
+        mes "确定要优化所有战力相关的数据库表吗？";
+        next;
+        if (select("开始优化", "取消") == 1) {
+            set .@start_time, gettimetick(2);
+            callfunc "OptimizeCombatPowerTables";
+            set .@end_time, gettimetick(2);
+            set .@duration, .@end_time - .@start_time;
+            mes "[压力测试] 数据库表优化完成！";
+            mes "耗时: " + .@duration + " 毫秒";
+            next;
+        }
+        close;
+        
+    case 4:
+        mes "[压力测试] 清除战力数据";
+        mes "警告: 这将清除所有玩家的战力数据！";
+        mes "确定要继续吗？";
+        next;
+        if (select("确认清除", "取消") == 1) {
+            set .@start_time, gettimetick(2);
+            callfunc "ClearCombatPowerData";
+            set .@end_time, gettimetick(2);
+            set .@duration, .@end_time - .@start_time;
+            mes "[压力测试] 数据清除完成！";
+            mes "耗时: " + .@duration + " 毫秒";
+            next;
+        }
+        close;
+        
+    case 5:
+        callfunc "DisplayPerformanceStats";
+        close;
+        
+    case 6:
+        close;
+    }
+    
+    return;
+}
+
+// 优化数据库表
+function	script	OptimizeCombatPowerTables	{
+    // 优化所有战力相关的数据库表
+    query_sql "OPTIMIZE TABLE `power_equipment_data`";
+    query_sql "OPTIMIZE TABLE `power_ranking`";
+    query_sql "OPTIMIZE TABLE `power_equipment_scores`";
+    query_sql "OPTIMIZE TABLE `power_mirrors`";
+    query_sql "OPTIMIZE TABLE `power_update_logs`";
+    query_sql "OPTIMIZE TABLE `power_system_logs`";
+    
+    return 1;
+}
+
+// 清除战力数据
+function	script	ClearCombatPowerData	{
+    // 清除所有战力相关的数据
+    query_sql "DELETE FROM `power_equipment_data`";
+    query_sql "DELETE FROM `power_ranking`";
+    query_sql "DELETE FROM `power_equipment_scores`";
+    query_sql "DELETE FROM `power_mirrors`";
+    query_sql "DELETE FROM `power_update_logs`";
+    
+    // 重置战力榜镜像
+    callfunc "ResetCombatPowerMirrorAppearance", 1;
+    callfunc "ResetCombatPowerMirrorAppearance", 2;
+    callfunc "ResetCombatPowerMirrorAppearance", 3;
+    
+    return 1;
+}
+
+// 查看性能统计
+function	script	DisplayPerformanceStats	{
+    mes "[战力系统 - 性能统计]";
+    mes "========================================";
+    
+    // 查询玩家数量
+    set .@player_count, query_sql("SELECT COUNT(*) FROM `char` WHERE online = 1", .@online_players);
+    set .@total_count, query_sql("SELECT COUNT(*) FROM `char`", .@total_players);
+    
+    // 查询战力数据统计
+    set .@ranking_count, query_sql("SELECT COUNT(*) FROM `power_ranking`", .@ranked_players);
+    set .@equipment_count, query_sql("SELECT COUNT(*) FROM `power_equipment_data`", .@equipment_records);
+    set .@score_count, query_sql("SELECT COUNT(*) FROM `power_equipment_scores`", .@score_records);
+    
+    mes "玩家统计:";
+    mes "在线玩家: " + .@online_players + " / " + .@total_players;
+    mes "战力排名玩家: " + .@ranked_players;
+    mes "----------------------------------------";
+    mes "数据统计:";
+    mes "装备数据记录: " + .@equipment_records;
+    mes "装备评分记录: " + .@score_records;
+    mes "----------------------------------------";
+    mes "性能建议:";
+    mes "1. 定期优化数据库表";
+    mes "2. 控制全服扫描频率";
+    mes "3. 监控服务器资源使用";
+    next;
+    
+    return;
+}
+
+//============================================
+// 自动扫描触发器
+//============================================
+
+-	script	CombatPowerScanner	-1,{
+    OnInit:
+        // 初始化定时器，设置30分钟和6小时定时器
+        initnpctimer;
+        end;
+        
+    OnTimer1800000: // 30分钟定时器
+        // 30分钟自动刷新排行榜和镜像信息
+        announce "【系统公告】开始刷新战力排行榜和镜像信息...", bc_all;
+        // 更新排行榜排名
+        callfunc "UpdateRankingOrder";
+        // 更新战力榜镜像
+        callfunc "UpdateCombatPowerMirrors";
+        announce "【系统公告】战力排行榜和镜像信息已刷新！", bc_all;
+        // 重新设置30分钟定时器
+        initnpctimer;
+        end;
+        
+    OnTimer21600000: // 6小时定时器
+        // 6小时执行全服扫描
+        announce "【系统公告】开始自动扫描全服玩家装备战力...", bc_all;
+        callfunc "ScanAllPlayersCombatPower";
+        // 更新战力榜镜像
+        callfunc "UpdateCombatPowerMirrors";
+        announce "【系统公告】全服玩家战力扫描完成！", bc_all;
+        // 重新设置6小时定时器
+        initnpctimer;
+        end;
+        
+    OnHour00:
+    OnHour06:
+    OnHour12:
+    OnHour18:
+        announce "【系统公告】开始自动扫描全服玩家装备战力...", bc_all;
+        callfunc "ScanAllPlayersCombatPower";
+        // 更新战力榜镜像
+        callfunc "UpdateCombatPowerMirrors";
+        announce "【系统公告】全服玩家战力扫描完成！", bc_all;
+        end;
+        
+    // 30分钟自动刷新排行榜和镜像信息
+    OnMinute30:
+    OnMinute00:
+        // 只刷新排行榜和镜像，不执行全服扫描
+        announce "【系统公告】开始刷新战力排行榜和镜像信息...", bc_all;
+        // 更新排行榜排名
+        callfunc "UpdateRankingOrder";
+        // 更新战力榜镜像
+        callfunc "UpdateCombatPowerMirrors";
+        announce "【系统公告】战力排行榜和镜像信息已刷新！", bc_all;
+        end;
+}
+
+// 启动自动扫描功能
+function	script	StartCombatPowerScanner	{
+    // 检查当前是否有玩家关联（隐藏NPC没有玩家关联）
+    if (getcharid(0) == 0) {
+        // 在隐藏NPC中，使用initnpctimer来启动定时器
+        initnpctimer "CombatPowerScanner";
+        return 1;
+    } else {
+        // 在有玩家关联的情况下，使用addtimer
+        addtimer 1800000, "CombatPowerScanner::OnMinute30";
+        addtimer 21600000, "CombatPowerScanner::OnHour06";
+        return 1;
+    }
+}
+
+//============================================
+// 玩家登录自动更新
+//============================================
+
+-	script	LoginCombatUpdate	-1,{
+    OnPCLoginEvent:
+        addtimer 5000, strnpcinfo(0) + "::OnLoginUpdate";
+        end;
+        
+    OnLoginUpdate:
+        if (isloggedin(getcharid(0))) {
+            // 直接调用战力更新函数，函数内部会处理消息显示
+            if (callfunc("ShouldUpdateCombatPower", getcharid(0))) {
+                callfunc "UpdatePlayerCombatPower", getcharid(0);
+            } else {
+                // 如果不需要更新战力，显示当前战力信息
+                callfunc "DisplayPlayerCombatInfoOnLogin";
+            }
+        }
+        end;
+}
+
+//============================================
+// 装备穿脱事件处理
+//============================================
+
+-	script	EquipEventProcessor	-1,{
+    OnPCEquipEvent:
+        // 装备穿戴后触发，更新战力并显示提示
+        set .@equip_idx, @equip_idx;
+        set .@item_id, getinventoryinfo(.@equip_idx, 0);
+        set .@item_name$, getitemname(.@item_id);
+        
+        // 保存穿戴前的战力
+        set .@old_score, callfunc("GetPlayerCurrentCombatScore");
+        
+        // 更新战力
+        set .@new_score, callfunc("UpdatePlayerCombatPower", getcharid(0));
+        
+        // 计算战力变化
+        set .@diff, .@new_score - .@old_score;
+        
+        // 显示穿戴提示
+        dispbottom "[战力系统] 您穿戴了: " + .@item_name$ + " 战力变化: +" + .@diff + " 总战力: " + .@new_score;
+        
+        // 更新排行榜
+        callfunc "UpdateRankingOrder";
+        
+        end;
+    
+    OnPCUnequipEvent:
+        // 装备脱掉后触发，更新战力并显示提示
+        set .@unequip_idx, @unequip_idx;
+        set .@item_id, getinventoryinfo(.@unequip_idx, 0);
+        set .@item_name$, getitemname(.@item_id);
+        
+        // 保存脱掉前的战力
+        set .@old_score, callfunc("GetPlayerCurrentCombatScore");
+        
+        // 更新战力
+        set .@new_score, callfunc("UpdatePlayerCombatPower", getcharid(0));
+        
+        // 计算战力变化
+        set .@diff, .@old_score - .@new_score;
+        
+        // 显示脱掉提示
+        dispbottom "[战力系统] 您脱掉了: " + .@item_name$ + " 战力变化: -" + .@diff + " 总战力: " + .@new_score;
+
+        
+        // 更新排行榜
+        callfunc "UpdateRankingOrder";
+        
+        end;
+}
+
+//============================================
+// 核心功能函数
+//============================================
+
+// 更新玩家装备数据到数据库
+function	script	UpdatePlayerEquipmentData	{
+    set .@char_id, getarg(0);
+    set .@char_name$, strcharinfo(0);
+    
+    // 收集玩家当前装备信息
+    setarray .@equip_slots[0], EQI_HEAD_TOP, EQI_HEAD_MID, EQI_HEAD_LOW, EQI_HAND_R, EQI_ARMOR, 
+                              EQI_GARMENT, EQI_HAND_L, EQI_SHOES, EQI_ACC_L, EQI_ACC_R,
+                              EQI_COSTUME_HEAD_TOP, EQI_COSTUME_HEAD_MID, EQI_COSTUME_HEAD_LOW, 
+                              EQI_COSTUME_GARMENT, EQI_SHADOW_ARMOR, EQI_SHADOW_WEAPON, 
+                              EQI_SHADOW_SHIELD, EQI_SHADOW_SHOES, EQI_SHADOW_ACC_L, EQI_SHADOW_ACC_R;
+    
+    setarray .@equip_fields$[0], "head_top", "head_mid", "head_low", "weapon", "armor", 
+                                "garment", "shield", "shoes", "acc_left", "acc_right",
+                                "costume_head_top", "costume_head_mid", "costume_head_low", 
+                                "costume_garment", "shadow_armor", "shadow_weapon", 
+                                "shadow_shield", "shadow_shoes", "shadow_acc_left", "shadow_acc_right";
+    
+    // 构建SQL更新语句
+    set .@sql$, "REPLACE INTO `power_equipment_data` (char_id, char_name";
+    set .@values$, ") VALUES (" + .@char_id + ", '" + callfunc("escape_sql", .@char_name$) + "'";
+    
+    for (set .@i, 0; .@i < getarraysize(.@equip_slots); set .@i, .@i + 1) {
+        set .@item_id, getequipid(.@equip_slots[.@i]);
+        set .@sql$, .@sql$ + ", " + .@equip_fields$[.@i];
+        set .@values$, .@values$ + ", " + .@item_id;
+    }
+    
+    set .@sql$, .@sql$ + .@values$ + ")";
+    
+    // 执行SQL更新
+    query_sql(.@sql$);
+    
+    return 1;
+}
+
+
+// 更新玩家战力计算
+function	script	UpdatePlayerCombatPower	{
+    set .@char_id, getarg(0);
+    
+    // 首先更新装备数据
+    callfunc "UpdatePlayerEquipmentData", .@char_id;
+    
+    // 计算战力分数
+    set .@total_score, 0;
+    set .@equipped_count, 0;
+    
+    // 清空之前的详细分数记录
+    query_sql "DELETE FROM `power_equipment_scores` WHERE char_id = " + .@char_id;
+    
+    // 定义装备检测数组
+    setarray .@equip_slots[0], EQI_HEAD_TOP, EQI_HEAD_MID, EQI_HEAD_LOW, EQI_HAND_R, EQI_ARMOR, 
+                              EQI_GARMENT, EQI_HAND_L, EQI_SHOES, EQI_ACC_L, EQI_ACC_R,
+                              EQI_COSTUME_HEAD_TOP, EQI_COSTUME_HEAD_MID, EQI_COSTUME_HEAD_LOW, 
+                              EQI_COSTUME_GARMENT, EQI_SHADOW_ARMOR, EQI_SHADOW_WEAPON, 
+                              EQI_SHADOW_SHIELD, EQI_SHADOW_SHOES, EQI_SHADOW_ACC_L, EQI_SHADOW_ACC_R;
+    
+    setarray .@equip_names$[0], "头上", "头中", "头下", "武器", "盔甲", "披风", "副手", "鞋子", 
+                               "左饰品", "右饰品", "时装头上", "时装头中", "时装头下", "时装披风",
+                               "影装盔甲", "影装武器", "影装副手", "影装鞋子", "影装左饰品", "影装右饰品";
+    
+    setarray .@score_functions[0], 6, 6, 6, 0, 1, 3, 2, 3, 4, 4, 7, 7, 7, 7, 5, 5, 5, 5, 5, 5;
+    
+    // 计算每个装备的分数
+    for (set .@i, 0; .@i < getarraysize(.@equip_slots); set .@i, .@i + 1) {
+        if (getequipid(.@equip_slots[.@i]) > 0) {
+            set .@item_id, getequipid(.@equip_slots[.@i]);
+            set .@base_score, 0;
+            set .@refine_score, 0;
+            set .@card_score, 0;
+            set .@enchant_score, 0;
+            set .@random_score, 0;
+            set .@slot_score, 0;
+            
+            // 基础分数计算
+            switch(.@score_functions[.@i]) {
+                case 0: set .@base_score, callfunc("CalculateWeaponScore", .@item_id, .@equip_slots[.@i]); break;
+                case 1: set .@base_score, callfunc("CalculateArmorScore", .@item_id, .@equip_slots[.@i]); break;
+                case 2: set .@base_score, callfunc("CalculateOffhandScore", .@item_id, .@equip_slots[.@i]); break;
+                case 3: set .@base_score, callfunc("CalculateGarmentScore", .@item_id, .@equip_slots[.@i]); break;
+                case 4: set .@base_score, callfunc("CalculateAccessoryScore", .@item_id, .@equip_slots[.@i]); break;
+                case 5: set .@base_score, callfunc("CalculateShadowScore", .@item_id, .@equip_slots[.@i]); break;
+                case 6: set .@base_score, callfunc("CalculateHeadgearScore", .@item_id, .@equip_slots[.@i]); break;
+                case 7: set .@base_score, callfunc("CalculateCostumeScore", .@item_id, .@equip_slots[.@i]); break;
+            }
+            
+            // 额外属性分数
+            set .@card_score, callfunc("CalculateCardScore", .@equip_slots[.@i]);
+            set .@enchant_score, callfunc("CalculateEnchantmentScore", .@equip_slots[.@i]);
+            // 修复：传递正确的装备位置参数
+            set .@random_score, callfunc("CalculateRandomOptionScore", .@equip_slots[.@i]);
+            
+            set .@slot_score, .@base_score + .@card_score + .@enchant_score + .@random_score;
+            set .@total_score, .@total_score + .@slot_score;
+            set .@equipped_count, .@equipped_count + 1;
+            
+            // 保存详细分数到数据库
+            query_sql "INSERT INTO `power_equipment_scores` (char_id, slot_type, item_id, item_name, base_score, card_score, enchant_score, random_score, total_score) VALUES (" + 
+                     .@char_id + ", '" + .@equip_names$[.@i] + "', " + .@item_id + ", '" + callfunc("escape_sql", getitemname(.@item_id)) + "', " + 
+                     .@base_score + ", " + .@card_score + ", " + .@enchant_score + ", " + .@random_score + ", " + .@slot_score + ")";
+        }
+    }
+    
+    // 更新战力排行表
+    set .@rating$, callfunc("GetCombatRating", .@total_score);
+    set .@char_name$, strcharinfo(0);
+    set .@current_time$, "CURRENT_TIMESTAMP";
+    
+    query_sql "REPLACE INTO `power_ranking` (char_id, char_name, total_score, combat_rating, equipment_count, last_calculation) VALUES (" + 
+             .@char_id + ", '" + callfunc("escape_sql", .@char_name$) + "', " + .@total_score + ", '" + .@rating$ + "', " + .@equipped_count + ", " + .@current_time$ + ")";
+    
+    // 更新排行榜排名
+    callfunc "UpdateRankingOrder";
+    
+    // 更新战力榜镜像（如果玩家是前三名）
+    callfunc "UpdateCombatPowerMirrors";
+    
+    // 发送更新完成消息
+    if (isloggedin(.@char_id)) {
+        dispbottom "[战力系统] 战力更新完成！当前战力: " + .@total_score + "分 (" + .@rating$ + ")";
+    }
+    
+    return .@total_score;
+}
+
+// 扫描全服玩家战力
+function	script	ScanAllPlayersCombatPower	{
+    // 保存当前玩家上下文
+    set .@original_rid, getcharid(3);
+    
+    // 优化查询：使用索引优化在线玩家查询，限制查询范围避免全表扫描
+    set .@count, query_sql("SELECT char_id FROM `char` WHERE online = 1 AND char_id > 0 ORDER BY char_id ASC", .@char_ids);
+    
+    if (.@count == 0) {
+        return 0;
+    }
+    
+    // 批量更新在线玩家
+    for (set .@i, 0; .@i < .@count; set .@i, .@i + 1) {
+        // 使用attachrid切换到每个玩家上下文
+        attachrid .@char_ids[.@i];
+        if (isloggedin(.@char_ids[.@i])) {
+            callfunc "UpdatePlayerCombatPower", .@char_ids[.@i];
+        }
+        detachrid;
+        
+        // 每处理10个玩家休息一下，避免服务器卡顿
+        if (.@i % 10 == 0) {
+            sleep 100;
+        }
+    }
+    
+    // 恢复原始玩家上下文
+    attachrid .@original_rid;
+    
+    // 更新战力榜镜像
+    callfunc "UpdateCombatPowerMirrors";
+    
+    return .@count;
+}
+
+// 更新排行榜顺序
+function	script	UpdateRankingOrder	{
+    // 使用SQL更新排名，在SQL层面自动完成统计和排行
+    query_sql "SET @rank = 0";
+    query_sql "UPDATE power_ranking SET ranking = (@rank := @rank + 1), " +
+             "previous_ranking = ranking, " +
+             "ranking_change = ranking - previous_ranking " +
+             "ORDER BY total_score DESC, last_calculation DESC " +
+             "LIMIT 1000";
+    
+    // 更新战力榜镜像
+    callfunc "UpdateCombatPowerMirrors";
+    
+    return 1;
+}
+
+// 显示战力排行榜
+function	script	DisplayCombatRanking	{
+    set .@page, getarg(0, 0);
+    set .@per_page, 10;
+    set .@start, .@page * .@per_page;
+    
+    mes "[战力排行榜]";
+    mes "全服玩家装备战力排行";
+    mes "更新时间: " + callfunc("GetLastUpdateTime");
+    mes "==============================";
+    
+    // 优化查询：使用复合索引优化分页查询
+    set .@count, query_sql("SELECT char_name, total_score, combat_rating, ranking FROM power_ranking WHERE ranking > 0 ORDER BY ranking ASC, total_score DESC LIMIT " + .@start + ", " + .@per_page, 
+                          .@names$, .@scores, .@ratings$, .@rankings);
+    
+    if (.@count == 0) {
+        mes "暂无排行数据。";
+        mes "请等待系统自动扫描或手动更新。";
+        close;
+    }
+    
+    for (set .@i, 0; .@i < .@count; set .@i, .@i + 1) {
+        mes "第" + .@rankings[.@i] + "名: " + .@names$[.@i];
+        mes "战力: " + .@scores[.@i] + "分 - 评级: " + .@ratings$[.@i];
+        mes "------------------------------";
+    }
+    
+    // 分页导航
+    if (.@count == .@per_page) {
+        next;
+        if (select("下一页", "返回") == 1) {
+            callfunc "DisplayCombatRanking", .@page + 1;
+        }
+    }
+    
+    return 1;
+}
+
+// 显示玩家战力详情
+function	script	DisplayPlayerDetails	{
+    set .@char_id, getarg(0);
+    
+    mes "[我的战力详情]";
+    mes "玩家: " + strcharinfo(0);
+    
+    // 优化查询：使用主键查询
+    set .@count, query_sql("SELECT total_score, combat_rating, equipment_count, ranking FROM power_ranking WHERE char_id = " + .@char_id, 
+                          .@total_score, .@rating$, .@eq_count, .@ranking);
+    
+    if (.@count == 0) {
+        mes "暂无战力数据。";
+        mes "请先更新您的战力。";
+        close;
+    }
+    
+    mes "总战力: " + .@total_score + "分";
+    mes "战力评级: " + .@rating$;
+    mes "穿戴装备: " + .@eq_count + "件";
+    mes "全服排名: 第" + .@ranking + "名";
+    mes "==============================";
+    
+    // 优化查询：使用复合索引查询装备详情
+    set .@detail_count, query_sql("SELECT slot_type, item_name, total_score, base_score, card_score, enchant_score, random_score FROM power_equipment_scores WHERE char_id = " + .@char_id + " ORDER BY total_score DESC LIMIT 20", 
+                                 .@slots$, .@items$, .@scores, .@bases, .@cards, .@enchants, .@randoms);
+    
+    if (.@detail_count > 0) {
+        mes "装备详情:";
+        for (set .@i, 0; .@i < .@detail_count; set .@i, .@i + 1) {
+            mes .@slots$[.@i] + ": " + .@items$[.@i];
+            mes "  分数: " + .@scores[.@i] + " (基础:" + .@bases[.@i] + " 卡片:" + .@cards[.@i] + " 附魔:" + .@enchants[.@i] + " 随机:" + .@randoms[.@i] + ")";
+        }
+    }
+    
+    close;
+}
+
+// 显示玩家登录时的战力信息
+function	script	DisplayPlayerCombatInfoOnLogin	{
+    set .@char_id, getcharid(0);
+    set .@char_name$, strcharinfo(0);
+    
+    // 查询玩家当前战力信息
+    set .@count, query_sql("SELECT total_score, combat_rating, ranking FROM power_ranking WHERE char_id = " + .@char_id, 
+                          .@total_score, .@rating$, .@ranking);
+    
+    if (.@count > 0) {
+        // 显示战力信息
+        dispbottom "[战力系统] 欢迎回来，" + .@char_name$ + "！";
+        dispbottom "[战力系统] 当前战力: " + .@total_score + "分 (" + .@rating$ + ")";
+        dispbottom "[战力系统] 全服排名: 第" + .@ranking + "名";
+    } else {
+        // 首次登录，更新战力
+        callfunc "UpdatePlayerCombatPower", .@char_id;
+    }
+    
+    return;
+}
+
+// 获取玩家当前战力分数
+function	script	GetPlayerCurrentCombatScore	{
+    set .@char_id, getcharid(0);
+    set .@score, 0;
+    
+    // 查询玩家当前战力分数
+    set .@count, query_sql("SELECT total_score FROM power_ranking WHERE char_id = " + .@char_id, .@score);
+    
+    if (.@count == 0) {
+        // 如果没有数据，返回0
+        return 0;
+    }
+    
+    return .@score;
+}
+
+// =============================================
+// 工具函数
+//============================================
+
+function	script	GetLastUpdateTime	{
+    // 优化查询：使用索引优化时间查询，避免全表扫描
+    set .@count, query_sql("SELECT DATE_FORMAT(last_calculation, '%Y-%m-%d %H:%i:%s') FROM power_ranking ORDER BY last_calculation DESC LIMIT 1", .@last_time$);
+    if (.@count > 0) {
+        return .@last_time$;
+    }
+    return "未知";
+}
+
+function	script	ShouldUpdateCombatPower	{
+    set .@char_id, getarg(0);
+    // 优化查询：使用主键查询，避免不必要的计算
+    set .@count, query_sql("SELECT last_calculation FROM power_ranking WHERE char_id = " + .@char_id, .@last_calc$);
+    
+    if (.@count == 0) {
+        return 1;
+    }
+    
+    // 使用数据库函数计算时间差（24小时）
+    set .@count, query_sql("SELECT COUNT(*) FROM power_ranking WHERE char_id = " + .@char_id + " AND TIMESTAMPDIFF(HOUR, last_calculation, NOW()) >= 24", .@needs_update);
+    
+    if (.@needs_update > 0) {
+        return 1;
+    }
+    return 0;
+}
+
+// 修复：正确的字符串转义函数
+function	script	escape_sql	{
+    set .@str$, getarg(0);
+    // 修复：使用正确的字符串替换方法
+    set .@result$, "";
+    for (set .@i, 0; .@i < getstrlen(.@str$); set .@i, .@i + 1) {
+        set .@char$, charat(.@str$, .@i);
+        if (.@char$ == "'") {
+            set .@result$, .@result$ + "''";
+        } else if (.@char$ == "\\") {
+            set .@result$, .@result$ + "\\\\";
+        } else {
+            set .@result$, .@result$ + .@char$;
+        }
+    }
+    return .@result$;
+}
+
+// =============================================
+// 数据库查询性能监控函数
+//============================================
+
+function	script	MonitorQueryPerformance	{
+    set .@query_type, getarg(0);
+    set .@start_time, gettimetick(2);
+    
+    // 执行查询
+    set .@result, getarg(1);
+    
+    set .@end_time, gettimetick(2);
+    set .@execution_time, .@end_time - .@start_time;
+    
+    // 记录慢查询（超过1秒）
+    if (.@execution_time > 1000) {
+        debugmes "[性能监控] 慢查询警告: " + .@query_type + " 执行时间: " + .@execution_time + "ms";
+    }
+    
+    return .@result;
+}
+
+// 优化的查询执行函数
+function	script	ExecuteOptimizedQuery	{
+    set .@query$, getarg(0);
+    set .@query_type, getarg(1, "general");
+    
+    // 性能监控
+    set .@start_time, gettimetick(2);
+    set .@result, query_sql(.@query$);
+    set .@end_time, gettimetick(2);
+    
+    set .@execution_time, .@end_time - .@start_time;
+    
+    // 记录慢查询
+    if (.@execution_time > 500) {
+        debugmes "[性能监控] 查询类型: " + .@query_type + " 执行时间: " + .@execution_time + "ms";
+    }
+    
+    return .@result;
+}
+
+// =============================================
+// 原战力计算函数（保持不变）
+//============================================
+
+// 战力评级函数
+function	script	GetCombatRating	{
+    if (getarg(0) >= 200000) return "SSS+";
+    if (getarg(0) >= 100000) return "SSS";
+    if (getarg(0) >= 80000) return "SS";
+    if (getarg(0) >= 60000) return "S";
+    if (getarg(0) >= 40000) return "A";
+    if (getarg(0) >= 20000) return "B";
+    if (getarg(0) >= 1000) return "C";
+    return "D";
+}
+
+// 增强版武器战力计算函数
+function	script	CalculateWeaponScore	{
+    set .@item_id, getarg(0);
+    set .@equip_slot, getarg(1);
+    
+    // 正确获取装备等级
+    set .@grade, getiteminfo(.@item_id, 24); // ITEMINFO_WEAPONLEVEL
+    // 完整的武器等级判断逻辑
+    if (.@grade == 1) set .@grade, 1;
+    else if (.@grade == 2) set .@grade, 2;
+    else if (.@grade == 3) set .@grade, 3;
+    else if (.@grade == 4) set .@grade, 4;
+    else if (.@grade <= 0) set .@grade, 1;
+    else if (.@grade > 4) set .@grade, 4;
+    
+    // 获取装备类型
+    set .@type, getiteminfo(.@item_id, 5); // ITEMINFO_TYPE
+    
+    // 获取精炼值
+    set .@refine, getequiprefinerycnt(.@equip_slot);
+    
+    // 获取装备属性加成
+    set .@atk, getiteminfo(.@item_id, 11); // ATK
+    set .@matk, getiteminfo(.@item_id, 12); // MATK
+    
+    // 获取基础属性加成
+    set .@str_bonus, getiteminfo(.@item_id, 91); // STR
+    set .@agi_bonus, getiteminfo(.@item_id, 92); // AGI
+    set .@vit_bonus, getiteminfo(.@item_id, 93); // VIT
+    set .@int_bonus, getiteminfo(.@item_id, 94); // INT
+    set .@dex_bonus, getiteminfo(.@item_id, 95); // DEX
+    set .@luk_bonus, getiteminfo(.@item_id, 96); // LUK
+    
+    // 如果属性加成是负数，设为0（不扣分）
+    if (.@str_bonus < 0) set .@str_bonus, 0;
+    if (.@agi_bonus < 0) set .@agi_bonus, 0;
+    if (.@vit_bonus < 0) set .@vit_bonus, 0;
+    if (.@int_bonus < 0) set .@int_bonus, 0;
+    if (.@dex_bonus < 0) set .@dex_bonus, 0;
+    if (.@luk_bonus < 0) set .@luk_bonus, 0;
+    
+    // 基础分数：等级 * 120 + 精炼 * 45
+    set .@base_score, (.@grade * 120) + (.@refine * 45);
+    
+    // ATK和MATK加成：每点ATK/MATK加6分
+    if (.@atk < 0) set .@atk, 0;
+    if (.@matk < 0) set .@matk, 0;
+    set .@atk_score, (.@atk + .@matk) * 6;
+    
+    // 属性加成分数：每点属性加3分
+    set .@stat_score, (.@str_bonus + .@agi_bonus + .@vit_bonus + .@int_bonus + .@dex_bonus + .@luk_bonus) * 3;
+    
+    // 武器类型加成
+    if (.@type >= 4 && .@type <= 22) {
+        setarray .@weapon_type_bonus[0], 1, 2, 3, 1, 2, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 2, 1;
+        set .@type_bonus, .@weapon_type_bonus[.@type - 4];
+    } else {
+        set .@type_bonus, 0;
+    }
+    
+    // 计算总分
+    set .@total_score, .@base_score + .@atk_score + .@stat_score + .@type_bonus;
+    
+    // 确保最低分数为20分
+    if (.@total_score < 20) set .@total_score, 20;
+    
+    return .@total_score;
+}
+
+// 增强版防具计算函数
+function	script	CalculateArmorScore	{
+    set .@item_id, getarg(0);
+    set .@equip_slot, getarg(1);
+    set .@base_multiplier, getarg(2, 12); // 默认盔甲系数
+    set .@refine_multiplier, getarg(3, 6); // 默认精炼系数
+    
+    set .@grade, getiteminfo(.@item_id, 11); // 装备等级
+    if (.@grade <= 0) set .@grade, 1; // 确保等级至少为1
+    
+    set .@refine, getequiprefinerycnt(.@equip_slot);
+    
+    // 获取防御属性
+    set .@def, getiteminfo(.@item_id, 18); // DEF
+    set .@mdef, getiteminfo(.@item_id, 19); // MDEF
+    
+    if (.@def < 0) set .@def, 0;
+    if (.@mdef < 0) set .@mdef, 0;
+    
+    // 获取基础属性加成
+    set .@str_bonus, getiteminfo(.@item_id, 91); // STR
+    set .@agi_bonus, getiteminfo(.@item_id, 92); // AGI
+    set .@vit_bonus, getiteminfo(.@item_id, 93); // VIT
+    set .@int_bonus, getiteminfo(.@item_id, 94); // INT
+    set .@dex_bonus, getiteminfo(.@item_id, 95); // DEX
+    set .@luk_bonus, getiteminfo(.@item_id, 96); // LUK
+    
+    // 如果属性加成是负数，设为0（不扣分）
+    if (.@str_bonus < 0) set .@str_bonus, 0;
+    if (.@agi_bonus < 0) set .@agi_bonus, 0;
+    if (.@vit_bonus < 0) set .@vit_bonus, 0;
+    if (.@int_bonus < 0) set .@int_bonus, 0;
+    if (.@dex_bonus < 0) set .@dex_bonus, 0;
+    if (.@luk_bonus < 0) set .@luk_bonus, 0;
+    
+    // 基础分数：等级 * 系数 * 3 + 精炼 * 精炼系数 * 3
+    set .@base_score, (.@grade * .@base_multiplier * 3) + (.@refine * .@refine_multiplier * 3);
+    
+    // DEF和MDEF加成：每点DEF/MDEF加6分
+    set .@def_score, (.@def + .@mdef) * 6;
+    
+    // 属性加成分数：每点属性加3分
+    set .@stat_score, (.@str_bonus + .@agi_bonus + .@vit_bonus + .@int_bonus + .@dex_bonus + .@luk_bonus) * 3;
+    
+    // 计算总分
+    set .@total_score, .@base_score + .@def_score + .@stat_score;
+    
+    return .@total_score;
+}
+
+// 副手装备战力计算函数
+function	script	CalculateOffhandScore	{
+    return callfunc("CalculateArmorScore", getarg(0), getarg(1), 10, 5);
+}
+
+// 披风战力计算函数
+function	script	CalculateGarmentScore	{
+    return callfunc("CalculateArmorScore", getarg(0), getarg(1), 8, 4);
+}
+
+// 鞋子战力计算函数
+function	script	CalculateShoesScore	{
+    return callfunc("CalculateArmorScore", getarg(0), getarg(1), 8, 4);
+}
+
+// 饰品战力计算函数
+function	script	CalculateAccessoryScore	{
+    return callfunc("CalculateArmorScore", getarg(0), getarg(1), 6, 3);
+}
+
+// 头饰战力计算函数
+function	script	CalculateHeadgearScore	{
+    return callfunc("CalculateArmorScore", getarg(0), getarg(1), 8, 4);
+}
+
+// 影装战力计算函数
+function	script	CalculateShadowScore	{
+    return callfunc("CalculateArmorScore", getarg(0), getarg(1), 10, 5);
+}
+
+// 时装战力计算函数
+function	script	CalculateCostumeScore	{
+    return callfunc("CalculateArmorScore", getarg(0), getarg(1), 5, 2);
+}
+
+// ============ 卡片属性战力计算函数 ============
+function	script	CalculateCardScore	{
+    set .@equip_slot, getarg(0);
+    set .@total_card_score, 0;
+    
+    // 根据装备类型确定卡片槽位范围
+    if (.@equip_slot == EQI_HAND_R) {
+        // 武器：检测所有可能的卡片槽位（0-3）
+        for (set .@slot, 0; .@slot <= 3; set .@slot, .@slot + 1) {
+            set .@card_id, getequipcardid(.@equip_slot, .@slot);
+            
+            if (.@card_id > 0 && .@card_id < 5000) { // 确保是有效的卡片ID
+                // 更精确地排除附魔卡片
+                if (!callfunc("IsEnchantmentCard", .@card_id)) {
+                    set .@card_score, callfunc("GetCardValue", .@card_id);
+                    set .@total_card_score, .@total_card_score + .@card_score;
+                    
+                    // 调试信息：显示检测到的武器卡片
+                    if (isloggedin(getcharid(0))) {
+                        debugmes "[卡片检测] 武器槽位 " + .@slot + ": 卡片ID " + .@card_id + " - " + getitemname(.@card_id) + " = " + .@card_score + "分";
+                    }
+                }
+            }
+        }
+    } else {
+        // 其他装备：只检测0号槽位
+        set .@card_id, getequipcardid(.@equip_slot, 0);
+        
+        if (.@card_id > 0 && .@card_id < 5000) {
+            // 排除附魔卡片
+            if (!callfunc("IsEnchantmentCard", .@card_id)) {
+                set .@card_score, callfunc("GetCardValue", .@card_id);
+                set .@total_card_score, .@total_card_score + .@card_score;
+            }
+        }
+    }
+    
+    return .@total_card_score;
+}
+
+// ============ 判断是否为附魔卡片 ============
+function	script	IsEnchantmentCard	{
+    set .@card_id, getarg(0);
+    
+    // 附魔卡片的ID范围判断
+    if ((.@card_id >= 4700 && .@card_id <= 4950) || 
+        (.@card_id >= 4760 && .@card_id <= 4925)) {
+        return 1;
+    }
+    
+    return 0;
+}
+// ============ 卡片属性价值评估函数 ============
+function	script	GetCardValue	{
+    set .@card_id, getarg(0);
+    set .@score, 0;
+    
+    // 基础属性加成评分规则
+    set .@stat_point, 24;      // 每点基础属性
+    set .@atk_point, 6;        // 每点ATK
+    set .@matk_point, 6;       // 每点MATK
+    set .@def_point, 6;        // 每点DEF
+    set .@mdef_point, 6;       // 每点MDEF
+    set .@hp_point, 1;         // 每100点MHP (1分)
+    set .@sp_point, 1;         // 每10点MSP (1分)
+    set .@hit_point, 3;        // 每点HIT
+    set .@flee_point, 3;       // 每点FLEE
+    set .@cri_point, 15;       // 每点CRI
+    set .@aspd_point, 60;      // 每1%攻击速度
+    set .@dmg_bonus_point, 36; // 每1%伤害加成
+    set .@dmg_reduce_point, 36; // 每1%伤害减少
+    set .@resist_point, 24;    // 每1%属性抗性
+    set .@hp_regen_point, 9;   // 每10%HP恢复
+    set .@sp_regen_point, 7;   // 每10%SP恢复
+    set .@perfect_dodge_point, 30; // 每点完全回避
+    set .@skill_delay_point, 75;   // 每1%技能延迟减少
+    set .@sp_cost_point, 45;       // 每1%SP消耗减少
+    set .@cast_time_point, 75;     // 每1%施法时间减少
+    set .@size_dmg_point, 30;      // 每1%体型伤害加成
+    set .@race_dmg_point, 36;      // 每1%种族伤害加成
+    set .@element_dmg_point, 36;   // 每1%属性伤害加成
+    set .@ignore_def_point, 54;    // 每1%无视防御
+    set .@special_effect_point, 60; // 特殊效果基础分
+    
+    // 根据卡片ID和效果进行详细评分
+    switch(.@card_id) {
+        // ============ 基础属性卡片 4001-4020 ============
+        case 4001: set .@score, 2 * .@stat_point + 1 * .@perfect_dodge_point; break;
+        case 4002: set .@score, 1 * .@stat_point + 100 / 100 * .@hp_point; break;
+        case 4003: set .@score, 700 / 100 * .@hp_point; break;
+        case 4004: set .@score, 1 * .@stat_point + 3 * .@hit_point; break;
+        case 4005: set .@score, 20 * .@element_dmg_point; break;
+        case 4006: set .@score, 1 * .@stat_point + 1 * .@cri_point + 1 * .@perfect_dodge_point; break;
+        case 4007: set .@score, 20 * .@race_dmg_point; break;
+        case 4008: set .@score, 1 * .@stat_point + 10 * .@atk_point; break;
+        case 4009: set .@score, 1 * .@stat_point + 2 * .@flee_point; break;
+        case 4010: set .@score, 80 / 10 * .@sp_point; break;
+        case 4011: set .@score, 1 * .@stat_point + 100 / 100 * .@hp_point; break;
+        case 4012: set .@score, 400 / 100 * .@hp_point; break;
+        case 4013: set .@score, 5 * .@dmg_bonus_point; break;
+        case 4014: set .@score, 400 / 100 * .@hp_point + 50 / 10 * .@sp_point; break;
+        case 4015: set .@score, 10 * .@flee_point; break;
+        case 4016: set .@score, 1 * .@stat_point; break;
+        case 4017: set .@score, .@special_effect_point; break;
+        case 4018: set .@score, 1 * .@stat_point + 10 / 10 * .@sp_point; break;
+        case 4019: set .@score, 1 * .@stat_point + 3 * .@atk_point; break;
+        case 4020: set .@score, 5 * .@atk_point + .@special_effect_point; break;
+
+        // ============ 卡片 4021-4040 ============
+        case 4021: set .@score, 1 * .@stat_point + 5 * .@atk_point; break;
+        case 4022: set .@score, 2 * .@stat_point; break;
+        case 4023: set .@score, 1 * .@stat_point; break;
+        case 4024: set .@score, 5 * .@atk_point + .@special_effect_point; break;
+        case 4025: set .@score, 10 * .@atk_point + .@special_effect_point; break;
+        case 4026: set .@score, 1 * .@stat_point + 1 * .@flee_point; break;
+        case 4027: set .@score, 2 * .@stat_point; break;
+        case 4028: set .@score, 2 * .@stat_point; break;
+        case 4029: set .@score, 15 * .@atk_point + 1 * .@cri_point; break;
+        case 4030: set .@score, 20 * .@element_dmg_point; break;
+        case 4031: set .@score, 10 * .@dmg_bonus_point; break;
+        case 4032: set .@score, 2 * .@def_point; break;
+        case 4033: set .@score, .@special_effect_point; break;
+        case 4034: set .@score, 2 * .@stat_point; break;
+        case 4035: set .@score, 20 * .@race_dmg_point; break;
+        case 4036: set .@score, 10 * .@hp_regen_point; break;
+        case 4037: set .@score, 5 * .@atk_point + .@special_effect_point; break;
+        case 4038: set .@score, 20 * .@hp_regen_point; break;
+        case 4039: set .@score, 20 * .@resist_point + 1 * .@def_point; break;
+        case 4040: set .@score, .@special_effect_point; break;
+
+        // ============ 卡片 4041-4060 ============
+        case 4041: set .@score, 20 * .@resist_point + 1 * .@def_point; break;
+        case 4042: set .@score, 2 * .@def_point + 10 * .@resist_point; break;
+        case 4043: set .@score, 20 * .@atk_point; break;
+        case 4044: set .@score, .@special_effect_point; break;
+        case 4045: set .@score, 35 * .@dmg_reduce_point; break;
+        case 4046: set .@score, 20 * .@resist_point + 1 * .@def_point; break;
+        case 4047: set .@score, 150; break;
+        case 4048: set .@score, .@special_effect_point; break;
+        case 4049: set .@score, 20 * .@element_dmg_point; break;
+        case 4050: set .@score, 2 * .@stat_point; break;
+        case 4051: set .@score, 5 * .@perfect_dodge_point + 1 * .@stat_point; break;
+        case 4052: set .@score, 2 * .@stat_point; break;
+        case 4053: set .@score, .@special_effect_point; break;
+        case 4054: set .@score, 150; break;
+        case 4055: set .@score, 5 * .@atk_point + .@special_effect_point; break;
+        case 4056: set .@score, 30 * .@resist_point + 5 * .@flee_point; break;
+        case 4057: set .@score, 5 * .@atk_point + .@special_effect_point; break;
+        case 4058: set .@score, 30 * .@dmg_reduce_point; break;
+        case 4059: set .@score, 30 * .@dmg_reduce_point; break;
+        case 4060: set .@score, 20 * .@race_dmg_point; break;
+
+        // ============ 卡片 4061-4080 ============
+        case 4061: set .@score, 1 * .@def_point + .@special_effect_point; break;
+        case 4062: set .@score, 20 * .@element_dmg_point; break;
+        case 4063: set .@score, 20 * .@race_dmg_point; break;
+        case 4064: set .@score, 3 * .@stat_point; break;
+        case 4065: set .@score, 20 * .@element_dmg_point; break;
+        case 4066: set .@score, 30 * .@dmg_reduce_point; break;
+        case 4067: set .@score, 20 * .@resist_point + 1 * .@def_point; break;
+        case 4068: set .@score, 20 * .@race_dmg_point; break;
+        case 4069: set .@score, 20 * .@element_dmg_point; break;
+        case 4070: set .@score, 15 * .@sp_regen_point; break;
+        case 4071: set .@score, 30 * .@dmg_reduce_point + 5 * .@flee_point; break;
+        case 4072: set .@score, 5 * .@atk_point + .@special_effect_point; break;
+        case 4073: set .@score, .@special_effect_point; break;
+        case 4074: set .@score, 30 * .@dmg_reduce_point; break;
+        case 4075: set .@score, 20 * .@resist_point + 1 * .@def_point; break;
+        case 4076: set .@score, 5 * .@atk_point + .@special_effect_point; break;
+        case 4077: set .@score, 180; break;
+        case 4078: set .@score, 3 * .@stat_point; break;
+        case 4079: set .@score, 3 * .@stat_point; break;
+        case 4080: set .@score, 20 * .@race_dmg_point; break;
+
+        // ============ 卡片 4081-4100 ============
+        case 4081: set .@score, 30 * .@resist_point + 5 * .@flee_point; break;
+        case 4082: set .@score, 15 * .@size_dmg_point + 5 * .@atk_point; break;
+        case 4083: set .@score, 30 * .@dmg_reduce_point; break;
+        case 4084: set .@score, .@special_effect_point; break;
+        case 4085: set .@score, 20 * .@element_dmg_point; break;
+        case 4086: set .@score, 9 * .@cri_point; break;
+        case 4087: set .@score, 120 + 15 * .@resist_point; break;
+        case 4088: set .@score, .@special_effect_point; break;
+        case 4089: set .@score, 150 + 1 * .@def_point; break;
+        case 4090: set .@score, 15 * .@resist_point + 5 * .@resist_point + 1 * .@def_point; break;
+        case 4091: set .@score, 4 * .@cri_point + 1 * .@stat_point; break;
+        case 4092: set .@score, 15 * .@size_dmg_point + 5 * .@atk_point; break;
+        case 4093: set .@score, .@special_effect_point; break;
+        case 4094: set .@score, 10 * .@dmg_bonus_point; break;
+        case 4095: set .@score, 30 * .@resist_point + 5 * .@flee_point; break;
+        case 4096: set .@score, 10 * .@atk_point + .@special_effect_point; break;
+        case 4097: set .@score, 10 * .@dmg_bonus_point + 1 * .@stat_point; break;
+        case 4098: set .@score, 150 + 1 * .@def_point; break;
+        case 4099: set .@score, 150 + 1 * .@def_point; break;
+        case 4100: set .@score, 15 * .@dmg_bonus_point + 3 * .@sp_regen_point; break;
+
+        // ============ 卡片 4101-4120 ============
+        case 4101: set .@score, 150 + 1 * .@def_point; break;
+        case 4102: set .@score, 50 * .@element_dmg_point + 20 * .@flee_point; break;
+        case 4103: set .@score, .@special_effect_point; break;
+        case 4104: set .@score, .@special_effect_point; break;
+        case 4105: set .@score, 120 + 5 * .@resist_point; break;
+        case 4106: set .@score, 20 * .@hit_point; break;
+        case 4107: set .@score, 8 * .@dmg_bonus_point + 8 * .@dmg_bonus_point; break;
+        case 4108: set .@score, 30 * .@resist_point + 5 * .@flee_point; break;
+        case 4109: set .@score, 30 * .@resist_point + 5 * .@flee_point; break;
+        case 4110: set .@score, 20 * .@resist_point + 1 * .@def_point; break;
+        case 4111: set .@score, 20 * .@race_dmg_point; break;
+        case 4112: set .@score, 120; break;
+        case 4113: set .@score, 30 * .@resist_point + 5 * .@flee_point; break;
+        case 4114: set .@score, 150 + 1 * .@def_point; break;
+        case 4115: set .@score, 120; break;
+        case 4116: set .@score, 30 * .@resist_point + 5 * .@flee_point; break;
+        case 4117: set .@score, .@special_effect_point; break;
+        case 4118: set .@score, 20 * .@race_dmg_point; break;
+        case 4119: set .@score, 150; break;
+        case 4120: set .@score, 30 * .@dmg_reduce_point; break;
+
+        // ============ MVP卡片和重要卡片 4121-4140 ============
+        case 4121: set .@score, 100 * .@hit_point; break;
+        case 4122: set .@score, 120 + 1 * .@stat_point; break;
+        case 4123: set .@score, 240 - 25 * .@dmg_bonus_point; break;
+        case 4124: set .@score, 120; break;
+        case 4125: set .@score, 7 * .@race_dmg_point * 4; break;
+        case 4126: set .@score, 15 * .@size_dmg_point + 5 * .@atk_point; break;
+        case 4127: set .@score, 120 + 1 * .@stat_point; break;
+        case 4128: set .@score, 300; break;
+        case 4129: set .@score, 3 * .@stat_point + 1 * .@cri_point; break;
+        case 4130: set .@score, 20 * .@race_dmg_point; break;
+        case 4131: set .@score, 180; break;
+        case 4132: set .@score, 240; break;
+        case 4133: set .@score, 20 * .@resist_point; break;
+        case 4134: set .@score, 150; break;
+        case 4135: set .@score, 180; break;
+        case 4136: set .@score, 30 * .@dmg_reduce_point; break;
+        case 4137: set .@score, 240; break;
+        case 4138: set .@score, 30 * .@dmg_reduce_point; break;
+        case 4139: set .@score, .@special_effect_point; break;
+        case 4140: set .@score, 25 * .@dmg_bonus_point; break;
+
+        // ============ MVP卡片 4141-4160 ============
+        case 4141: set .@score, 150 + 1 * .@stat_point + 1 * .@def_point; break;
+        case 4142: set .@score, 10 * .@aspd_point; break;
+        case 4143: set .@score, 120 + 3 * .@stat_point; break;
+        case 4144: set .@score, 180; break;
+        case 4145: set .@score, 30 * .@cast_time_point; break;
+        case 4146: set .@score, 180; break;
+        case 4147: set .@score, 240 - 10 * .@hit_point; break;
+        case 4148: set .@score, 30 * .@sp_cost_point; break;
+        case 4149: set .@score, .@special_effect_point; break;
+        case 4150: set .@score, 2 * .@def_point + 5 * .@mdef_point; break;
+        case 4151: set .@score, 10 * .@dmg_bonus_point - 20 * .@dmg_reduce_point; break;
+        case 4152: set .@score, .@special_effect_point; break;
+        case 4153: set .@score, 30 * .@dmg_bonus_point + 5 * .@atk_point; break;
+        case 4154: set .@score, .@special_effect_point; break;
+        case 4155: set .@score, 30 * .@race_dmg_point; break;
+        case 4156: set .@score, 10 * .@dmg_bonus_point + 7 * .@cri_point; break;
+        case 4157: set .@score, 10 * .@dmg_bonus_point + 7 * .@cri_point; break;
+        case 4158: set .@score, .@special_effect_point; break;
+        case 4159: set .@score, 2 * .@stat_point + 20 * .@flee_point; break;
+        case 4160: set .@score, 2 * .@stat_point + 10 * .@dmg_bonus_point + 10 * .@dmg_bonus_point; break;
+
+        // ============ 卡片 4161-4180 ============
+        case 4161: set .@score, 120; break;
+        case 4162: set .@score, 120; break;
+        case 4163: set .@score, 2 * .@flee_point + 7 * .@cri_point; break;
+        case 4164: set .@score, 10 * .@dmg_bonus_point - 20 * .@dmg_reduce_point; break;
+        case 4165: set .@score, .@special_effect_point; break;
+        case 4166: set .@score, 120; break;
+        case 4167: set .@score, .@special_effect_point; break;
+        case 4168: set .@score, 180; break;
+        case 4169: set .@score, 120; break;
+        case 4170: set .@score, .@special_effect_point; break;
+        case 4171: set .@score, .@special_effect_point; break;
+        case 4172: set .@score, 20 * .@dmg_bonus_point; break;
+        case 4173: set .@score, .@special_effect_point; break;
+        case 4174: set .@score, 250; break;
+        case 4175: set .@score, .@special_effect_point; break;
+        case 4176: set .@score, 10 * .@dmg_bonus_point; break;
+        case 4177: set .@score, 10 * .@resist_point; break;
+        case 4178: set .@score, 1 * .@stat_point + 10 * .@flee_point; break;
+        case 4179: set .@score, 1 * .@stat_point; break;
+        case 4180: set .@score, .@special_effect_point; break;
+
+        // ============ 卡片 4181-4200 ============
+        case 4181: set .@score, .@special_effect_point; break;
+        case 4182: set .@score, .@special_effect_point; break;
+        case 4183: set .@score, 1 * .@stat_point; break;
+        case 4184: set .@score, 30 * .@dmg_bonus_point; break;
+        case 4185: set .@score, 1 * .@stat_point; break;
+        case 4186: set .@score, 1 * .@stat_point + 1 * .@stat_point; break;
+        case 4187: set .@score, .@special_effect_point; break;
+        case 4188: set .@score, 10 * .@resist_point; break;
+        case 4189: set .@score, .@special_effect_point; break;
+        case 4190: set .@score, .@special_effect_point; break;
+        case 4191: set .@score, .@special_effect_point; break;
+        case 4192: set .@score, 10 * .@dmg_bonus_point + 7 * .@cri_point; break;
+        case 4193: set .@score, .@special_effect_point; break;
+        case 4194: set .@score, .@special_effect_point; break;
+        case 4195: set .@score, 10 * .@resist_point; break;
+        case 4196: set .@score, .@special_effect_point; break;
+        case 4197: set .@score, 1 * .@stat_point; break;
+        case 4198: set .@score, 120; break;
+        case 4199: set .@score, 10 * .@hp_regen_point + 10 * .@sp_regen_point; break;
+        case 4200: set .@score, 7 * .@mdef_point; break;
+
+        // ============ 卡片 4201-4220 ============
+        case 4201: set .@score, .@special_effect_point; break;
+        case 4202: set .@score, 20 * .@element_dmg_point; break;
+        case 4203: set .@score, 15 * .@atk_point; break;
+        case 4204: set .@score, 10 * .@dmg_bonus_point - 20 * .@dmg_reduce_point; break;
+        case 4205: set .@score, .@special_effect_point; break;
+        case 4206: set .@score, .@special_effect_point; break;
+        case 4207: set .@score, 25 * .@dmg_reduce_point + 1 * .@def_point; break;
+        case 4208: set .@score, 10 * .@dmg_bonus_point + 5 * .@dmg_bonus_point; break;
+        case 4209: set .@score, .@special_effect_point; break;
+        case 4210: set .@score, .@special_effect_point; break;
+        case 4211: set .@score, 3 * .@mdef_point; break;
+        case 4212: set .@score, .@special_effect_point; break;
+        case 4213: set .@score, .@special_effect_point; break;
+        case 4214: set .@score, 10 * .@dmg_bonus_point + 7 * .@cri_point; break;
+        case 4215: set .@score, .@special_effect_point; break;
+        case 4216: set .@score, .@special_effect_point; break;
+        case 4217: set .@score, .@special_effect_point; break;
+        case 4218: set .@score, 1000 / 100 * .@hp_point; break;
+        case 4219: set .@score, .@special_effect_point; break;
+        case 4220: set .@score, 2 * .@def_point + 2 * .@mdef_point; break;
+
+        // ============ 卡片 4221-4240 ============
+        case 4221: set .@score, 10 * .@dmg_bonus_point - 20 * .@dmg_reduce_point; break;
+        case 4222: set .@score, .@special_effect_point; break;
+        case 4223: set .@score, 1 * .@def_point + 20 * .@resist_point; break;
+        case 4224: set .@score, .@special_effect_point; break;
+        case 4225: set .@score, 10 * .@hit_point + 10 * .@atk_point; break;
+        case 4226: set .@score, 2 * .@def_point; break;
+        case 4227: set .@score, .@special_effect_point; break;
+        case 4228: set .@score, .@special_effect_point; break;
+        case 4229: set .@score, 1 * .@stat_point + 5 * .@cast_time_point; break;
+        case 4230: set .@score, 1 * .@stat_point; break;
+        case 4231: set .@score, 50 * .@dmg_reduce_point; break;
+        case 4232: set .@score, .@special_effect_point; break;
+        case 4233: set .@score, 3 * .@stat_point; break;
+        case 4234: set .@score, .@special_effect_point; break;
+        case 4235: set .@score, 10 * .@dmg_bonus_point - 20 * .@dmg_reduce_point; break;
+        case 4236: set .@score, 1 * .@stat_point; break;
+        case 4237: set .@score, .@special_effect_point; break;
+        case 4238: set .@score, .@special_effect_point; break;
+        case 4239: set .@score, 10 * .@dmg_bonus_point - 20 * .@dmg_reduce_point; break;
+        case 4240: set .@score, 2 * .@def_point + 3 * .@mdef_point; break;
+
+        // ============ 卡片 4241-4260 ============
+        case 4241: set .@score, 300 / 100 * .@hp_point; break;
+        case 4242: set .@score, 2 * .@stat_point; break;
+        case 4243: set .@score, .@special_effect_point; break;
+        case 4244: set .@score, 300 / 100 * .@hp_point + 1 * .@stat_point; break;
+        case 4245: set .@score, 10 * .@dmg_bonus_point - 20 * .@dmg_reduce_point; break;
+        case 4246: set .@score, 10 * .@dmg_bonus_point + 7 * .@cri_point; break;
+        case 4247: set .@score, 30 * .@dmg_bonus_point + 5 * .@atk_point; break;
+        case 4248: set .@score, .@special_effect_point; break;
+        case 4249: set .@score, 10 * .@dmg_bonus_point - 20 * .@dmg_reduce_point; break;
+        case 4250: set .@score, 25 * .@dmg_reduce_point + 1 * .@def_point; break;
+        case 4251: set .@score, 40 * .@dmg_bonus_point; break;
+        case 4252: set .@score, 5 * .@dmg_reduce_point; break;
+        case 4253: set .@score, 40 * .@dmg_reduce_point - 40 * .@dmg_reduce_point; break;
+        case 4254: set .@score, 25 * .@dmg_reduce_point + 1 * .@def_point; break;
+        case 4255: set .@score, 30 * .@race_dmg_point; break;
+        case 4256: set .@score, .@special_effect_point; break;
+        case 4257: set .@score, 1 * .@stat_point; break;
+        case 4258: set .@score, 1 * .@stat_point + 50 / 10 * .@sp_point; break;
+        case 4259: set .@score, 30 * .@hp_regen_point + 1 * .@def_point; break;
+        case 4260: set .@score, 20 * .@resist_point + 1 * .@def_point; break;
+
+        // ============ 卡片 4261-4280 ============
+        case 4261: set .@score, 20 * .@resist_point + 1 * .@def_point; break;
+        case 4262: set .@score, .@special_effect_point; break;
+        case 4263: set .@score, 180; break;
+        case 4264: set .@score, .@special_effect_point; break;
+        case 4265: set .@score, .@special_effect_point; break;
+        case 4266: set .@score, 1 * .@stat_point; break;
+        case 4267: set .@score, 10 * .@dmg_bonus_point - 20 * .@dmg_reduce_point; break;
+        case 4268: set .@score, .@special_effect_point; break;
+        case 4269: set .@score, 150 / 10 * .@sp_point; break;
+        case 4270: set .@score, .@special_effect_point; break;
+        case 4271: set .@score, 10 * .@resist_point; break;
+        case 4272: set .@score, 1 * .@stat_point + 3 * .@cri_point; break;
+        case 4273: set .@score, 30 * .@dmg_bonus_point + 5 * .@atk_point; break;
+        case 4274: set .@score, .@special_effect_point; break;
+        case 4275: set .@score, 10 * .@dmg_bonus_point - 20 * .@dmg_reduce_point; break;
+        case 4276: set .@score, 240; break;
+        case 4277: set .@score, 2 * .@stat_point; break;
+        case 4278: set .@score, 5 * .@mdef_point; break;
+        case 4279: set .@score, .@special_effect_point; break;
+        case 4280: set .@score, .@special_effect_point; break;
+
+        // ============ 卡片 4281-4300 ============
+        case 4281: set .@score, 30 * .@atk_point; break;
+        case 4282: set .@score, .@special_effect_point; break;
+        case 4283: set .@score, .@special_effect_point; break;
+        case 4284: set .@score, .@special_effect_point; break;
+        case 4285: set .@score, 5 * .@perfect_dodge_point + 10 * .@flee_point; break;
+        case 4286: set .@score, .@special_effect_point; break;
+        case 4287: set .@score, 8 * .@mdef_point; break;
+        case 4288: set .@score, 2 * .@stat_point; break;
+        case 4289: set .@score, .@special_effect_point; break;
+        case 4290: set .@score, 3 * .@mdef_point; break;
+        case 4291: set .@score, 30 * .@race_dmg_point; break;
+        case 4292: set .@score, 10 * .@dmg_bonus_point + 7 * .@cri_point; break;
+        case 4293: set .@score, 2 * .@stat_point; break;
+        case 4294: set .@score, .@special_effect_point; break;
+        case 4295: set .@score, .@special_effect_point; break;
+        case 4296: set .@score, .@special_effect_point; break;
+        case 4297: set .@score, 10 * .@dmg_bonus_point + 7 * .@cri_point; break;
+        case 4298: set .@score, .@special_effect_point; break;
+        case 4299: set .@score, .@special_effect_point; break;
+        case 4300: set .@score, .@special_effect_point; break;
+
+        // ============ 卡片 4301-4320 ============
+        case 4301: set .@score, .@special_effect_point; break;
+        case 4302: set .@score, 100 * .@dmg_bonus_point; break;
+        case 4303: set .@score, 10 * .@flee_point; break;
+        case 4304: set .@score, 2 * .@def_point; break;
+        case 4305: set .@score, 20 * .@dmg_bonus_point; break;
+        case 4306: set .@score, 1 * .@perfect_dodge_point; break;
+        case 4307: set .@score, .@special_effect_point; break;
+        case 4308: set .@score, .@special_effect_point; break;
+        case 4309: set .@score, 1 * .@def_point + 5 * .@resist_point; break;
+        case 4310: set .@score, 10 * .@dmg_bonus_point + 7 * .@cri_point; break;
+        case 4311: set .@score, 15 * .@resist_point + 15 * .@resist_point; break;
+        case 4312: set .@score, 10 * .@hit_point + 3 * .@flee_point; break;
+        case 4313: set .@score, .@special_effect_point; break;
+        case 4314: set .@score, 30 * .@dmg_reduce_point; break;
+        case 4315: set .@score, .@special_effect_point; break;
+        case 4316: set .@score, .@special_effect_point; break;
+        case 4317: set .@score, 15 * .@dmg_bonus_point; break;
+        case 4318: set .@score, 180; break;
+        case 4319: set .@score, 300 / 100 * .@hp_point; break;
+        case 4320: set .@score, 180; break;
+
+        // ============ 卡片 4321-4340 ============
+        case 4321: set .@score, .@special_effect_point; break;
+        case 4322: set .@score, 5 * .@dmg_reduce_point + 1 * .@def_point; break;
+        case 4323: set .@score, .@special_effect_point; break;
+        case 4324: set .@score, 50 * .@resist_point; break;
+        case 4325: set .@score, 15 * .@resist_point; break;
+        case 4326: set .@score, .@special_effect_point; break;
+        case 4327: set .@score, 30 * .@cast_time_point; break;
+        case 4328: set .@score, 15 * .@flee_point + 1 * .@cri_point; break;
+        case 4329: set .@score, .@special_effect_point; break;
+        case 4330: set .@score, 3 * .@stat_point; break;
+        case 4331: set .@score, 3 * .@cri_point; break;
+        case 4332: set .@score, 5 * .@atk_point + 1 * .@stat_point; break;
+        case 4333: set .@score, .@special_effect_point; break;
+        case 4334: set .@score, 10 * .@dmg_reduce_point + 10 * .@resist_point; break;
+        case 4335: set .@score, 5 * .@dmg_bonus_point; break;
+        case 4336: set .@score, 10 * .@hp_regen_point; break;
+        case 4337: set .@score, 25 * .@atk_point; break;
+        case 4338: set .@score, 1 * .@stat_point; break;
+        case 4339: set .@score, 3 * .@def_point; break;
+        case 4340: set .@score, 30 * .@dmg_reduce_point; break;
+
+        // ============ 卡片 4341-4360 ============
+        case 4341: set .@score, .@special_effect_point; break;
+        case 4342: set .@score, 3 * .@stat_point + 120; break;
+        case 4343: set .@score, 2 * .@stat_point; break;
+        case 4344: set .@score, .@special_effect_point; break;
+        case 4345: set .@score, 5 * .@dmg_bonus_point; break;
+        case 4346: set .@score, 1 * .@stat_point; break;
+        case 4347: set .@score, .@special_effect_point; break;
+        case 4348: set .@score, .@special_effect_point; break;
+        case 4349: set .@score, .@special_effect_point; break;
+        case 4350: set .@score, 3 * .@dmg_bonus_point; break;
+        case 4351: set .@score, 10 * .@flee_point; break;
+        case 4352: set .@score, 50 * .@hp_regen_point; break;
+        case 4353: set .@score, 800 / 100 * .@hp_point + 10 * .@hp_regen_point; break;
+        case 4354: set .@score, 30 * .@resist_point + 50 * .@resist_point; break;
+        case 4355: set .@score, .@special_effect_point; break;
+        case 4356: set .@score, .@special_effect_point; break;
+        case 4357: set .@score, 180; break;
+        case 4358: set .@score, 6 * .@stat_point; break;
+        case 4359: set .@score, .@special_effect_point; break;
+        case 4360: set .@score, 10 * .@cri_point; break;
+
+        // ============ 卡片 4361-4380 ============
+        case 4361: set .@score, 180; break;
+        case 4362: set .@score, 5 * .@aspd_point + 30 * .@hit_point; break;
+        case 4363: set .@score, .@special_effect_point; break;
+        case 4364: set .@score, 1 * .@stat_point; break;
+        case 4365: set .@score, 240; break;
+        case 4366: set .@score, 2 * .@dmg_bonus_point; break;
+        case 4367: set .@score, 180; break;
+        case 4368: set .@score, 5 * .@skill_delay_point + 30 * .@hit_point; break;
+        case 4369: set .@score, 1 * .@stat_point; break;
+        case 4370: set .@score, 5 * .@stat_point; break;
+        case 4371: set .@score, 10 * .@atk_point + 20 * .@cast_time_point; break;
+        case 4372: set .@score, 30 * .@dmg_bonus_point; break;
+        case 4373: set .@score, 5 * .@stat_point; break;
+        case 4374: set .@score, 30 * .@ignore_def_point + 2 * .@stat_point; break;
+        case 4375: set .@score, 10 * .@flee_point + 10 * .@resist_point; break;
+        case 4376: set .@score, 50 * .@dmg_bonus_point; break;
+        case 4377: set .@score, .@special_effect_point; break;
+        case 4378: set .@score, 4 * .@dmg_bonus_point + 4 * .@dmg_bonus_point; break;
+        case 4379: set .@score, 40 / 10 * .@sp_point; break;
+        case 4380: set .@score, 5 * .@dmg_bonus_point; break;
+
+        // ============ 卡片 4381-4400 ============
+        case 4381: set .@score, 1 * .@stat_point + 10 * .@dmg_bonus_point; break;
+        case 4382: set .@score, 500 / 100 * .@hp_point + 10 * .@hp_regen_point; break;
+        case 4383: set .@score, .@special_effect_point; break;
+        case 4384: set .@score, .@special_effect_point; break;
+        case 4385: set .@score, .@special_effect_point; break;
+        case 4386: set .@score, 120; break;
+        case 4387: set .@score, 1 * .@stat_point; break;
+        case 4388: set .@score, 5 * .@dmg_bonus_point; break;
+        case 4389: set .@score, .@special_effect_point; break;
+        case 4390: set .@score, 5 * .@atk_point; break;
+        case 4391: set .@score, .@special_effect_point; break;
+        case 4392: set .@score, 1 * .@stat_point; break;
+        case 4393: set .@score, 1 * .@stat_point; break;
+        case 4394: set .@score, .@special_effect_point; break;
+        case 4395: set .@score, 5 * .@atk_point; break;
+        case 4396: set .@score, 5 * .@stat_point; break;
+        case 4397: set .@score, 6 * .@stat_point; break;
+        case 4398: set .@score, 10 * .@dmg_bonus_point; break;
+        case 4399: set .@score, 180; break;
+        case 4400: set .@score, .@special_effect_point; break;
+
+        // ============ 卡片 4401-4420 ============
+        case 4401: set .@score, 10 * .@flee_point; break;
+        case 4402: set .@score, 2 * .@stat_point + 5 * .@dmg_bonus_point; break;
+        case 4403: set .@score, 30 * .@skill_delay_point; break;
+        case 4404: set .@score, .@special_effect_point; break;
+        case 4405: set .@score, 2 * .@dmg_bonus_point; break;
+        case 4406: set .@score, 2 * .@dmg_bonus_point; break;
+        case 4407: set .@score, 10 * .@dmg_bonus_point; break;
+        case 4408: set .@score, 40 * .@dmg_bonus_point; break;
+        case 4409: set .@score, 5 * .@dmg_bonus_point; break;
+        case 4410: set .@score, 15 * .@atk_point; break;
+        case 4411: set .@score, 2 * .@stat_point; break;
+        case 4412: set .@score, 2 * .@stat_point; break;
+        case 4413: set .@score, 15 * .@dmg_reduce_point; break;
+        case 4414: set .@score, 30 * .@resist_point + 10 * .@mdef_point; break;
+        case 4415: set .@score, .@special_effect_point; break;
+        case 4416: set .@score, 25 * .@cast_time_point + 25 * .@dmg_bonus_point; break;
+        case 4417: set .@score, 2 * .@stat_point; break;
+        case 4418: set .@score, .@special_effect_point; break;
+        case 4419: set .@score, 50 * .@dmg_bonus_point; break;
+        case 4420: set .@score, .@special_effect_point; break;
+
+        // ============ 卡片 4421-4440 ============
+        case 4421: set .@score, 15 * .@cri_point; break;
+        case 4422: set .@score, 5 * .@flee_point + 3 * .@perfect_dodge_point + 10 * .@dmg_bonus_point; break;
+        case 4423: set .@score, 5 * .@hit_point + 5 * .@dmg_bonus_point; break;
+        case 4424: set .@score, .@special_effect_point; break;
+        case 4425: set .@score, 25 * .@atk_point; break;
+        case 4426: set .@score, 10 * .@dmg_bonus_point; break;
+        case 4427: set .@score, 25 * .@dmg_bonus_point + 5 * .@cri_point + 5 * .@hit_point; break;
+        case 4428: set .@score, 50 * .@dmg_bonus_point + 5 * .@cri_point + 5 * .@hit_point; break;
+        case 4429: set .@score, 40 * .@dmg_bonus_point; break;
+        case 4430: set .@score, 180; break;
+        case 4431: set .@score, 180; break;
+        case 4432: set .@score, 5 * .@atk_point + 10 * .@dmg_bonus_point; break;
+        case 4433: set .@score, 25 * .@cast_time_point + 25 * .@dmg_bonus_point; break;
+        case 4434: set .@score, 5 * .@dmg_bonus_point; break;
+        case 4435: set .@score, 50 / 100 * .@hp_point + 1 * .@dmg_bonus_point; break;
+        case 4436: set .@score, 5 * .@cri_point + 1 * .@dmg_bonus_point; break;
+        case 4437: set .@score, 1 * .@hit_point; break;
+        case 4438: set .@score, 100 / 10 * .@sp_point; break;
+        case 4439: set .@score, 30 * .@resist_point * 3; break;
+        case 4440: set .@score, 1 * .@stat_point + 2 * .@ignore_def_point; break;
+
+        // ============ 卡片 4441-4460 ============
+        case 4441: set .@score, 10 * .@dmg_bonus_point; break;
+        case 4442: set .@score, 20 * .@dmg_reduce_point + 5 * .@dmg_bonus_point; break;
+        case 4443: set .@score, 20 * .@dmg_reduce_point + 5 * .@dmg_bonus_point; break;
+        case 4444: set .@score, 20 * .@dmg_reduce_point + 5 * .@dmg_bonus_point; break;
+        case 4445: set .@score, 20 * .@dmg_reduce_point + 5 * .@dmg_bonus_point; break;
+        case 4446: set .@score, 15 * .@atk_point; break;
+        case 4447: set .@score, 20 * .@dmg_reduce_point + 5 * .@dmg_bonus_point; break;
+        case 4448: set .@score, 20 * .@dmg_reduce_point + 5 * .@dmg_bonus_point; break;
+        case 4449: set .@score, 20 * .@dmg_reduce_point + 5 * .@dmg_bonus_point; break;
+        case 4450: set .@score, 1 * .@stat_point + 10 * .@matk_point; break;
+        case 4451: set .@score, 100 * .@matk_point; break;
+        case 4452: set .@score, 1 * .@stat_point + 3 * .@matk_point; break;
+        case 4453: set .@score, 25 * .@atk_point; break;
+        case 4454: set .@score, 0; break;
+        case 4455: set .@score, 0; break;
+        case 4456: set .@score, 5 * .@stat_point + 50 * .@cast_time_point; break;
+        case 4457: set .@score, 30 * .@dmg_bonus_point; break;
+        case 4458: set .@score, 10 * .@atk_point; break;
+        case 4459: set .@score, 10 * .@matk_point; break;
+        case 4460: set .@score, 4 * .@dmg_bonus_point; break;
+
+        // ============ 卡片 4461-4480 ============
+        case 4461: set .@score, 1 * .@stat_point + 1 * .@stat_point; break;
+        case 4462: set .@score, 5 * .@def_point; break;
+        case 4463: set .@score, 5 * .@cri_point; break;
+        case 4464: set .@score, 20 * .@dmg_bonus_point; break;
+        case 4465: set .@score, 10 * .@atk_point; break;
+        case 4466: set .@score, 3 * .@dmg_bonus_point; break;
+        case 4467: set .@score, 2 * .@stat_point; break;
+        case 4468: set .@score, 10 * .@atk_point; break;
+        case 4469: set .@score, 10 * .@dmg_bonus_point; break;
+        case 4470: set .@score, 10 * .@dmg_bonus_point; break;
+        case 4471: set .@score, 10 * .@dmg_bonus_point; break;
+        case 4472: set .@score, 10 * .@dmg_bonus_point; break;
+        case 4473: set .@score, 10 * .@dmg_bonus_point; break;
+        case 4474: set .@score, 10 * .@dmg_bonus_point; break;
+        case 4475: set .@score, 10 * .@dmg_bonus_point; break;
+        case 4476: set .@score, 10 * .@dmg_bonus_point; break;
+        case 4477: set .@score, 10 * .@dmg_bonus_point; break;
+        case 4478: set .@score, 0; break;
+        case 4479: set .@score, 0; break;
+        case 4480: set .@score, 15 * .@skill_delay_point; break;
+
+        // ============ 卡片 4481-4500 ============
+        case 4481: set .@score, 50 * .@hp_regen_point; break;
+        case 4483: set .@score, 150; break;
+        case 4484: set .@score, 20 * .@dmg_bonus_point; break;
+        case 4486: set .@score, 15 * .@cast_time_point; break;
+        case 4487: set .@score, 180; break;
+        case 4488: set .@score, 180; break;
+        case 4489: set .@score, 15 * .@sp_cost_point; break;
+        case 4490: set .@score, .@special_effect_point; break;
+        case 4491: set .@score, 180; break;
+        case 4492: set .@score, 50 * .@dmg_bonus_point; break;
+        case 4494: set .@score, 10 * .@dmg_bonus_point; break;
+        case 4495: set .@score, 50 * .@size_dmg_point; break;
+        case 4497: set .@score, 180; break;
+        case 4498: set .@score, 240; break;
+        case 4500: set .@score, .@special_effect_point; break;
+
+        // ============ 卡片 4502-4520 ============
+        case 4502: set .@score, 15 * .@ignore_def_point; break;
+        case 4504: set .@score, 20 * .@matk_point; break;
+        case 4506: set .@score, 2 * .@stat_point; break;
+        case 4507: set .@score, 30 * .@dmg_bonus_point; break;
+        case 4508: set .@score, 20 * .@atk_point; break;
+        case 4509: set .@score, 3 * .@stat_point; break;
+        case 4510: set .@score, .@special_effect_point; break;
+        case 4511: set .@score, .@special_effect_point; break;
+        case 4512: set .@score, 3 * .@dmg_bonus_point; break;
+        case 4513: set .@score, 2 * .@dmg_bonus_point; break;
+        case 4514: set .@score, 20 * .@dmg_bonus_point; break;
+        case 4515: set .@score, 30 * .@dmg_reduce_point; break;
+        case 4516: set .@score, 50 * .@def_point; break;
+        case 4517: set .@score, 2 * .@stat_point; break;
+        case 4518: set .@score, .@special_effect_point; break;
+        case 4519: set .@score, 20 * .@dmg_bonus_point; break;
+        case 4520: set .@score, 3 * .@stat_point; break;
+
+        // ============ 卡片 4521-4540 ============
+        case 4521: set .@score, 15 * .@dmg_bonus_point; break;
+        case 4522: set .@score, .@special_effect_point; break;
+        case 4523: set .@score, 150; break;
+        case 4524: set .@score, 2 * .@stat_point; break;
+        case 4525: set .@score, 10 * .@flee_point; break;
+        case 4526: set .@score, 5 * .@dmg_bonus_point; break;
+        case 4527: set .@score, 10 * .@dmg_bonus_point; break;
+        case 4528: set .@score, 2 * .@dmg_bonus_point; break;
+        case 4529: set .@score, 2 * .@dmg_bonus_point; break;
+        case 4530: set .@score, 2 * .@stat_point; break;
+        case 4531: set .@score, .@special_effect_point; break;
+        case 4532: set .@score, 1 * .@stat_point; break;
+        case 4533: set .@score, .@special_effect_point; break;
+        case 4534: set .@score, 12 * .@dmg_bonus_point; break;
+        case 4535: set .@score, 15 * .@atk_point; break;
+        case 4537: set .@score, 15 * .@dmg_bonus_point; break;
+        case 4539: set .@score, 5 * .@dmg_bonus_point; break;
+        case 4540: set .@score, 240; break;
+
+        // ============ 卡片 4542-4560 ============
+        case 4542: set .@score, 25 * .@resist_point; break;
+        case 4544: set .@score, 1 * .@stat_point; break;
+        case 4546: set .@score, 0; break;
+        case 4547: set .@score, 40 * .@dmg_bonus_point; break;
+        case 4549: set .@score, 50 * .@dmg_bonus_point + 5 * .@cri_point + 5 * .@hit_point; break;
+        case 4551: set .@score, 10 / 100 * .@hp_point; break;
+        case 4553: set .@score, 100 / 100 * .@hp_point; break;
+        case 4555: set .@score, 50 * .@matk_point; break;
+        case 4557: set .@score, 25 * .@matk_point; break;
+        case 4558: set .@score, 1 * .@aspd_point; break;
+        case 4560: set .@score, 180; break;
+        case 4561: set .@score, 180; break;
+        case 4562: set .@score, 180; break;
+        case 4563: set .@score, 180; break;
+
+        default:
+            // 对于未特别处理的卡片，使用基础评分
+            if (.@card_id >= 4000 && .@card_id < 5000) {
+                // 普通卡片基础60分
+                set .@score, 60;
+                
+                // 根据卡片ID范围判断稀有度
+                if ((.@card_id >= 4121 && .@card_id <= 4148) || // MVP卡片范围
+                    (.@card_id >= 4300 && .@card_id <= 4399) || // 高级卡片
+                    (.@card_id >= 4400 && .@card_id <= 4499)) { // 特殊卡片
+                    set .@score, 180; // MVP和高级卡片基础180分
+                } else if ((.@card_id >= 4150 && .@card_id <= 4199) || // 狂暴系列
+                          (.@card_id >= 4200 && .@card_id <= 4299)) { // 强化系列
+                    set .@score, 120; // 强化卡片基础120分
+                }
+                
+                // 记录未特别处理的卡片，便于后续完善
+                debugmes "未特别处理的卡片: " + .@card_id + " - " + getitemname(.@card_id);
+            } else {
+                set .@score, 90; // 其他卡片基础90分
+            }
+            break;
+    }
+    
+    // 确保最低分数
+    if (.@score < 20) set .@score, 20;
+    
+    return .@score;
+}
+
+// ============ 附魔属性战力计算函数 ============
+function	script	CalculateEnchantmentScore	{
+    set .@equip_slot, getarg(0);
+    set .@total_enchant_score, 0;
+    
+    // 根据装备类型确定附魔槽位范围
+    if (.@equip_slot == EQI_HAND_R) {
+        // 武器：没有专门的附魔槽位，附魔可能在其他位置
+        // 武器通常不使用1、2、3位置作为附魔位置
+    } else {
+        // 其他装备（头上、头中、头下、盔甲、披风、副手、鞋子、左饰品、右饰品）：1、2、3位置是附魔位置
+        for (set .@slot, 1; .@slot <= 3; set .@slot, .@slot + 1) {
+            set .@card_id, getequipcardid(.@equip_slot, .@slot);
+            
+            if (.@card_id > 0) {
+                // 判断是否为附魔卡片（根据PUBG脚本中的附魔ID范围）
+                if ((.@card_id >= 4700 && .@card_id <= 4950) || 
+                    (.@card_id >= 4760 && .@card_id <= 4925)) {
+                    set .@enchant_score, callfunc("GetEnchantmentValue", .@card_id);
+                    set .@total_enchant_score, .@total_enchant_score + .@enchant_score;
+                }
+            }
+        }
+    }
+    
+    return .@total_enchant_score;
+}
+
+// ============ 附魔属性价值评估函数 ============
+function	script	GetEnchantmentValue	{
+    set .@enchant_id, getarg(0);
+    set .@score, 0;
+    
+    // 根据PUBG脚本中的附魔分类进行评分
+    switch(.@enchant_id) {
+        // ============ 状态附魔 (槽位4) ============
+        // STR系列 (4700-4709)
+        case 4700: case 4701: case 4702: case 4703: case 4704: case 4705: case 4706: case 4707: case 4708: case 4709:
+            set .@score, (.@enchant_id - 4699) * 24; // 1-10级，每级24分
+            break;
+            
+        // INT系列 (4710-4719)
+        case 4710: case 4711: case 4712: case 4713: case 4714: case 4715: case 4716: case 4717: case 4718: case 4719:
+            set .@score, (.@enchant_id - 4709) * 24; // 1-10级，每级24分
+            break;
+            
+        // DEX系列 (4720-4729)
+        case 4720: case 4721: case 4722: case 4723: case 4724: case 4725: case 4726: case 4727: case 4728: case 4729:
+            set .@score, (.@enchant_id - 4719) * 24; // 1-10级，每级24分
+            break;
+            
+        // AGI系列 (4730-4739)
+        case 4730: case 4731: case 4732: case 4733: case 4734: case 4735: case 4736: case 4737: case 4738: case 4739:
+            set .@score, (.@enchant_id - 4729) * 24; // 1-10级，每级24分
+            break;
+            
+        // VIT系列 (4740-4749)
+        case 4740: case 4741: case 4742: case 4743: case 4744: case 4745: case 4746: case 4747: case 4748: case 4749:
+            set .@score, (.@enchant_id - 4739) * 24; // 1-10级，每级24分
+            break;
+            
+        // LUK系列 (4750-4759)
+        case 4750: case 4751: case 4752: case 4753: case 4754: case 4755: case 4756: case 4757: case 4758: case 4759:
+            set .@score, (.@enchant_id - 4749) * 24; // 1-10级，每级24分
+            break;
+            
+        // ============ ATK/MATK附魔 (槽位3) ============
+        // ATK附魔
+        case 4882: case 4766: case 4767: case 4894: case 4895: case 4904: case 4905:
+            set .@score, 120; // ATK附魔基础120分
+            break;
+            
+        // MATK附魔
+        case 4883: case 4896: case 4897: case 4898: case 4899: case 4906: case 4907: case 4760: case 4761: case 4806:
+            set .@score, 120; // MATK附魔基础120分
+            break;
+            
+        // ============ 防御附魔 (槽位3) ============
+        // DEF附魔
+        case 4791: case 4792: case 4793: case 4794: case 4893: case 4902: case 4903:
+            set .@score, 105; // DEF附魔基础105分
+            break;
+            
+        // MDEF附魔
+        case 4890: case 4786: case 4891: case 4787: case 4892: case 4788: case 4789: case 4790:
+            set .@score, 105; // MDEF附魔基础105分
+            break;
+            
+        // ============ 命中回避附魔 (槽位3) ============
+        // FLEE附魔
+        case 4859: case 4860: case 4762: case 4763: case 4942: case 4943: case 4944:
+            set .@score, 90; // FLEE附魔基础90分
+            break;
+            
+        // 暴击附魔
+        case 4926: case 4939: case 4940: case 4941: case 4764: case 4765:
+            set .@score, 105; // 暴击附魔基础105分
+            break;
+            
+        // ============ HP/SP附魔 (槽位3) ============
+        // HP附魔
+        case 4927: case 4795: case 4796: case 4797: case 4798: case 4799: case 4861: case 4862: case 4867: case 4868: case 4900:
+            set .@score, 75; // HP附魔基础75分
+            break;
+            
+        // SP附魔
+        case 4870: case 4800: case 4871: case 4801: case 4802: case 4929:
+            set .@score, 60; // SP附魔基础60分
+            break;
+            
+        // ============ 特殊附魔 (槽位2) ============
+        // 攻击速度附魔
+        case 4807: case 4842:
+            set .@score, 150; // 攻击速度附魔基础150分（重要属性）
+            break;
+            
+        // 技能延迟减少附魔
+        case 4948: case 4949: case 4950:
+            set .@score, 135; // 技能延迟减少附魔基础135分（重要属性）
+            break;
+            
+        // 斗志附魔
+        case 4811: case 4810: case 4809: case 4808: case 4820: case 4821: case 4822: case 4823: case 4824: case 4825:
+            set .@score, 120; // 斗志附魔基础120分
+            break;
+            
+        // 魔攻附魔
+        case 4815: case 4814: case 4813: case 4812: case 4826: case 4827: case 4828: case 4829: case 4830: case 4831:
+            set .@score, 120; // 魔攻附魔基础120分
+            break;
+            
+        // 尖锐附魔
+        case 4818: case 4817: case 4816: case 4843: case 4844:
+            set .@score, 105; // 尖锐附魔基础105分
+            break;
+            
+        // 名弓附魔
+        case 4832: case 4833: case 4834: case 4835: case 4836: case 4837: case 4838: case 4839: case 4840: case 4841:
+            set .@score, 105; // 名弓附魔基础105分
+            break;
+            
+        // 恢复附魔
+        case 4930: case 4931: case 4932:
+            set .@score, 60; // 恢复附魔基础60分
+            break;
+            
+        // SP消耗减少附魔
+        case 4945: case 4946: case 4947:
+            set .@score, 75; // SP消耗减少附魔基础75分
+            break;
+            
+        // 默认情况
+        default:
+            set .@score, 45; // 未知附魔基础45分
+            break;
+    }
+    
+    return .@score;
+}
+
+// ============ 随机属性战力计算函数 ============
+function	script	CalculateRandomOptionScore	{
+    set .@equip_slot, getarg(0);
+    set .@total_random_score, 0;
+    
+    // 修复：先检查装备位置是否有装备
+    if (getequipid(.@equip_slot) <= 0) {
+        return 0;
+    }
+    
+    // 检查装备是否有随机属性（最多5条）
+    for (set .@i, 0; .@i < 5; set .@i, .@i + 1) {
+        // 修复：使用正确的装备位置参数
+        set .@opt_id, getequiprandomoption(.@equip_slot, .@i, 0);  // ROA_ID = 0
+        set .@opt_value, getequiprandomoption(.@equip_slot, .@i, 1);  // ROA_VALUE = 1
+        
+        if (.@opt_id > 0 && .@opt_value > 0) {
+            set .@opt_score, callfunc("GetRandomOptionValue", .@opt_id, .@opt_value);
+            set .@total_random_score, .@total_random_score + .@opt_score;
+        }
+    }
+    
+    return .@total_random_score;
+}
+
+// ============ 随机属性价值评估函数 ============
+function	script	GetRandomOptionValue	{
+    set .@opt_id, getarg(0);
+    set .@opt_value, getarg(1);
+    set .@score, 0;
+    
+    // 根据随机属性ID和数值计算分数
+    switch(.@opt_id) {
+        // 基础属性加成 (3-8: STR/AGI/VIT/INT/DEX/LUK)
+        case 3: case 4: case 5: case 6: case 7: case 8:
+            set .@score, .@opt_value * 24; // 每点基础属性加24分
+            break;
+            
+        // 最大HP/SP加成 (1-2: MaxHP/MaxSP)
+        case 1: 
+            set .@score, .@opt_value / 10 * 3; // 每100HP加30分
+            break;
+        case 2:
+            set .@score, .@opt_value / 2 * 3; // 每2点SP加3分
+            break;
+            
+        // 百分比HP/SP加成 (9-10: MaxHP%/MaxSP%)
+        case 9: case 10:
+            set .@score, .@opt_value * 45; // 每1%加45分
+            break;
+            
+        // 攻击加成 (13-14: ATK%/MATK%)
+        case 13: case 14:
+            set .@score, .@opt_value * 60; // 每1%加60分
+            break;
+            
+        // 固定攻击加成 (17: ATK, 19: MATK)
+        case 17:
+            set .@score, .@opt_value * 6; // 每点ATK加6分
+            break;
+        case 19:
+            set .@score, .@opt_value * 6; // 每点MATK加6分
+            break;
+            
+        // 防御加成 (20: DEF, 21: MDEF)
+        case 20: case 21:
+            set .@score, .@opt_value * 15; // 每点防御加15分
+            break;
+            
+        // 命中回避相关 (18: HIT, 22: FLEE, 23: 完全回避)
+        case 18: case 22:
+            set .@score, .@opt_value * 9; // 每点加9分
+            break;
+        case 23:
+            set .@score, .@opt_value * 30; // 完全回避每点加30分
+            break;
+            
+        // 暴击相关 (24: CRI, 164: 暴击伤害%)
+        case 24:
+            set .@score, .@opt_value * 15; // 每点暴击加15分
+            break;
+        case 164:
+            set .@score, .@opt_value * 45; // 每1%暴伤加45分
+            break;
+            
+        // 属性抗性 (25-34: 各种属性抗性%)
+        case 25: case 26: case 27: case 28: case 29: case 30: case 31: case 32: case 33: case 34:
+            set .@score, .@opt_value * 24; // 每1%抗性加24分
+            break;
+            
+        // 所有属性抗性 (35, 191)
+        case 35: case 191:
+            set .@score, .@opt_value * 36; // 每1%全抗加36分
+            break;
+            
+        // 种族伤害加成 (97-106: 对各种族物理伤害%)
+        case 97: case 98: case 99: case 100: case 101: case 102: case 103: case 104: case 105: case 106:
+            set .@score, .@opt_value * 36; // 每1%种族伤害加36分
+            break;
+            
+        // 种族魔法伤害加成 (107-116: 对各种族魔法伤害%)
+        case 107: case 108: case 109: case 110: case 111: case 112: case 113: case 114: case 115: case 116:
+            set .@score, .@opt_value * 36; // 每1%种族魔法伤害加36分
+            break;
+            
+        // 对一般/首领魔物伤害 (147-148, 151-152)
+        case 147: case 148: case 151: case 152:
+            set .@score, .@opt_value * 45; // 每1%加45分
+            break;
+            
+        // 无视防御 (153-156: 无视物理/魔法防御%)
+        case 153: case 154: case 155: case 156:
+            set .@score, .@opt_value * 54; // 每1%无视防御加54分
+            break;
+            
+        // 体型伤害加成 (157-159: 对小/中/大型物理伤害%)
+        case 157: case 158: case 159:
+            set .@score, .@opt_value * 30; // 每1%加30分
+            break;
+            
+        // 减伤相关 (149-150, 160-162, 165, 167)
+        case 149: case 150: case 160: case 161: case 162: case 165: case 167:
+            set .@score, .@opt_value * 36; // 每1%减伤加36分
+            break;
+            
+        // 技能相关 (170-172: 施法时间/技能延迟/SP消耗减少%)
+        case 170: case 171:
+            set .@score, .@opt_value * 75; // 每1%技能延迟减少加75分
+            break;
+        case 172:
+            set .@score, .@opt_value * 45; // 每1%SP消耗减少加45分
+            break;
+            
+        // 远距离攻击加成 (166)
+        case 166:
+            set .@score, .@opt_value * 36; // 每1%远距离攻击加36分
+            break;
+            
+        // 攻击速度 (16)
+        case 16:
+            set .@score, .@opt_value * 60; // 每1%攻击速度加60分
+            break;
+            
+        // 特殊属性 (41: ALL+, 208: 对人形伤害)
+        case 41:
+            set .@score, .@opt_value * 90; // ALL+每点加90分
+            break;
+        case 208:
+            set .@score, .@opt_value * 45; // 每1%人形伤害加45分
+            break;
+            
+        // 默认情况
+        default:
+            set .@score, .@opt_value * 15; // 未知属性按每点15分计算
+            break;
+    }
+    
+    return .@score;
+}
+
+// ============================================
+// 战力排行榜镜像系统
+// ============================================
+
+// 更新战力榜镜像
+function	script	UpdateCombatPowerMirrors	{
+    // 只获取战力榜第1名
+    set .@result, query_sql("SELECT char_id FROM power_ranking WHERE ranking = 1", .@cids);
+    
+    // 更新第一名镜像
+    if (.@result > 0) {
+        callfunc "UpdateCombatPowerSingleMirror", 1, .@cids[0];
+    } else {
+        callfunc "ResetCombatPowerMirrorAppearance", 1;
+    }
+    
+    // 重置第二、三名镜像（不再使用）
+    callfunc "ResetCombatPowerMirrorAppearance", 2;
+    callfunc "ResetCombatPowerMirrorAppearance", 3;
+    
+    // 保存镜像数据到数据库，以便服务器重启后恢复
+    callfunc "SaveCombatPowerMirrorsToDB";
+    
+    return;
+}
+
+// 保存镜像数据到数据库
+function	script	SaveCombatPowerMirrorsToDB	{
+    // 清空之前的镜像数据
+    query_sql "DELETE FROM power_mirrors";
+    
+    // 只获取战力榜第1名
+    set .@result, query_sql("SELECT char_id, char_name, total_score, combat_rating FROM power_ranking WHERE ranking = 1", .@cids, .@names$, .@scores, .@ratings$);
+    
+    // 只保存第一名镜像数据
+    if (.@result > 0) {
+        // 查询玩家职业信息
+        set .@char_info, query_sql("SELECT class FROM `char` WHERE char_id = " + .@cids[0], .@class);
+        
+        if (.@char_info > 0) {
+            // 保存到数据库
+			query_sql "INSERT INTO power_mirrors (char_id, original_char_id, char_name, job_class, total_score, combat_rating, ranking_position) VALUES (" + 
+					  .@cids[0] + ", " + .@cids[0] + ", '" + callfunc("escape_sql", .@names$[0]) + "', " + .@class + ", " + .@scores[0] + ", '" + .@ratings$[0] + "', 1)";
+        }
+    }
+    
+    return;
+}
+
+// 服务器启动时恢复镜像数据
+function	script	RestoreCombatPowerMirrors	{
+    // 从数据库加载镜像数据（只加载第一名）
+    set .@result, query_sql("SELECT original_char_id, char_name, job_class, total_score, combat_rating FROM power_mirrors WHERE is_active = 1 ORDER BY total_score DESC LIMIT 1", .@cids, .@names$, .@classes, .@scores, .@ratings$);
+    
+    if (.@result > 0) {
+        // 只恢复第一名镜像
+        callfunc "RestoreCombatPowerSingleMirror", 1, .@cids[0], .@names$[0], .@classes[0], .@scores[0], .@ratings$[0];
+        
+        // 重置第二、三名镜像（不再使用）
+        callfunc "ResetCombatPowerMirrorAppearance", 2;
+        callfunc "ResetCombatPowerMirrorAppearance", 3;
+    } else {
+        // 如果没有镜像数据，重置所有镜像
+        callfunc "ResetCombatPowerMirrorAppearance", 1;
+        callfunc "ResetCombatPowerMirrorAppearance", 2;
+        callfunc "ResetCombatPowerMirrorAppearance", 3;
+    }
+    
+    return;
+}
+
+// 设置镜像外观的通用函数（内部使用）
+function	script	SetMirrorAppearance	{
+    set .@mirror_gid, getarg(0);     // 镜像NPC的GID
+    set .@rank, getarg(1);           // 排名 (1-3)
+    set .@class, getarg(2);          // 玩家职业
+    set .@player_name$, getarg(3);   // 玩家名字
+    set .@hair, getarg(4);           // 发型
+    set .@hair_color, getarg(5);     // 发色
+    set .@clothes_color, getarg(6);  // 衣服颜色
+    set .@head_top, getarg(7);       // 头上装备
+    set .@head_mid, getarg(8);       // 头中装备
+    set .@head_bottom, getarg(9);    // 头下装备
+    set .@robe, getarg(10);          // 披风
+    set .@sex, getarg(11);           // 性别 (0:女, 1:男)
+    
+    // 设置NPC外观
+    setunitdata .@mirror_gid, UNPC_CLASS, .@class;
+    setunitdata .@mirror_gid, UNPC_HAIRSTYLE, .@hair;
+    setunitdata .@mirror_gid, UNPC_HAIRCOLOR, .@hair_color;
+    setunitdata .@mirror_gid, UNPC_CLOTHCOLOR, .@clothes_color;
+    setunitdata .@mirror_gid, UNPC_HEADTOP, .@head_top;
+    setunitdata .@mirror_gid, UNPC_HEADMIDDLE, .@head_mid;
+    setunitdata .@mirror_gid, UNPC_HEADBOTTOM, .@head_bottom;
+    setunitdata .@mirror_gid, UNPC_ROBE, .@robe;
+    setunitdata .@mirror_gid, UNPC_SEX, .@sex;
+    setunitdata .@mirror_gid, UNPC_LOOKDIR, DIR_SOUTH;
+    
+    // 设置玩家名字标题
+    settitleicon .@mirror_gid, 0, ""+.@player_name$+"";
+    
+    // 添加战力榜特效
+    callfunc "ApplyCombatPowerMirrorEffects", .@mirror_gid, .@rank;
+    
+    // 更新告示牌等待室信息
+    set .@sign_npc_name$, callfunc("GetCombatPowerSignName", .@rank);
+    set .@sign_gid, getnpcid(0, .@sign_npc_name$);
+    if (.@sign_gid > 0) {
+        // 调用告示牌NPC的OnUpdate事件来更新聊天室内容
+        donpcevent .@sign_npc_name$ + "::OnUpdate";
+    }
+    
+    return;
+}
+
+// 恢复单个战力榜镜像外观
+function	script	RestoreCombatPowerSingleMirror	{
+    set .@rank, getarg(0);     // 排名 (1-3)
+    set .@char_id, getarg(1);  // 玩家ID
+    set .@player_name$, getarg(2); // 玩家名字
+    set .@class, getarg(3);   // 玩家职业
+    set .@total_score, getarg(4); // 战力分数
+    set .@rating$, getarg(5); // 战力评级
+    
+    // 根据排名获取镜像NPC名称
+    set .@mirror_name$, callfunc("GetCombatPowerMirrorName", .@rank);
+    
+    if (.@mirror_name$ == "") {
+        return;
+    }
+    
+    // 获取镜像NPC的GID
+    set .@mirror_gid, getnpcid(0, .@mirror_name$);
+    
+    if (.@mirror_gid == 0) {
+        return;
+    }
+    
+    // 查询玩家造型数据
+    set .@char_info, query_sql(
+        "SELECT `hair`, `hair_color`, `clothes_color`, `head_top`, `head_mid`, `head_bottom`, `robe`, `sex` " +
+        "FROM `char` WHERE `char_id` = " + .@char_id,
+        .@hair, .@hair_color, .@clothes_color, .@head_top, .@head_mid, .@head_bottom, .@robe, .@sex$
+    );
+    
+    if (.@char_info > 0) {
+        // 使用通用函数设置镜像外观
+        callfunc "SetMirrorAppearance", .@mirror_gid, .@rank, .@class, .@player_name$, .@hair, .@hair_color, .@clothes_color, .@head_top, .@head_mid, .@head_bottom, .@robe, ((.@sex$ == "M")?1:0);
+    }
+    
+    return;
+}
+
+// 更新单个战力榜镜像外观
+function	script	UpdateCombatPowerSingleMirror	{
+    set .@rank, getarg(0);     // 排名 (1-3)
+    set .@char_id, getarg(1);  // 玩家ID
+    
+    // 根据排名获取镜像NPC名称
+    set .@mirror_name$, callfunc("GetCombatPowerMirrorName", .@rank);
+    
+    if (.@mirror_name$ == "") {
+        return;
+    }
+    
+    // 获取镜像NPC的GID
+    set .@mirror_gid, getnpcid(0, .@mirror_name$);
+    
+    if (.@mirror_gid == 0) {
+        return;
+    }
+    
+    // 查询玩家造型数据和名字
+    set .@char_info, query_sql(
+        "SELECT `class`, `hair`, `hair_color`, `clothes_color`, `head_top`, `head_mid`, `head_bottom`, `robe`, `sex`, `name` " +
+        "FROM `char` WHERE `char_id` = " + .@char_id,
+        .@class, .@hair, .@hair_color, .@clothes_color, .@head_top, .@head_mid, .@head_bottom, .@robe, .@sex$, .@player_name$
+    );
+    
+    if (.@char_info > 0) {
+        // 使用通用函数设置镜像外观
+        callfunc "SetMirrorAppearance", .@mirror_gid, .@rank, .@class, .@player_name$, .@hair, .@hair_color, .@clothes_color, .@head_top, .@head_mid, .@head_bottom, .@robe, ((.@sex$ == "M")?1:0);
+    }
+    
+    return;
+}
+
+// 应用战力榜镜像特效
+function	script	ApplyCombatPowerMirrorEffects	{
+    set .@gid, getarg(0);
+    set .@rank, getarg(1);
+       
+    if (.@rank != 1) {
+        return;
+    }
+    
+    // 获取NPC名称用于状态跟踪
+    set .@npc_name$, strnpcinfo(0);
+    
+    // 检查数据库中是否已有特效记录
+    set .@has_record, query_sql("SELECT current_effect_id FROM npc_effect_status WHERE npc_gid = " + .@gid, .@current_effect_id);
+    
+    // 确定目标特效ID（战力榜专用标识 - 3000系列）
+    set .@target_effect_id, 3001; // 战力榜一特效标识
+    
+    // 如果特效已经存在且相同，则跳过设置
+    if (.@has_record > 0 && .@current_effect_id == .@target_effect_id) {
+        return;
+    }
+    
+    // 清除现有特效
+    unitaura .@gid, 0;
+    
+    // 战力榜一：金色华丽特效
+    unitaura .@gid, 248; // 红色光环 // 金色光环
+    unitaura .@gid, 1614; 
+
+    
+    // 更新或插入特效状态记录
+    if (.@has_record > 0) {
+        query_sql("UPDATE npc_effect_status SET current_effect_id = " + .@target_effect_id + ", rank = " + .@rank + ", npc_name = '" + .@npc_name$ + "' WHERE npc_gid = " + .@gid);
+    } else {
+        query_sql("INSERT INTO npc_effect_status (npc_gid, npc_name, current_effect_id, rank) VALUES (" + .@gid + ", '" + .@npc_name$ + "', " + .@target_effect_id + ", " + .@rank + ")");
+    }
+    
+    return;
+}
+
+// 重置战力榜镜像为默认外观
+function	script	ResetCombatPowerMirrorAppearance	{
+    set .@rank, getarg(0);   // 排名 (1-3)
+    
+    // 根据排名获取镜像NPC名称
+    set .@mirror_name$, callfunc("GetCombatPowerMirrorName", .@rank);
+    
+    if (.@mirror_name$ == "") {
+        return;
+    }
+    
+    set .@mirror_gid, getnpcid(0, .@mirror_name$);
+    
+    if (.@mirror_gid > 0) {
+        // 停止当前所有特效并恢复默认外观
+        unitaura .@mirror_gid, 0;
+        
+        // 重置为默认职业外观（卡普拉）
+        setunitdata .@mirror_gid, UNPC_CLASS, 0;
+        setunitdata .@mirror_gid, UNPC_HAIRSTYLE, 1;
+        setunitdata .@mirror_gid, UNPC_HAIRCOLOR, 0;
+        setunitdata .@mirror_gid, UNPC_CLOTHCOLOR, 0;
+        setunitdata .@mirror_gid, UNPC_HEADTOP, 0;
+        setunitdata .@mirror_gid, UNPC_HEADMIDDLE, 0;
+        setunitdata .@mirror_gid, UNPC_HEADBOTTOM, 0;
+        setunitdata .@mirror_gid, UNPC_ROBE, 0;
+        setunitdata .@mirror_gid, UNPC_SEX, 0; // 女性
+        setunitdata .@mirror_gid, UNPC_LOOKDIR, DIR_SOUTH;
+        
+        // 清除特效状态记录
+        query_sql("DELETE FROM npc_effect_status WHERE npc_gid = " + .@mirror_gid);
+        
+        // 重置告示牌
+        set .@sign_npc_name$, callfunc("GetCombatPowerSignName", .@rank);
+        set .@sign_gid, getnpcid(0, .@sign_npc_name$);
+        if (.@sign_gid > 0) {
+            if (getwaitingroomstate(.@sign_gid) == 1) {
+                delwaitingroom .@sign_gid;
+            }
+            waitingroom "战力榜第" + .@rank + "名", 0, .@sign_gid;
+        }
+    }
+    
+    return;
+}
+
+// 获取战力榜镜像NPC名称
+function	script	GetCombatPowerMirrorName	{
+    set .@rank, getarg(0);     // 排名 (1-3)
+    
+    // 只保留第一名镜像
+    if (.@rank == 1) {
+        return "战力榜一";
+    }
+    
+    return "";
+}
+
+// 获取战力榜告示牌NPC名称
+function	script	GetCombatPowerSignName	{
+    set .@rank, getarg(0);     // 排名 (1-3)
+    
+    // 只保留第一名告示牌
+    if (.@rank == 1) {
+        return "战力榜第一名";
+    }
+    
+    return "";
+}
+
+// ============================================
+// 战力榜镜像NPC定义（只保留第一名）
+// ============================================
+
+prontera,148,185,4	script	战力榜一	4_F_KAFRA1,{
+	unittalk getnpcid(0,strnpcinfo(0)), "成为我超越我";
+	end;
+}
+
+prontera,148,185,0	script	战力榜第一名	844,{
+OnInit:
+	delwaitingroom;
+	waitingroom  "战力榜第一名", 0;
+	end;
+
+OnUpdate:
+	// 更新战力榜第一名信息
+	delwaitingroom;
+	
+	set .@count, query_sql("SELECT char_name, total_score, combat_rating FROM power_ranking WHERE ranking = 1", .@name$, .@score, .@rating$);
+	
+	if (.@count > 0) {
+		waitingroom "战力榜第一名: " + .@name$ + " - " + .@score + "分 (" + .@rating$ + ")", 0;
+	} else {
+		waitingroom "战力榜第一名: 暂无数据", 0;
+	}
+	end;
+}
