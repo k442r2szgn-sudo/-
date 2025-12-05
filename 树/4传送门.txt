@@ -1,0 +1,181 @@
+prontera,165,102,0	script	 　	837,{
+	mes "[路牌]";
+	mes "壁垒阵线  指挥官-若风";
+	mes "壁垒战场 - 13点开启";
+	mes "星纪战场  指挥官-凌风";
+	mes "星纪战场 - 21点开启";
+	mes "每日狩猎";
+	mes "特效附魔";
+	close;
+
+OnInit:
+ 	.npcname$ = "[冒险者公会]";
+ 	while(1){
+ 		showscript "[ 冒险者公会 ]";
+		sleep 1000;
+ 	}	
+ 	end;
+}
+
+prontera,166,87,0	script	 　 　	837,{
+	mes "[路牌]";
+	mes "极速之塔 无尽之塔";
+	mes "恐怖医院 星界之塔";
+	mes "乌龟洞讨伐";
+	mes "尼德霍格巢穴";
+	mes "爱丽丝的噩梦";
+	close;
+OnInit:
+ 	.npcname$ = "[异世界探险]";
+ 	while(1){
+ 		showscript "[ 异世界探险 ]";
+		sleep 1000;
+ 	}	
+ 	end;
+}
+
+prontera,131,92,0	script	 　 　 　	837,{
+	mes "[路牌]";
+	mes "转生之路";
+	close;
+OnInit:
+ 	.npcname$ = "[转生之路]";
+ 	while(1){
+ 		showscript "[ 转生之路 ]";
+		sleep 1000;
+ 	}	
+ 	end;
+}
+prontera,141,85,0	script	 　 　 　 　	837,{
+	mes "[路牌]";
+	mes "美容院三姐妹";
+	mes "形象设计-蒂尔";
+	mes "服装幻化-晲尔";
+	mes "时装幻化-嗒尔";
+	close;
+OnInit:
+ 	.npcname$ = "[美容院]";
+ 	while(1){
+ 		showscript "[ 美 容 院 ]";
+		sleep 1000;
+ 	}	
+ 	end;
+}
+
+
+prontera,166,99,0	script	warp_prt_in6	45,1,1,{
+	warp "prt_in",127,42;
+	end;
+}
+
+prt_in,127,45,0	script	warp_prt_out5	45,1,1,{
+	warp "prontera",163,99;
+	end;
+}
+
+
+prontera,167,83,0	script	warp_prt_out4	45,1,1,{
+	warp "moc_para01",31,14;
+	end;
+}
+
+moc_para01,31,10,0	script	warp_prt_out3	45,1,1,{
+	warp "prontera",163,83;
+	end;
+}
+
+prontera,134,92,0	script	warp_prt_out2	45,1,1,{
+	warp "valkyrie",49,6;
+	end;
+}
+
+prontera,139,82,0	script	warp_prt_out1	45,1,1,{
+	warp "prt_in",128,105;
+	end;
+}
+
+prt_in,128,102,0	script	portal_prt_to_val	45,1,1,{
+	warp "prontera",143,82;
+	end;
+}
+
+prontera,180,77,0	script	portal_prp3	45,1,1,{
+OnTouchNPC:
+	goto OnTouch;
+OnTouch:
+	// GM等级99直接通过
+	if (getgmlevel() >= 99) {
+		warp "1@pop3", 49, 40;
+		end;
+	}
+	
+	// 普通玩家需要输入密码
+	mes "[神秘传送门]";
+	mes "这是一个被魔法保护的传送门。";
+	mes "只有知道密码的人才能通过。";
+	mes " ";
+	mes "请输入通行密码：";
+	next;
+	
+	// 设置密码（可以更改为您想要的密码）
+	set .@password$, "ROer2025";
+	set .@max_attempts, 3; // 最大尝试次数
+	set .@attempts, 0;
+	
+	while(.@attempts < .@max_attempts) {
+		input .@input_password$;
+		
+		// 检查密码是否正确
+		if (.@input_password$ == .@password$) {
+			mes "[神秘传送门]";
+			mes "密码正确！";
+			mes "传送门正在开启...";
+			close2;
+			
+			// 传送效果
+			specialeffect2 EF_TELEPORTATION;
+			progressbar "ffffff", 3;
+			
+			// 传送目的地
+			warp "1@pop3", 57, 49;
+			end;
+		}
+		else {
+			set .@attempts, .@attempts + 1;
+			set .@remaining, .@max_attempts - .@attempts;
+			
+			mes "[神秘传送门]";
+			mes "密码错误！";
+			mes "剩余尝试次数: " + .@remaining;
+			
+			if (.@attempts >= .@max_attempts) {
+				mes " ";
+				mes "尝试次数过多，传送门暂时关闭。";
+				close;
+			}
+			else {
+				mes "请重新输入密码：";
+				next;
+			}
+		}
+	}
+	end;
+}
+
+
+moc_para01,47,39,0	script	 1 	45,1,1,{
+	warp "1@4tro",53,52;
+	end;
+}
+
+
+moc_para01,47,39,0	script	 2 	45,1,1,{
+	warp "1@4tro",53,52;
+	end;
+}
+
+
+1@4tro,52,56,0	script	返回首都	734,{
+	warp "prontera",150,150;
+	end;
+}

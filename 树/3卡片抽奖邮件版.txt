@@ -1,0 +1,569 @@
+//==========================================================|
+//    _    _                     _     _                    |
+//   | |  | |                   | |   (_)                   |
+//   | |__| |_   _ _ __ ___  ___| |__  _ _ __ ___   __ _    |
+//   |  __  | | | | '__/ _ \/ __| '_ \| | '_ ` _ \ / _` |   |
+//   | |  | | |_| | | | (_) \__ \ | | | | | | | | | | | | (_) |   |
+//   |_|  |_|\__, |_|  \___/|___/_| |_|_|_| |_| |_|\__,_|   |
+//            __/ |脚本编写者                                 |
+//           |___/                                          |
+//==========================================================|
+/* ------------------ 脚本信息 ------------------------- =
+名称: 卡片男爵 - 老虎机概率版                            =
+版本: 2.0                                                   =
+描述:                                                       =
+    通过向男爵交付贵族物品，他将允许你尝试抽卡游戏，        =
+    采用老虎机概率规则，保留cutin抽卡动画。                =
+---------------------------------------------------------- */
+//==========================================================|
+
+prontera,146,107,4	script	世界之树-online#3	564,{
+	// GM命令处理
+	if (getgmlevel() >= 99) {
+		if (select("正常抽奖", "GM设置本期MVP卡") == 2) {
+			callsub L_GM_SetMVP;
+			end;
+		}
+	}
+
+	mes "[^FFD700卡片男爵^000000]";
+	mes "欢迎来到卡片抽奖系统！";
+	mes "本期MVP奖品: ^FF1493" + getitemname($@CurrentMVP) + "^000000";
+	callsub L_InsertComma, $@SPgr[0];
+	mes "单次抽奖消耗 ^FF0000" + @ret$ + "C点^000000";
+	set .@ten_cost, ($@SPgr[0] * 10 * 80) / 100;
+	callsub L_InsertComma, .@ten_cost;
+	mes "十连抽享 ^FF000020% 优惠^000000,合计 ^FF0000" + @ret$ + "C点^000000";
+	mes "^A9A9A9提示：十连抽为10次独立抽取,综合中奖概率更高。^000000";
+	mes "^00FF00----------------------------------^000000";
+	next;
+	switch(select("单次抽奖", 
+	             "十次连抽",
+	             "查看奖品", 
+	             "玩法说明", 
+	             "钱包跑路")){
+		case 1:
+			callsub L_CKJ;
+			break;
+		case 2:
+			set @times, 10;            // 固定为10连抽
+			callsub L_CKJ, @times;
+			break;
+		case 3:
+			mes "^00BFFF[ ^FF69B4★^000000 奖品清单 ^FF69B4★^000000 ^00BFFF]^000000";
+			mes "^FF69B4※^000000 ^00BFFF每三天自动更换BOSS卡片^000000 ^FF69B4※^000000";
+			mes "^9932CC-----------------------------------^000000";
+			mes "^00BFFF| ^FF69B4获得本期BOSS卡片:^000000 " + "^FF1493" + getitemname($@CurrentMVP) + "^000000" + " ^00BFFF|";
+			mes "^00BFFF|  ^00BFFF随机获得1张普通卡/随机道具^000000 ^00BFFF|";
+			mes "^9932CC-----------------------------------^000000";
+			mes "^FF69B4※ 祝您好运 ^000000";
+			next;
+			break;
+		case 4:
+			mes "^00FFFF[游戏规则]^000000";
+			mes "^00BFFF[★ 游戏规则 ★]^000000";
+			callsub L_InsertComma, $@SPgr[0];
+			mes "1. ^FF1493单次消耗^000000: ^FF0000" + @ret$ + "C点^000000";
+			set .@ten_cost, ($@SPgr[0] * 10 * 80) / 100;
+			callsub L_InsertComma, .@ten_cost;
+			mes "2. ^FF1493十连优惠^000000: ^FF000020%^000000 (^FF0000" + @ret$ + "C点^000000)";
+			mes "3. ^FF1493概率系统^000000:　 　 　 　 　 　 　 ";
+			mes " ^FF1493 BOSS卡片(0.005%)　　　　　　";
+			mes " ^FF1493 普通卡(49.9975%)　　　　　　";
+			mes " ^FF1493 游戏道具(49.9975%)　　　　　";
+			next;
+			break;
+		case 5:
+			callsub L_CloseUI;
+	}
+	end;
+
+//========== GM设置本期BOSS卡片 ==========
+L_GM_SetMVP:
+	mes "[^FFD700卡片男爵^000000]";
+	mes "^FF0000GM管理菜单^000000";
+	mes "当前BOSS卡片: ^FF1493" + getitemname($@CurrentMVP) + "^000000";
+	callsub L_FormatTime, $@NextMVPChange;
+	mes "下次自动更换: " + @ret$;
+	next;
+	
+	switch(select("随机更换BOSS卡片", "指定BOSS卡片", "立即更换周期", "返回")) {
+		case 1:
+			set $@CurrentMVP, .mvp_cards[rand(getarraysize(.mvp_cards))];
+			mes "已随机更换BOSS卡片为: ^FF1493" + getitemname($@CurrentMVP) + "^000000";
+			break;
+		case 2:
+			input @mvp_id;
+			if (getitemname(@mvp_id) == "null") {
+				mes "无效的物品ID!";
+				break;
+			}
+			// 检查是否在MVP卡片列表中
+			set @found, 0;
+			for (set .@i, 0; .@i < getarraysize(.mvp_cards); set .@i, .@i + 1) {
+				if (.mvp_cards[.@i] == @mvp_id) {
+					set @found, 1;
+					break;
+				}
+			}
+			if (@found) {
+				set $@CurrentMVP, @mvp_id;
+				mes "已设置BOSS卡片为: ^FF1493" + getitemname($@CurrentMVP) + "^000000";
+			} else {
+				mes "该卡片不在BOSS卡片列表中!";
+			}
+			break;
+		case 3:
+			set $@NextMVPChange, gettimetick(2) + (3 * 24 * 60 * 60); // 3天后
+			callsub L_FormatTime, $@NextMVPChange;
+			mes "已重置更换周期，下次更换时间: " + @ret$;
+			break;
+		case 4:
+			break;
+	}
+	return;
+
+//========== 时间格式化子程序 ==========
+L_FormatTime:
+	set .@timestamp, getarg(0);
+	if (.@timestamp == 0) {
+		set @ret$, "未设置";
+		return;
+	}
+	
+	// 转换为可读日期时间格式
+	set .@days, (.@timestamp - gettimetick(2)) / (24 * 60 * 60);
+	set .@hours, ((.@timestamp - gettimetick(2)) % (24 * 60 * 60)) / (60 * 60);
+	
+	if (.@days > 0) {
+		set @ret$, .@days + "天" + .@hours + "小时后";
+	} else if (.@hours > 0) {
+		set @ret$, .@hours + "小时后";
+	} else {
+		set @ret$, "即将更换";
+	}
+	return;
+
+//========== 邮件发送奖励函数 ==========
+//========== 邮件发送奖励函数 ==========
+L_SendRewardByMail:
+	set .@item_id, getarg(0);
+	set .@item_name$, getitemname(.@item_id);
+	set .@char_id, getcharid(0);
+	set .@char_name$, strcharinfo(0);
+	
+	// 尝试直接给予物品
+	if (checkweight(.@item_id, 1) == 1) {
+		getitem .@item_id, 1;
+		return 1; // 成功直接给予
+	} else {
+		// 背包已满，通过邮件发送
+		// 使用安全的邮件发送方式
+		set .@sender_name$, "卡片抽奖系统";
+		set .@mail_title$, "卡片抽奖奖励";
+		set .@mail_body$, "您在卡片抽奖中获得的物品 [" + .@item_name$ + "] 由于背包已满，已通过邮件发送给您。";
+		set .@mail_zeny, 0;
+		set .@mail_item_id, .@item_id;
+		set .@mail_amount, 1;
+		
+		// 发送邮件
+		mail .@char_id, .@sender_name$, .@mail_title$, .@mail_body$, .@mail_zeny, .@mail_item_id, .@mail_amount;
+		
+		// 检查邮件是否发送成功（通过简单的延时和提示）
+		dispbottom "^FF0000[系统提示]^000000 由于背包已满，您获得的 [" + .@item_name$ + "] 已通过邮件发送，请查收。";
+		return 2; // 假设邮件发送成功
+	}
+	return 0;
+
+//========== 抽卡核心逻辑（改为子标签） ==========
+L_CKJ:
+	goto L_exec_modes;
+	// 随机符号生成子标签（老虎机概率规则）
+	// 使用 @ret$ 返回一个带颜色的符号
+L_ckz:
+	set .@sum,0;
+	for(set .@i,0; .@i < getarraysize($@SRT); set .@i,.@i+1) {
+		set .@sum, .@sum + $@SRT[.@i];
+	}
+	set .@rnd, rand(1,.@sum);
+	set .@l,0;
+	while(.@rnd > 0) {
+		set .@rnd, .@rnd - $@SRT[.@l];
+		set .@l, .@l + 1;
+	}
+	set @ret$, $@Slg_effect$[.@l-1];
+	return;
+
+	// 新增：奖品类别抽取子标签（MVP/普通/安慰）
+L_pick_prize:
+	set .@sum,0;
+	for(set .@i,0; .@i < getarraysize($@PrizeWeights); set .@i,.@i+1) {
+		set .@sum, .@sum + $@PrizeWeights[.@i];
+	}
+	set .@rnd, rand(1,.@sum);
+	set .@l,0;
+	while(.@rnd > 0) {
+		set .@rnd, .@rnd - $@PrizeWeights[.@l];
+		set .@l, .@l + 1;
+	}
+	set @ptype, .@l - 1; // 0=MVP,1=普通,2=安慰
+	return;
+
+	// 新增：失败展示用随机符号组合（确保非三连）
+L_fail_combo:
+	set @game_1$, $@Slg_effect$[rand(2,10)];
+	set @game_2$, $@Slg_effect$[rand(2,10)];
+	while(@game_2$ == @game_1$) set @game_2$, $@Slg_effect$[rand(2,10)];
+	set @game_3$, $@Slg_effect$[rand(2,10)];
+	while(@game_3$ == @game_1$ && @game_2$ == @game_1$) set @game_3$, $@Slg_effect$[rand(2,10)];
+	return;
+
+	// cutin抽卡动画子标签
+L_cutin_animation:
+	// 抽奖开始时显示jp_tenseigi01作为背景图片
+	set .@silent, 0;
+	if (getargcount() > 0) set .@silent, getarg(0);
+	cutin "jp_tenseigi01",4;
+	if (.@silent == 0) {
+		mes "^FFD700[抽卡动画开始]^000000";
+		mes "^66CCFF卡片正在快速滚动...^000000";
+		next;
+	}
+	
+	// 单抽与十连抽时显示滚动动画，其他图片叠加在背景上显示
+	freeloop(1);
+	for(set .@i, 1; .@i <= 35; set .@i, .@i + 1) {
+		// 滚动显示动画效果，所有图片都使用位置4（中央）叠加显示在背景上
+		switch(.@i % 8) {
+			case 0: cutin "chengong1",4; break;
+			case 1: cutin "shibai1",4; break;
+			case 2: cutin "chengong2",4; break;
+			case 3: cutin "shibai2",4; break;
+			case 4: cutin "chengong3",4; break;
+			case 5: cutin "shibai3",4; break;
+			case 6: cutin "chengong4",4; break;
+			case 7: cutin "shibai4",4; break;
+		}
+		// 动态调整动画速度
+		if (.@i < 20) {
+			sleep2 30 + (.@i * 3);
+		} else {
+			sleep2 100 + ((.@i - 20) * 2);
+		}
+	}
+	freeloop(0);
+	
+	// 动画结束后保持显示背景图片
+	sleep2 500;
+	
+	if (.@silent == 0) {
+		mes "^FFD700[抽卡动画结束]^000000";
+	}
+	return;
+
+	//======= 快速抽奖模式 =======
+L_exec_modes:
+	if (getargcount() > 0) {
+		set @total_times, getarg(0);
+		set @total_cost, $@SPgr[0] * @total_times;
+		if (@total_times == 10) { set @total_cost, (@total_cost * 80) / 100; } // 十连抽优惠20%
+		if (#CASHPOINTS < @total_cost) {
+			callsub L_InsertComma, @total_cost;
+			dispbottom "需要"+@ret$+"C点";
+			mes "^FF0000[系统]^000000 C点不足！";
+			callsub L_CloseUI;
+		}
+		set #CASHPOINTS, #CASHPOINTS - @total_cost;
+		callsub L_InsertComma, @total_cost;
+		set .@cost_str$, @ret$;
+		callsub L_InsertComma, #CASHPOINTS;
+		dispbottom "已扣除 ^FF0000" + .@cost_str$ + "C点^000000，剩余 ^00FF00" + @ret$ + "C点^000000";
+
+		mes "^FFD700=====  10连抽  =====";  // 原：狂暴抽奖模式
+		mes "本次连抽次数：^FF1493" + @total_times + "^000000 次";
+		callsub L_InsertComma, @total_cost;
+		mes "消耗总额：^FF0000" + @ret$ + "C点^000000";
+		mes "^00FF00----------------------------------^000000";
+		
+		for (set .@j, 1; .@j <= @total_times; set .@j, .@j + 1) {
+			// 采用新权重：MVP 0.005%，普通 49.9975%，安慰 49.9975%
+			callsub L_pick_prize; // @ptype: 0=MVP,1=普通,2=安慰
+			if (@ptype == 0) {
+				set @game_1$, "^FFD700★^000000"; set @game_2$, @game_1$; set @game_3$, @game_1$;
+				set .@card_id, $@CurrentMVP; // 使用本期指定的MVP卡片
+				callsub L_cutin_animation, 1;
+				cutin "chengong4",4;
+				sleep2 300;
+				cutin "" + .@card_id,4;
+				// 使用邮件发送函数发放奖励
+				callsub L_SendRewardByMail, .@card_id;
+				setarray .@gengs$,"【欧皇附体】";
+				announce .@gengs$[rand(getarraysize(.@gengs$))] + " [" + strcharinfo(0) + "] 在10连抽中获得 ^FF1493「" + getitemname(.@card_id) + "」^000000！", 0;
+				set .@honor$, (sex == 1) ? "先生" : "女士";
+				mes "^888888[系统]^000000 ^00BFFF恭喜 ^FF69B4" + strcharinfo(0) + "^000000 " + .@honor$;
+            	mes "  ";
+            	mes "  ";
+           		mes " 获得 ";			
+				mes " ^00BFFF" + getitemname(.@card_id) + "^000000！";
+				mes "^FF69B4【欧皇附体】^000000";
+			} else if (@ptype == 1) {
+				set .@idx, rand(2,10);
+				set @game_1$, $@Slg_effect$[.@idx]; set @game_2$, @game_1$; set @game_3$, @game_1$;
+				set .@card_id, .CardsComun[rand(getarraysize(.CardsComun))];
+				callsub L_cutin_animation, 1;
+				cutin "shibai4",4;
+				sleep2 300;
+				cutin "" + .@card_id,4;
+				// 使用邮件发送函数发放奖励
+				callsub L_SendRewardByMail, .@card_id;
+				//setarray .@gengs$,"【今日欧气】";
+				//announce .@gengs$[rand(getarraysize(.@gengs$))] + " [" + strcharinfo(0) + "] 在10连抽中获得 「" + getitemname(.@card_id) + "」^000000！", 0;
+				set .@honor$, (sex == 1) ? "先生" : "女士";
+				mes "^888888[系统]^000000 ^00BFFF恭喜 ^FF69B4" + strcharinfo(0) + "^000000 " + .@honor$;
+            	mes "  ";
+            	mes "  ";
+           		mes " 获得 ";			
+				mes " ^00BFFF" + getitemname(.@card_id) + "^000000！";
+			} else {
+				callsub L_fail_combo;
+				callsub L_cutin_animation, 1;
+				cutin "shibai4",4;
+				sleep2 200;
+				setarray .@tucao$,"非酋认证+1";
+				set .@honor$, (sex == 1) ? "先生" : "女士";
+				set .@cid, .Consolation[rand(getarraysize(.Consolation))];
+				// 使用邮件发送函数发放奖励
+				callsub L_SendRewardByMail, .@cid;
+				mes "^888888[系统]^000000 ^00BFFF恭喜 ^FF69B4" + strcharinfo(0) + "^000000 " + .@honor$;
+				mes "  ";
+            	mes "  ";
+				mes "  获得 ^00BFFF" + getitemname(.@cid) + "^000000！";
+				mes "^888888" + .@tucao$[rand(getarraysize(.@tucao$))];
+			}
+			sleep2 100;
+        }
+        mes "^00FF00===== 再接再厉 =====";
+        callsub L_CloseUI;
+    }
+
+    //======= 单次抽奖模式（保留cutin动画） =======
+    game:
+        if(#CASHPOINTS < $@SPgr[0]){ 
+            callsub L_InsertComma, $@SPgr[0]; 
+            dispbottom "需要^FF0000"+@ret$+"C点^000000"; 
+            mes "^FF0000[系统]^000000 您的C点不足！";
+            callsub L_CloseUI; 
+        }
+        set #CASHPOINTS, #CASHPOINTS - $@SPgr[0];
+        callsub L_InsertComma, $@SPgr[0];
+        set .@cost_str$, @ret$;
+        callsub L_InsertComma, #CASHPOINTS;
+        dispbottom "已扣除 ^FF0000" + .@cost_str$ + "C点^000000，剩余 ^00FF00" + @ret$ + "C点^000000";
+
+        // 新权重抽取奖品类别并生成展示组合
+        callsub L_pick_prize;
+        if (@ptype == 0) {
+            set @game_1$, "^FFD700★^000000"; set @game_2$, @game_1$; set @game_3$, @game_1$;
+        } else if (@ptype == 1) {
+            set .@idx, rand(2,10);
+            set @game_1$, $@Slg_effect$[.@idx]; set @game_2$, @game_1$; set @game_3$, @game_1$;
+        } else {
+            callsub L_fail_combo;
+        }
+
+        // 执行cutin抽卡动画
+        callsub L_cutin_animation;
+
+        // 按新权重发奖：@ptype 0=MVP 1=普通 2=安慰
+        if (@ptype == 0) {
+            set .@card_id, $@CurrentMVP; // 使用本期指定的MVP卡片
+            cutin "chengong4",4;
+            sleep2 500;
+            cutin "" + .@card_id,4;
+			// 使用邮件发送函数发放奖励
+			callsub L_SendRewardByMail, .@card_id;
+            mes "^FF69B4 恭喜中奖！^000000";
+            mes "  获得 ^FFD700「" + getitemname(.@card_id) + "」^000000！";
+        } else if (@ptype == 1) {
+            set .@card_id, .CardsComun[rand(getarraysize(.CardsComun))];
+            cutin "shibai4",4;
+            sleep2 500;
+            cutin "" + .@card_id,4;
+			// 使用邮件发送函数发放奖励
+			callsub L_SendRewardByMail, .@card_id;
+            set .@honor$, (sex == 1) ? "先生" : "女士";
+            mes "^888888[系统]^000000 ^00BFFF恭喜 ^FF69B4" + strcharinfo(0) + "^000000 " + .@honor$;
+            mes "  ";
+            mes "  ";
+            mes " 获得 ";			
+			mes " ^00BFFF" + getitemname(.@card_id) + "^000000！";
+        } else {
+            cutin "shibai4",4;
+            sleep2 500;
+            setarray .@fail_anim$,"耶！稀有道具";
+            set .@cid, .Consolation[rand(getarraysize(.Consolation))];
+            // 使用邮件发送函数发放奖励
+			callsub L_SendRewardByMail, .@cid;
+            mes "^888888" + .@fail_anim$[rand(getarraysize(.@fail_anim$))];
+            mes "^888888[系统]^000000 获得：^FFA500" + getitemname(.@cid) + "^000000 x1";
+        }
+
+        if(select("再冲一次", "及时止损") == 1) goto game;
+		callsub L_CloseUI;
+	return;
+
+//========== 实用标签（替换原函数） ==========
+L_InsertComma:
+	set .@num, getarg(0);
+	set .@str$, "";
+	while(.@num >= 1000) {
+		set .@remainder, .@num % 1000;
+		if(.@remainder < 10) {
+			set .@part$, "00" + .@remainder;
+		} else if(.@remainder < 100) {
+			set .@part$, "0" + .@remainder;
+		} else {
+			set .@part$, "" + .@remainder;
+		}
+		set .@str$, "," + .@part$ + .@str$;
+		set .@num, .@num / 1000;
+	}
+	set @ret$, .@num + .@str$;
+	return;
+
+L_CloseUI:
+	cutin "",255;
+	close;
+	return;
+
+OnInit:
+    // ===== 系统配置 =====
+    setarray $@SPgr, 120;  // 单次消耗120 C点
+    
+    // ===== MVP卡片自动更换系统 =====
+    
+    if ($@NextMVPChange == 0) {
+        // 设置3天后的时间戳
+        set $@NextMVPChange, gettimetick(2) + (3 * 24 * 60 * 60);
+    }
+    
+    // 检查是否需要更换MVP卡片
+    if (gettimetick(2) >= $@NextMVPChange) {
+        set $@CurrentMVP, .mvp_cards[rand(getarraysize(.mvp_cards))];
+        set $@NextMVPChange, gettimetick(2) + (3 * 24 * 60 * 60);
+        announce "本期MVP奖品已更换为: " + getitemname($@CurrentMVP), bc_all;
+    }
+
+    // ===== 奖品池分组配置 =====
+    // MVP卡片组（三颗★中奖）
+	setarray .mvp_cards[0],
+		4054,4121,4123,4128,4131,4132,4134,4135,4137,4142,
+		4143,4144,4145,4146,4147,4148,4168,4174,
+	// 4200-4300
+		4236,
+	// 4300-4400
+		4263,4276,4318,4324,4330,4342,4352,4357,4359,4361,
+		4363,4365,4367,4372,4374,4376,4386,4399,
+	// 4400-4500
+		4403,4407,4408,4419,4425,4430,4441,4451,4456,4457;
+        
+    // 初始化本期MVP卡片（确保卡池已就绪）
+    if ($@CurrentMVP == 0) {
+        if (getarraysize(.mvp_cards) > 0) {
+            set $@CurrentMVP, .mvp_cards[rand(getarraysize(.mvp_cards))];
+        }
+    }
+    
+    // [已取消] 迷你BOSS卡片组（①）规则已移除
+    
+    // 安慰奖道具组（按需求新增）
+    setarray .Consolation[0],
+        12214,12210,12202,12203,12204,12205,12206,12207,
+        690,699,691,12114,12115,12116,12117,
+        12215,12216,12217,12218,12219,12220,
+        12016,12017,969;
+    
+    // 奖品类别权重（总和1,000,000）：MVP 0.005%，普通 49.9975%，安慰 49.9975%
+    setarray $@PrizeWeights, 50, 499975, 499975;
+    // 应用NPC光环与头顶招牌，并启动循环显示文本的定时器
+    unitaura getnpcid(0),1086;
+    unitaura getnpcid(0),1087;
+    settitleicon(getnpcid(0),105,"「世界之树online」");
+    initnpctimer;
+        
+    // 普通卡片组（其余三个相同数字中奖）
+	setarray .CardsComun[0],
+		4001,4002,4003,4004,4005,4006,4007,4008,4009,4010,
+		4011,4012,4013,4014,4015,4016,4017,4018,4019,4020,
+		4021,4022,4023,4024,4025,4026,4027,4028,4029,4030,
+		4031,4032,4033,4034,4035,4036,4037,4038,4039,4040,
+		4041,4042,4043,4044,4045,4046,4048,4049,4050,4051,
+		4052,4053,4055,4056,4057,4058,4059,4060,4061,4062,
+		4063,4064,4065,4066,4067,4068,4069,4070,4071,4072,
+		4073,4074,4075,4076,4077,4078,4079,4080,4081,4082,
+		4083,4084,4085,4086,4087,4088,4089,4090,4091,4092,
+		4093,4094,4095,4096,4097,4098,4099,4100,4101,4102,
+		4103,4104,4105,4106,4107,4108,4109,4110,4111,4112,
+		4113,4114,4115,4116,4117,4118,4119,4120,4122,4124,
+		4125,4126,4127,4129,4130,4133,4136,4138,4139,4140,
+		4141,4142,4149,4150,4151,4152,4153,4154,4155,4156,
+		4157,4158,4159,4160,4161,4162,4163,4164,4165,4166,
+		4167,4169,4170,4171,4172,4173,4175,4176,4177,4178,
+		4179,4180,4181,4182,4183,4184,4185,4186,4187,4188,
+		4189,4190,4191,4192,4193,4194,4195,4196,4197,4198,
+		4199,4200,4201,4202,4203,4204,4205,4206,4207,4208,
+		4209,4210,4211,4212,4213,4214,4215,4216,4217,4218,
+		4219,4220,4221,4222,4223,4224,4225,4226,4227,4228,
+		4229,4230,4231,4232,4233,4234,4235,4237,4238,4239,
+		4240,4242,4243,4244,4245,4246,4247,4248,4249,4250,
+		4251,4252,4253,4254,4255,4256,4257,4258,4259,4260,
+		4261,4262,4264,4265,4266,4267,4268,4269,4270,4271,
+		4272,4273,4274,4275,4277,4278,4279,4280,4281,4282,
+		4283,4284,4285,4286,4287,4288,4289,4290,4291,4292,
+		4293,4294,4295,4296,4297,4298,4299,4300,4301,4303,
+		4304,4306,4307,4308,4309,4310,4311,4312,4313,4314,
+		4315,4316,4317,4319,4320,4321,4322,4323,4325,4326,
+		4327,4328,4329,4331,4332,4333,4334,4335,4336,4337,
+		4338,4339,4340,4341,4343,4344,4345,4346,4347,4348,
+		4349,4350,4351,4353,4354,4355,4356,4358,4360,4362,
+		4364,4366,4368,4369,4370,4371,4373,4375,4377,4378,
+		4379,4380,4381,4382,4383,4384,4385,4387,4388,4389,
+		4390,4391,4392,4393,4394,4395,4396,4397,4398,4400,
+		4401,4402,4404,4405,4406,4409,4410,4411,4412,4413,
+		4414,4415,4416,4417,4418,4420,4421,4422,4423,4424,
+		4426,4427,4428,4429,4431,4432,4433,4434,4435,4436,
+		4437,4438,4439,4440,4442,4443,4444,4445,4446,4447,
+		4448,4449,4450,4452,4453,4454,4455,4458,4459,4460,
+		4461,4462,4463,4464,4465,4466,4467,4468,4469,4470;
+
+    setarray $@SRT,   // 概率权重（老虎机规则）
+        50, 0, 55553, 55553, 55553, 55553, 55553, 55553, 55553, 55553, 55551;
+
+    setarray $@Slg$,  // 符号标识
+        "★","①","②","③","④","⑤","⑥","⑦","⑧","⑨","⑩";
+   
+    // 染色符号配置
+    setarray $@Slg_effect$,  
+        "^FFD700★^000000",    // 金色星星（MVP卡片组）
+        "^FFD700①^000000",    // 金色（迷你BOSS卡片组）
+        "^FF1493②^000000",    // 深粉色
+        "^00FF00③^000000",    // 亮绿色
+        "^FF0000④^000000",    // 红色
+        "^9932CC⑤^000000",    // 深紫色
+        "^FFA500⑥^000000",    // 橙色
+        "^00BFFF⑦^000000",    // 深天蓝
+        "^FF69B4⑧^000000",    // 热粉色
+        "^A9A9A9⑨^000000",    // 暗灰色
+        "^0000FF⑩^000000";    // 亮蓝色
+
+    unitaura getnpcid(0),418;  
+	settitleicon(getnpcid(0),0,"你是最欧的");
+	while(1){
+		showscript "「欧皇非你莫属」";
+        sleep 3000;
+    }
+	stopnpctimer;
+	initnpctimer;
+	end;
+end;
+}

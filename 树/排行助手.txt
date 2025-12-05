@@ -1,0 +1,126 @@
+prontera,166,115,3	script	世界之树-online#26	994,{
+		mes "^000088[世界之树-online排行榜]^000000";
+
+	switch(select("^880000[消费大佬排行]^000000","^006200[MVP击杀排行]^000000","^ba0981[战力排行]^000000","^000088[财富大佬排行]^000000","取消")){
+	
+	case 1:
+		mes "查询中.请稍后";
+		sleep2 1000;
+		set .@result, query_sql("SELECT char_name, total_spent, char_id FROM cash_consumption_stats ORDER BY total_spent DESC LIMIT "+.C_player, .@names$, .@spents, .@cids);
+		sleep2 1000;
+		if(getarraysize(.@names$)){
+		for(.@i = 0;.@i<.C_player;.@i++){
+			if(.@spents[.@i]){
+			mes "第"+(.@i+1)+"名 : [ "+.@names$[.@i]+" ] : "+.@spents[.@i]+" C点";
+			}
+		}
+		}
+		else mes "无数据";
+		break;
+	case 2:
+		mes "查询中.请稍后";
+		sleep2 1000;
+		set .@has_ladder, query_sql("SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'mvp_ladder_rank' LIMIT 1", .@tmp); 
+		
+		if (.@has_ladder > 0) { 
+			set .@result, query_sql("SELECT c.`name`, r.`all_kills` FROM `mvp_ladder_rank` r JOIN `char` c ON c.`char_id` = r.`char_id` ORDER BY r.`all_kills` DESC LIMIT "+.C_player, .@names$, .@kills); 
+		} else { 
+			set .@has_mvplog, query_sql("SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'mvplog' LIMIT 1", .@tmp); 
+			if (.@has_mvplog > 0) { 
+				set .@col_rows, query_sql("SELECT COLUMN_NAME FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'mvplog' AND COLUMN_NAME IN ('char_id','charid','killer_id','killerrid') LIMIT 1", .@col$); 
+				if (.@col_rows > 0) { 
+					set .@col$, .@col$[0]; 
+					set .@result, query_sql("SELECT c.`name`, COUNT(*) AS `kills` FROM `mvplog` m JOIN `char` c ON c.`char_id` = m.`"+ .@col$ +"` GROUP BY c.`char_id` ORDER BY `kills` DESC LIMIT "+.C_player, .@names$, .@kills); 
+				} else { 
+					set .@result, 0; 
+				} 
+			} else { 
+				set .@result, 0; 
+			} 
+		}
+		sleep2 1000;
+		if(getarraysize(.@names$)){
+		for(.@i = 0;.@i<.C_player;.@i++){
+			if(.@kills[.@i]){
+			mes "第"+(.@i+1)+"名 : [ "+.@names$[.@i]+" ] : "+.@kills[.@i]+" 击杀";
+			}
+		}
+		}
+		else mes "无数据";
+		break;
+	case 3:
+		mes "查询中.请稍后";
+		sleep2 1000;
+		// 查询战力排行数据 - 使用power_ranking表（与18智障传送.txt保持一致）
+		set .@result, query_sql("SELECT char_name, total_score, combat_rating, ranking FROM power_ranking WHERE ranking > 0 ORDER BY ranking ASC LIMIT "+.C_player, .@names$, .@scores, .@ratings$, .@rankings);
+		sleep2 1000;
+		if(getarraysize(.@names$)){
+		for(.@i = 0;.@i<.C_player;.@i++){
+			if(.@scores[.@i]){
+			mes "第"+.@rankings[.@i]+"名 : [ "+.@names$[.@i]+" ] : "+.@scores[.@i]+" 分 ("+.@ratings$[.@i]+")";
+			}
+		}
+		}
+		else mes "无数据";
+		break;	
+	case 4:
+		mes "查询中.请稍后";
+		sleep2 1000;
+		set .@result, query_sql("SELECT `name`, `zeny` FROM `char` WHERE `delete_date`=0 ORDER BY `zeny` DESC LIMIT "+.C_player, .@names$, .@zenys);
+		sleep2 1000;
+		if(getarraysize(.@names$)){
+		for(.@i = 0;.@i<.C_player;.@i++){
+			if(.@zenys[.@i]){
+			mes "第"+(.@i+1)+"名 : [ "+.@names$[.@i]+" ] : "+.@zenys[.@i]+" Zeny";
+			}
+		}
+		}
+		else mes "无数据";
+		break; 	
+	case 5:
+		break;
+		}
+	end;
+OnCheckHp:
+if(getgmlevel()>90)end;
+	pc_maxhp = getunitstatus(getcharid(3),STATUS_MAXHP);
+	end;
+OnCheckAtk:
+if(getgmlevel()>90)end;
+	pc_atk = getunitstatus(getcharid(3),STATUS_ATK);
+	end;
+OnCheckMatk:
+if(getgmlevel()>90)end;
+	pc_matk = getunitstatus(getcharid(3),STATUS_MATK);
+	end;
+OnCheckIitem:
+if(getgmlevel()>90)end;
+	pc_item_co = countitem(.item);
+	end;
+OnPCLogoutEvent:
+		if(getgmlevel()>90){
+		pc_maxhp = 0;
+		pc_atk = 0;
+		pc_matk = 0;
+		pc_item_co = 0;
+		end;
+		}
+		pc_maxhp = getunitstatus(getcharid(3),STATUS_MAXHP);
+		pc_atk = getunitstatus(getcharid(3),STATUS_ATK);
+		pc_matk = getunitstatus(getcharid(3),STATUS_MATK);
+		pc_item_co = countitem(.item);
+	end;	
+
+OnInit:
+	//查询排行前人数
+	.C_player =10;
+    unitaura getnpcid(0),418;  
+	settitleicon(getnpcid(0),0,"波罗斯");
+	while(1){
+		showscript "「排 行 助 理」";
+        sleep 3000;
+    }
+ 	end;
+
+
+}

@@ -1,0 +1,234 @@
+//prontera,150,137,6	script	时装幻化3	10010,{}
+
+/*
+  - Id: 9001248
+    AegisName: item_9001248
+    Name: 时装隐身
+    Type: Delayconsume
+    Trade:
+      Override: 99
+      NoDrop: true
+      NoTrade: true
+      NoSell: true
+      NoCart: true
+      NoStorage: true
+      NoGuildStorage: true
+      NoMail: true
+      NoAuction: true
+    Script: |
+      callfunc "#hide_c";
+
+*/
+prt_in,135,116,3	script	世界之树-online#22	640,{
+	// 玩家点击NPC时的交互逻辑 - 直接调用时装幻化函数
+	callfunc "#hide_c";
+	end;
+
+
+OnInit:
+	unitaura getnpcid(0),1096; 
+	settitleicon(getnpcid(0),0,"时装幻化-嗒尔");
+	while(1){
+		showscript "[ 时 装 幻 化 ]";
+		sleep 1000;
+	}	
+end;
+}
+function	script	#hide_c	{
+	switch(select("幻化时装",get_pc_view?"显示时装":"隐藏时装","取消")){
+	case 2:
+	if(get_pc_view==0){
+
+		
+		top_View = getiteminfo(getequipid(EQI_HEAD_TOP),11);
+		mid_View = getiteminfo(getequipid(EQI_HEAD_MID),11);
+		bottom_View = getiteminfo(getequipid(EQI_HEAD_LOW),11);
+		
+		//if(top_View == -1){ top_View = getiteminfo(getequipid(EQI_COSTUME_HEAD_TOP),11); }
+		//if(mid_View == -1){ mid_View = getiteminfo(getequipid(EQI_COSTUME_HEAD_MID),11); }
+		//if(bottom_View == -1){ bottom_View = getiteminfo(getequipid(EQI_COSTUME_HEAD_LOW),11); }
+					
+		if(top_View == -1){ top_View = 0; }
+		if(mid_View == -1){ mid_View = 0; }
+		if(bottom_View == -1){ bottom_View = 0; }
+		
+		get_pc_view = 1;
+		setlook 4,top_View;
+		setlook 5,mid_View;
+		setlook 3,bottom_View;
+	}
+	else {
+		get_pc_view = 0;
+
+		top_View = getiteminfo(getequipid(EQI_COSTUME_HEAD_TOP),11);
+		mid_View = getiteminfo(getequipid(EQI_COSTUME_HEAD_MID),11);
+		bottom_View = getiteminfo(getequipid(EQI_COSTUME_HEAD_LOW),11);
+
+		if(top_View == -1){ top_View = 0; }
+		if(mid_View == -1){ mid_View = 0; }
+		if(bottom_View == -1){ bottom_View = 0; }	
+		
+		//setlook 4,ch_top;
+		//setlook 5,ch_mid;
+		//setlook 3,ch_bot;
+		//
+		setlook 4,ch_top?ch_top:top_View;
+		setlook 5,ch_mid?ch_mid:mid_View;
+		setlook 3,ch_bot?ch_bot:bottom_View;
+	}
+	end;
+	case 1:
+
+	set $@NPC_Name$,"时装幻化";	// 设置NPC在对话框中的显示名称
+	
+	// 设置不能进行幻化的物品ID（添加在此处的ID不会出现在幻化选择列表之中）
+	set .changeView_filter$,"START,16507,16508,16509,16510,16511,16512,16513,16514,16515,16516,16517,16518,16519,16520,16521,16522,END";
+
+	mes "["+$@NPC_Name$+"]";
+	mes "你需要我提供^FF0000时装幻化^000000服务吗？";
+	switch(select("^FF0000- 时装幻化 -^000000:^000088- 还原外观 -^000000")){
+		case 1:
+			// 头上 1024
+			// 头中 2048
+			// 头下 4096
+			// 头上+头中 1024+2048=3072
+			// 头上+头下 1024+4096=5120
+			// 头中+头下 2048+4096=6144
+			// 头上+头中+头下 1024+2048+4096=7168
+			getinventorylist getcharid(0);
+			mes "请选择一个需要幻化的头饰..";
+			setarray .@idArray[0],0;
+			.@idArrayIndex = 0;
+			.@allItemName$ = "";
+			for(.@i=0;.@i<@inventorylist_count;.@i++){
+				.@theId = @inventorylist_id[.@i];
+				.@theName$ = getitemname(.@theId);
+				.@theLoc = getiteminfo(.@theId,5);
+				if(.@theLoc == 1024 || .@theLoc == 2048 || .@theLoc == 4096 || .@theLoc == 3072 || .@theLoc == 5120 || .@theLoc == 6144 || .@theLoc == 7168){
+					if(countstr(.changeView_filter$,","+.@theId+",") < 1){
+						.@idArray[.@idArrayIndex] = .@theId;
+						.@idArrayIndex++;
+						.@allItemName$ = .@allItemName$ + .@theName$ + ":";
+					}
+				}
+			}
+			.@selectNum = select(.@allItemName$);
+			switch(.@selectNum){
+				mes "你确定要幻化成[^FF0000" + getitemName(.@idArray[.@selectNum-1]) + "]^000000吗？";
+				switch(select("^FF0000- 是 -^000000:- 否 -")){
+					case 1:
+						.@selectId = .@idArray[.@selectNum-1];
+						.@selectLoc = getiteminfo(.@selectId,5);
+						.@selectView = getiteminfo(.@selectId,11);
+						if(.@selectLoc == 1024){	// 头上
+							setlook 4,.@selectView;
+							ch_top = .@selectView;
+							//ch_mid = 0;
+							//ch_bot = 0;
+						}
+						if(.@selectLoc == 2048){	// 头中
+							setlook 5, .@selectView;
+							//ch_top = 0;
+							ch_mid = .@selectView;
+							//ch_bot = 0;
+						}
+						if(.@selectLoc == 4096){	// 头下
+							setlook 3, .@selectView;
+							//ch_top = 0;
+							//ch_mid = 0;
+							ch_bot = .@selectView;
+						}
+						if(.@selectLoc == 3072){	// 头上+头中
+							setlook 4, .@selectView;
+							setlook 5, .@selectView;
+							ch_top = .@selectView;
+							ch_mid = .@selectView;
+							//ch_bot = 0;
+						}
+						if(.@selectLoc == 5120){	// 头上+头下
+							setlook 3,.@selectView;
+							setlook 4,.@selectView;
+							ch_top = .@selectView;
+							//ch_mid = 0;
+							ch_bot = .@selectView;
+						}
+						if(.@selectLoc == 6144){	// 头中+头下
+							setlook 3, .@selectView;
+							setlook 5, .@selectView;
+							//ch_top = 0;
+							ch_mid = .@selectView;
+							ch_bot = .@selectView;
+						}
+						if(.@selectLoc == 7168){	// 头上+头中+头下
+							setlook 3, .@selectView;
+							setlook 4, .@selectView;
+							setlook 5, .@selectView;
+							ch_top = .@selectView;
+							ch_mid = .@selectView;
+							ch_bot = .@selectView;
+
+						}
+						end;
+					case 2:
+						end;
+				}
+			}
+			end;
+		case 2:
+			switch(select("- 还原头上 -:- 还原头中 -:- 还原头下 -:- 还原全部 -")){
+					.@topView = getiteminfo(getequipid(EQI_HEAD_TOP),11);
+					.@middiew = getiteminfo(getequipid(EQI_HEAD_MID),11);
+					.@bottomView = getiteminfo(getequipid(EQI_HEAD_LOW),11);
+					if(.@topView == -1){ .@topView = getiteminfo(getequipid(EQI_COSTUME_HEAD_TOP),11); }
+					if(.@middiew == -1){ .@middiew = getiteminfo(getequipid(EQI_COSTUME_HEAD_MID),11); }
+					if(.@bottomView == -1){ .@bottomView = getiteminfo(getequipid(EQI_COSTUME_HEAD_LOW),11); }
+					if(.@topView == -1){ .@topView = 0; }
+					if(.@middiew == -1){ .@middiew = 0; }
+					if(.@bottomView == -1){ .@bottomView = 0; }
+				case 1:
+					ch_top = 0;
+					setlook 4,.@topView;
+					
+					end;
+				case 2:
+					setlook 5,.@middiew;
+					ch_mid = 0;
+					end;
+				case 3:
+					setlook 3,.@bottomView;
+					ch_bot = 0;
+					end;
+				case 4:
+					setlook 4,.@topView;
+					setlook 5,.@middiew;
+					setlook 3,.@bottomView;
+					ch_top = 0;
+					ch_mid = 0;
+					ch_bot = 0;
+					end;
+			}
+	}
+	
+		end;
+case 3:
+	end;			
+		
+			}
+
+	
+}
+-	script	#hide_logng	-1,{
+	end;
+OnPCLoginEvent:
+	if(ch_top > 0){
+	setlook 4,ch_top;
+	}
+	
+	if(ch_mid > 0){
+	setlook 5,ch_mid;
+	}
+	if(ch_bot > 0){
+	setlook 3,ch_bot;
+	}
+	end;
+}

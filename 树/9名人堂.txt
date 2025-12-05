@@ -1,0 +1,963 @@
+// ============================================
+// 结合版名人堂脚本 - 包含财富榜、MVP击杀榜和C点消费榜
+// ============================================
+
+// 主NPC - 负责数据更新和界面显示
+1@pop3,54,42,0	script	财富MVP名人堂	4_F_KAFRA1,{
+	if (getgmlevel() < 99) {
+		mes "只有GM才能使用此功能。";
+		close;
+	}
+    mes "[财富MVP名人堂]";
+    mes "欢迎来到名人堂！";
+    mes "这里展示着服务器中最杰出的玩家。";
+    mes "更新时间：" + gettimestr("%Y-%m-%d %H:%M:%S", 21);
+    mes "================================";
+    
+    switch(select("查看财富榜:查看MVP击杀榜:查看C点消费榜:刷新排行榜:管理员功能")) {
+    case 1:
+        callfunc "DisplayWealthRank";
+        break;
+    case 2:
+        callfunc "DisplayMVPRank";
+        break;
+    case 3:
+        callfunc "DisplayCashRank";
+        break;
+    case 4:
+        callfunc "UpdateAllMirrors";
+        mes "排行榜已刷新！";
+        close;
+    case 5:
+        if(getgmlevel() < 99) {
+            mes "权限不足";
+            close;
+        }
+        callfunc "AdminFunctions";
+        break;
+    }
+    
+    close;
+}
+
+// ============================================
+// 财富榜显示函数
+// ============================================
+function	script	DisplayWealthRank	{
+    mes "[财富排行榜]";
+    mes "当前服务器财富排名第1名的玩家：";
+    mes "================================";
+    
+    set .@rank_count, 0;
+    set .@result, query_sql("SELECT `name`, `zeny` FROM `char` WHERE `delete_date`=0 ORDER BY `zeny` DESC LIMIT 1", .@names$, .@zenys);
+    
+    for(set .@i, 0; .@i < .@result; set .@i, .@i + 1) {
+        switch(.@i) {
+            case 0: mes "^FF0000第1名：^000000" + .@names$[.@i] + " - " + .@zenys[.@i] + " Zeny"; break;
+        }
+        set .@rank_count, .@rank_count + 1;
+    }
+    
+    if (.@rank_count == 0) {
+        mes "暂无财富记录";
+    }
+    
+    mes "================================";
+    next;
+    return;
+}
+
+// ============================================
+// MVP击杀榜显示函数
+// ============================================
+function	script	DisplayMVPRank	{
+    mes "[MVP击杀排行榜]";
+    mes "当前服务器MVP击杀排名第1名的玩家：";
+    mes "================================";
+    
+    set .@rank_count, 0;
+    
+    // 检查MVP数据表
+    set .@has_ladder, query_sql("SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'mvp_ladder_rank' LIMIT 1", .@tmp);
+    
+    if (.@has_ladder > 0) {
+        set .@result, query_sql("SELECT c.`name`, r.`all_kills` FROM `mvp_ladder_rank` r JOIN `char` c ON c.`char_id` = r.`char_id` ORDER BY r.`all_kills` DESC LIMIT 1", .@names$, .@kills);
+    } else {
+        set .@has_mvplog, query_sql("SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'mvplog' LIMIT 1", .@tmp);
+        if (.@has_mvplog > 0) {
+            set .@col_rows, query_sql("SELECT COLUMN_NAME FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'mvplog' AND COLUMN_NAME IN ('char_id','charid','killer_id','killerrid') LIMIT 1", .@col$);
+            if (.@col_rows > 0) {
+                set .@col$, .@col$[0];
+                set .@result, query_sql("SELECT c.`name`, COUNT(*) AS `kills` FROM `mvplog` m JOIN `char` c ON c.`char_id` = m.`"+ .@col$ +"` GROUP BY c.`char_id` ORDER BY `kills` DESC LIMIT 1", .@names$, .@kills);
+            } else {
+                set .@result, 0;
+            }
+        } else {
+            set .@result, 0;
+        }
+    }
+    
+    for(set .@i, 0; .@i < .@result; set .@i, .@i + 1) {
+        switch(.@i) {
+            case 0: mes "^FF0000第1名：^000000" + .@names$[.@i] + " - " + .@kills[.@i] + " 击杀"; break;
+        }
+        set .@rank_count, .@rank_count + 1;
+    }
+    
+    if (.@rank_count == 0) {
+        mes "暂无MVP击杀记录";
+    }
+    
+    mes "================================";
+    next;
+    return;
+}
+
+// ============================================
+// C点消费榜显示函数
+// ============================================
+function	script	DisplayCashRank	{
+    mes "[C点消费排行榜]";
+    mes "当前服务器C点消费排名第1名的玩家：";
+    mes "================================";
+    
+    set .@rank_count, 0;
+    
+    // 检查C点消费数据表
+    set .@has_cashstats, query_sql("SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'cash_consumption_stats' LIMIT 1", .@tmp);
+    
+    if (.@has_cashstats > 0) {
+        set .@result, query_sql("SELECT char_name, total_spent FROM cash_consumption_stats ORDER BY total_spent DESC LIMIT 1", .@names$, .@spents);
+    } else {
+        set .@result, 0;
+    }
+    
+    for(set .@i, 0; .@i < .@result; set .@i, .@i + 1) {
+        switch(.@i) {
+            case 0: mes "^FF0000第1名：^000000" + .@names$[.@i] + " - " + .@spents[.@i] + " C点"; break;
+        }
+        set .@rank_count, .@rank_count + 1;
+    }
+    
+    if (.@rank_count == 0) {
+        mes "暂无C点消费记录";
+    }
+    
+    mes "================================";
+    next;
+    return;
+}
+
+// ============================================
+// 管理员功能
+// ============================================
+function	script	AdminFunctions	{
+    mes "[管理员功能]";
+    
+    switch(select("生成所有镜像:手动更新镜像:发放排行榜奖励:创建数据库表:退出")) {
+    case 1:
+        callfunc "GenerateAllMirrors";
+        break;
+    case 2:
+        callfunc "UpdateAllMirrors";
+        mes "所有镜像已更新！";
+        break;
+    case 3:
+        callfunc "SendRankRewards";
+        break;
+    case 4:
+        callfunc "CreateDatabaseTables";
+        break;
+    case 5:
+        return;
+    }
+    
+    close;
+}
+
+// ============================================
+// 初始化脚本
+// ============================================
+-	script	HallOfFameInitializer	-1,{
+OnInit:
+    // 创建C点消费相关表
+    query_sql(
+        "CREATE TABLE IF NOT EXISTS `longzhigu_log`.`cashlog` ("+
+        "`id` INT NOT NULL AUTO_INCREMENT,"+
+        "`char_id` INT NOT NULL,"+
+        "`char_name` VARCHAR(24) NOT NULL,"+
+        "`amount` INT NOT NULL COMMENT '正数为获得C点，负数为消费C点',"+
+        "`type` TINYINT NOT NULL COMMENT '1=获得, 2=消费',"+
+        "`item_name` VARCHAR(100) NULL COMMENT '消费的物品名称',"+
+        "`timestamp` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"+
+        "PRIMARY KEY (`id`),"+
+        "KEY `idx_char_id` (`char_id`),"+
+        "KEY `idx_timestamp` (`timestamp`)"+
+        ") ENGINE=InnoDB DEFAULT CHARSET=utf8;"
+    );
+    
+    query_sql(
+        "CREATE TABLE IF NOT EXISTS cash_consumption_stats ("+
+        "char_id INT NOT NULL,"+
+        "char_name VARCHAR(24) NOT NULL,"+
+        "total_spent INT UNSIGNED NOT NULL DEFAULT 0,"+
+        "record_count INT UNSIGNED NOT NULL DEFAULT 0,"+
+        "last_update TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,"+
+        "PRIMARY KEY (char_id), KEY idx_total_spent (total_spent)"+
+        ") ENGINE=InnoDB DEFAULT CHARSET=utf8;"
+    );
+    
+    // 创建名人堂镜像数据表
+    query_sql(
+        "CREATE TABLE IF NOT EXISTS hall_of_fame_mirrors ("+
+        "id INT UNSIGNED NOT NULL AUTO_INCREMENT,"+
+        "char_id INT UNSIGNED NOT NULL,"+
+        "original_char_id INT UNSIGNED NOT NULL,"+
+        "name VARCHAR(24) NOT NULL,"+
+        "class SMALLINT UNSIGNED NOT NULL,"+
+        "base_level SMALLINT UNSIGNED NOT NULL,"+
+        "job_level SMALLINT UNSIGNED NOT NULL,"+
+        "hair SMALLINT UNSIGNED NOT NULL,"+
+        "hair_color SMALLINT UNSIGNED NOT NULL,"+
+        "clothes_color SMALLINT UNSIGNED NOT NULL,"+
+        "weapon SMALLINT UNSIGNED NOT NULL,"+
+        "shield SMALLINT UNSIGNED NOT NULL,"+
+        "head_top SMALLINT UNSIGNED NOT NULL,"+
+        "head_mid SMALLINT UNSIGNED NOT NULL,"+
+        "head_bottom SMALLINT UNSIGNED NOT NULL,"+
+        "equipment_data TEXT NULL,"+
+        "created_time INT UNSIGNED NOT NULL,"+
+        "PRIMARY KEY (id), KEY idx_char_id (char_id), KEY idx_original_char_id (original_char_id)"+
+        ") ENGINE=InnoDB DEFAULT CHARSET=utf8;"
+    );
+    
+    // 创建奖励记录表
+    query_sql(
+        "CREATE TABLE IF NOT EXISTS rank_reward_logs ("+
+        "id INT UNSIGNED NOT NULL AUTO_INCREMENT,"+
+        "reward_type TINYINT NOT NULL COMMENT '1=财富榜, 2=MVP击杀榜',"+
+        "rank TINYINT NOT NULL,"+
+        "char_id INT UNSIGNED NOT NULL,"+
+        "char_name VARCHAR(24) NOT NULL,"+
+        "zeny_reward INT UNSIGNED NOT NULL,"+
+        "cash_reward INT UNSIGNED NOT NULL,"+
+        "reward_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"+
+        "PRIMARY KEY (id), KEY idx_reward_time (reward_time), KEY idx_char_id (char_id)"+
+        ") ENGINE=InnoDB DEFAULT CHARSET=utf8;"
+    );
+    
+    // 创建特效状态跟踪表
+    query_sql(
+        "CREATE TABLE IF NOT EXISTS npc_effect_status (" +
+        "npc_gid INT UNSIGNED NOT NULL, " +
+        "npc_name VARCHAR(50) NOT NULL, " +
+        "current_effect_id INT NOT NULL DEFAULT 0, " +
+        "rank TINYINT NOT NULL DEFAULT 0, " +
+        "last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, " +
+        "PRIMARY KEY (npc_gid), " +
+        "KEY idx_npc_name (npc_name)" +
+        ") ENGINE=InnoDB DEFAULT CHARSET=utf8;"
+    );
+    
+    // 首次更新所有数据
+    callfunc "UpdateCashStats";
+    callfunc "UpdateAllMirrors";
+    
+    // 设置定时器：每1小时更新镜像，每3分钟更新C点数据，每天20点发放奖励
+    initnpctimer;
+    end;
+    
+OnTimer180000: // 3分钟更新C点数据
+    callfunc "UpdateCashStats";
+    end;
+    
+OnTimer3600000: // 1小时更新所有镜像
+    callfunc "UpdateAllMirrors";
+    initnpctimer;
+    end;
+    
+OnClock2000: // 每天晚上20点
+    callfunc "SendRankRewards";
+    end;
+}
+
+// ============================================
+// 镜像更新器NPC
+// ============================================
+1@pop3,58,42,1	script	镜像更新器	4_F_KAFRA1,{
+	if (getgmlevel() < 99) {
+		mes "只有GM才能使用此功能。";
+		close;
+	}
+    mes "[镜像更新器]";
+    mes "我是负责定时更新名人堂镜像的NPC。";
+    mes "我会每1小时自动更新一次所有镜像。";
+    mes "每天晚上20点自动发放排行榜奖励。";
+    next;
+    
+    switch(select("立即更新所有镜像:立即发放排行榜奖励:查看下次更新时间:关闭")) {
+    case 1:
+        callfunc "UpdateAllMirrors";
+        mes "所有镜像已更新！";
+        break;
+    case 2:
+        callfunc "SendRankRewards";
+        break;
+    case 3:
+        mes "[镜像更新器]";
+        mes "下次自动更新将在1小时后进行。";
+        mes "奖励发放时间：每天晚上20:00";
+        close;
+    case 4:
+        close;
+    }
+    
+    close;
+
+OnTimer3600000: // 1小时更新所有镜像
+    callfunc "UpdateAllMirrors";
+    initnpctimer;
+    end;
+
+OnClock2000: // 晚上20点发放奖励
+    callfunc "SendRankRewards";
+    initnpctimer;
+    end;
+}
+
+// ============================================
+// 核心功能函数
+// ============================================
+
+// 更新所有镜像
+function	script	UpdateAllMirrors	{
+    callfunc "UpdateWealthMirrors";
+    callfunc "UpdateMVPMirrors";
+    callfunc "UpdateCashMirrors";
+    return;
+}
+
+// 生成所有镜像
+function	script	GenerateAllMirrors	{
+    callfunc "UpdateWealthMirrors";
+    callfunc "UpdateMVPMirrors";
+    callfunc "UpdateCashMirrors";
+    return;
+}
+
+// 更新财富榜镜像
+function	script	UpdateWealthMirrors	{
+    // 获取财富榜前1名
+    set .@result, query_sql("SELECT `char_id` FROM `char` WHERE `delete_date`=0 ORDER BY `zeny` DESC LIMIT 1", .@cids);
+    
+    // 更新第1名镜像
+    for(set .@i, 0; .@i < .@result; set .@i, .@i + 1) {
+        callfunc "UpdateHallOfFameSingleMirror", "wealth", .@i + 1, .@cids[.@i];
+    }
+    
+    // 重置第2、3名镜像
+    for(set .@i, .@result; .@i < 3; set .@i, .@i + 1) {
+        callfunc "ResetHallOfFameMirrorAppearance", "wealth", .@i + 1;
+    }
+    
+    return;
+}
+
+// 更新MVP击杀榜镜像
+function	script	UpdateMVPMirrors	{
+    set .@result, 0;
+    
+    // 检查MVP数据表
+    set .@has_ladder, query_sql("SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'mvp_ladder_rank' LIMIT 1", .@tmp);
+    
+    if (.@has_ladder > 0) {
+        set .@result, query_sql("SELECT c.`char_id` FROM `mvp_ladder_rank` r JOIN `char` c ON c.`char_id` = r.`char_id` ORDER BY r.`all_kills` DESC LIMIT 1", .@cids);
+    } else {
+        set .@has_mvplog, query_sql("SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'mvplog' LIMIT 1", .@tmp);
+        if (.@has_mvplog > 0) {
+            set .@col_rows, query_sql("SELECT COLUMN_NAME FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'mvplog' AND COLUMN_NAME IN ('char_id','charid','killer_id','killerrid') LIMIT 1", .@col$);
+            if (.@col_rows > 0) {
+                set .@col$, .@col$[0];
+                set .@result, query_sql("SELECT c.`char_id` FROM `mvplog` m JOIN `char` c ON c.`char_id` = m.`"+ .@col$ +"` GROUP BY c.`char_id` ORDER BY COUNT(*) DESC LIMIT 1", .@cids);
+            }
+        }
+    }
+    
+    // 更新第1名镜像
+    for(set .@i, 0; .@i < .@result; set .@i, .@i + 1) {
+        callfunc "UpdateHallOfFameSingleMirror", "mvp", .@i + 1, .@cids[.@i];
+    }
+    
+    // 重置第2、3名镜像
+    for(set .@i, .@result; .@i < 3; set .@i, .@i + 1) {
+        callfunc "ResetHallOfFameMirrorAppearance", "mvp", .@i + 1;
+    }
+    
+    return;
+}
+
+// 更新C点消费统计数据的函数
+function	script	UpdateCashStats	{
+    // 先检查cashlog表结构 - 在longzhigu_log数据库中
+    set .@has_cashlog, query_sql("SELECT 1 FROM information_schema.tables WHERE table_schema = 'longzhigu_log' AND table_name = 'cashlog' LIMIT 1", .@tmp);
+    if (.@has_cashlog == 0) {
+        debugmes "[C点排行榜] 错误：longzhigu_log数据库中的cashlog表不存在";
+        return;
+    }
+    
+    // 检查cashlog表的字段结构 - 在longzhigu_log数据库中
+    set .@cashlog_fields, query_sql("SELECT COLUMN_NAME FROM information_schema.columns WHERE table_schema = 'longzhigu_log' AND table_name = 'cashlog' ORDER BY ORDINAL_POSITION", .@field_names$);
+    
+    // 构建字段名称字符串（避免implode错误）
+    set .@field_str$, "";
+    for(set .@i, 0; .@i < .@cashlog_fields; set .@i, .@i + 1) {
+        if (.@i > 0) set .@field_str$, .@field_str$ + ", ";
+        set .@field_str$, .@field_str$ + .@field_names$[.@i];
+    }
+    debugmes "[C点排行榜] cashlog表字段：" + .@field_str$;
+    
+    // 检查char_id字段是否存在，如果不存在则尝试其他可能的字段名
+    set .@char_id_field$, "char_id";
+    set .@has_char_id, query_sql("SELECT 1 FROM information_schema.columns WHERE table_schema = 'longzhigu_log' AND table_name = 'cashlog' AND COLUMN_NAME = 'char_id' LIMIT 1", .@tmp);
+    if (.@has_char_id == 0) {
+        // 尝试其他可能的字段名
+        set .@has_charid, query_sql("SELECT 1 FROM information_schema.columns WHERE table_schema = 'longzhigu_log' AND table_name = 'cashlog' AND COLUMN_NAME = 'charid' LIMIT 1", .@tmp);
+        if (.@has_charid > 0) {
+            set .@char_id_field$, "charid";
+        } else {
+            set .@has_account_id, query_sql("SELECT 1 FROM information_schema.columns WHERE table_schema = 'longzhigu_log' AND table_name = 'cashlog' AND COLUMN_NAME = 'account_id' LIMIT 1", .@tmp);
+            if (.@has_account_id > 0) {
+                set .@char_id_field$, "account_id";
+            }
+        }
+    }
+    
+    debugmes "[C点排行榜] 使用字段：" + .@char_id_field$ + " 进行关联";
+    
+    // 更新统计表（使用动态确定的字段名）- 从longzhigu_log数据库读取数据
+    set .@update_result, query_sql(
+        "REPLACE INTO cash_consumption_stats " +
+        "SELECT cl." + .@char_id_field$ + ", c.name, SUM(ABS(cl.amount)), COUNT(*), NOW() " +
+        "FROM `longzhigu_log`.`cashlog` cl JOIN `char` c ON c.char_id = cl." + .@char_id_field$ + " " +
+        "WHERE cl.amount < 0 " +
+        "GROUP BY cl." + .@char_id_field$
+    );
+    
+    // 记录更新日志
+    if (.@update_result > 0) {
+        debugmes "[C点排行榜] 统计数据已更新，影响记录：" + .@update_result;
+    } else {
+        debugmes "[C点排行榜] 统计数据更新完成，无新记录";
+    }
+    
+    return;
+}
+
+// 更新C点消费榜镜像
+function	script	UpdateCashMirrors	{
+    // 获取前1名玩家信息
+    set .@result, query_sql("SELECT char_id, total_spent FROM cash_consumption_stats ORDER BY total_spent DESC LIMIT 1", .@cids, .@spents);
+    
+    // 更新第1名镜像的外观
+    for(set .@i, 0; .@i < .@result; set .@i, .@i + 1) {
+        callfunc "UpdateCashSingleMirror", .@i + 1, .@cids[.@i];
+    }
+    
+    // 重置第2、3名镜像为默认外观
+    for(set .@i, .@result; .@i < 3; set .@i, .@i + 1) {
+        callfunc "ResetCashMirrorAppearance", .@i + 1;
+    }
+    
+    debugmes "[C点排行榜] 镜像外观更新完成";
+    return;
+}
+
+// 获取镜像NPC名称（修复函数）
+function	script	GetMirrorName	{
+    set .@type$, getarg(0);    // "wealth" 或 "mvp" 或 "cash"
+    set .@rank, getarg(1);     // 排名 (1-3)
+    
+    // 只保留第一名，移除第二、三名
+    if (.@rank != 1) {
+        return "";
+    }
+    
+    // 财富榜NPC名称
+    if (.@type$ == "wealth") {
+        return "数字皇帝";
+    }
+    // MVP榜NPC名称
+    else if (.@type$ == "mvp") {
+        return "行走天灾";
+    }
+    // C点消费榜NPC名称
+    else if (.@type$ == "cash") {
+        return "C点消费榜一";
+    }
+    
+    return "";
+}
+
+// 更新单个镜像外观（财富/MVP榜）
+function	script	UpdateHallOfFameSingleMirror	{
+    set .@type$, getarg(0);    // "wealth" 或 "mvp"
+    set .@rank, getarg(1);     // 排名 (1-3)
+    set .@char_id, getarg(2);  // 玩家ID
+    
+    // 根据类型和排名获取正确的镜像NPC名称
+    set .@mirror_name$, callfunc("GetMirrorName", .@type$, .@rank);
+    
+    if (.@mirror_name$ == "") {
+        return;
+    }
+    
+    // 获取镜像NPC的GID
+    set .@mirror_gid, getnpcid(0, .@mirror_name$);
+    
+    if (.@mirror_gid == 0) {
+        return;
+    }
+    
+    // 查询玩家造型数据和名字
+    set .@char_info, query_sql(
+        "SELECT `class`, `hair`, `hair_color`, `clothes_color`, `head_top`, `head_mid`, `head_bottom`, `robe`, `sex`, `name` " +
+        "FROM `char` WHERE `char_id` = " + .@char_id,
+        .@class, .@hair, .@hair_color, .@clothes_color, .@head_top, .@head_mid, .@head_bottom, .@robe, .@sex$, .@player_name$
+    );
+    
+    if (.@char_info > 0) {
+        // 设置NPC外观
+        setunitdata .@mirror_gid, UNPC_CLASS, .@class;
+        setunitdata .@mirror_gid, UNPC_HAIRSTYLE, .@hair;
+        setunitdata .@mirror_gid, UNPC_HAIRCOLOR, .@hair_color;
+        setunitdata .@mirror_gid, UNPC_CLOTHCOLOR, .@clothes_color;
+        setunitdata .@mirror_gid, UNPC_HEADTOP, .@head_top;
+        setunitdata .@mirror_gid, UNPC_HEADMIDDLE, .@head_mid;
+        setunitdata .@mirror_gid, UNPC_HEADBOTTOM, .@head_bottom;
+        setunitdata .@mirror_gid, UNPC_ROBE, .@robe;
+        setunitdata .@mirror_gid, UNPC_SEX, ((.@sex$ == "M")?1:0);
+        setunitdata .@mirror_gid, UNPC_LOOKDIR, DIR_SOUTH;
+        
+        // 存储镜像信息到数据库，用于显示玩家名字
+        query_sql(
+            "REPLACE INTO hall_of_fame_mirrors (char_id, original_char_id, name, class, base_level, job_level, hair, hair_color, clothes_color, weapon, shield, head_top, head_mid, head_bottom, equipment_data, created_time) " +
+            "VALUES (" + .@mirror_gid + ", " + .@char_id + ", '" + .@mirror_name$ + "', " + .@class + ", 99, 70, " + .@hair + ", " + .@hair_color + ", " + .@clothes_color + ", 0, 0, " + .@head_top + ", " + .@head_mid + ", " + .@head_bottom + ", '', UNIX_TIMESTAMP())"
+        );
+        
+        // 设置玩家名字标题
+        settitleicon .@mirror_gid, 0, ""+.@player_name$+"";
+        
+        // 根据排行榜类型应用对应特效
+        if (.@type$ == "wealth") {
+            // 财富榜使用财富特效
+            callfunc "ApplyWealthMirrorEffects", .@mirror_gid, .@rank;
+        } else if (.@type$ == "mvp") {
+            // MVP榜使用MVP特效
+            callfunc "ApplyMVPMirrorEffects", .@mirror_gid, .@rank;
+        }
+    }
+    
+    return;
+}
+
+// 更新单个C点消费榜镜像外观的函数（带性别识别）
+function	script	UpdateCashSingleMirror	{
+    set .@rank, getarg(0);  // 排名 (1-3)
+    set .@char_id, getarg(1);  // 玩家ID
+    
+    // 根据排名确定镜像NPC名称
+    set .@mirror_name$, callfunc("GetMirrorName", "cash", .@rank);
+    
+    if (.@mirror_name$ == "") {
+        return;
+    }
+    
+    // 获取镜像NPC的GID
+    set .@mirror_gid, getnpcid(0, .@mirror_name$);
+    
+    if (.@mirror_gid == 0) {
+        debugmes "[C点排行榜] 错误：找不到镜像NPC " + .@mirror_name$;
+        return;
+    }
+    
+    // 查询玩家造型数据和性别
+    set .@char_info, query_sql(
+        "SELECT `class`, `hair`, `hair_color`, `clothes_color`, `head_top`, `head_mid`, `head_bottom`, `robe`, `sex`, `name` " +
+        "FROM `char` WHERE `char_id` = " + .@char_id,
+        .@class, .@hair, .@hair_color, .@clothes_color, .@head_top, .@head_mid, .@head_bottom, .@robe, .@sex$, .@player_name$
+    );
+    
+    if (.@char_info > 0) {
+        // 设置镜像NPC的外观（包含性别识别）
+        setunitdata .@mirror_gid, UNPC_CLASS, .@class;
+        setunitdata .@mirror_gid, UNPC_HAIRSTYLE, .@hair;
+        setunitdata .@mirror_gid, UNPC_HAIRCOLOR, .@hair_color;
+        setunitdata .@mirror_gid, UNPC_CLOTHCOLOR, .@clothes_color;
+        setunitdata .@mirror_gid, UNPC_HEADTOP, .@head_top;
+        setunitdata .@mirror_gid, UNPC_HEADMIDDLE, .@head_mid;
+        setunitdata .@mirror_gid, UNPC_HEADBOTTOM, .@head_bottom;
+        setunitdata .@mirror_gid, UNPC_ROBE, .@robe;
+        setunitdata .@mirror_gid, UNPC_SEX, ((.@sex$ == "M")?1:0); // 性别识别
+        setunitdata .@mirror_gid, UNPC_LOOKDIR, DIR_SOUTH;
+        
+        // 设置玩家名字标题
+        settitleicon .@mirror_gid, 0, ""+.@player_name$+"";
+        
+        // 添加C点消费榜独立特效
+        callfunc "ApplyCashMirrorEffects", .@mirror_gid, .@rank;
+    }
+    
+    return;
+}
+
+// 应用财富榜镜像特效
+function	script	ApplyWealthMirrorEffects	{
+    set .@gid, getarg(0);
+    set .@rank, getarg(1);
+    
+    // 只保留第一名特效，移除第二、三名
+    if (.@rank != 1) {
+        return;
+    }
+    
+    // 获取NPC名称用于状态跟踪
+    set .@npc_name$, strnpcinfo(0);
+    
+    // 检查数据库中是否已有特效记录
+    set .@has_record, query_sql("SELECT current_effect_id FROM npc_effect_status WHERE npc_gid = " + .@gid, .@current_effect_id);
+    
+    // 确定目标特效ID（财富榜专用标识 - 1000系列）
+    set .@target_effect_id, 1001; // 财富榜一特效标识
+    
+    // 如果特效已经存在且相同，则跳过设置
+    if (.@has_record > 0 && .@current_effect_id == .@target_effect_id) {
+        return;
+    }
+    
+    // 清除现有特效
+    unitaura .@gid, 0;
+    
+    // 财富榜一：金色华丽特效
+    unitaura .@gid, 1085; 
+    unitaura .@gid, 1086; 
+    unitaura .@gid, 1087;
+    unitaura .@gid, 1614; 
+    unitaura .@gid, 679;
+    
+    // 更新或插入特效状态记录
+    if (.@has_record > 0) {
+        query_sql("UPDATE npc_effect_status SET current_effect_id = " + .@target_effect_id + ", rank = " + .@rank + ", npc_name = '" + .@npc_name$ + "' WHERE npc_gid = " + .@gid);
+    } else {
+        query_sql("INSERT INTO npc_effect_status (npc_gid, npc_name, current_effect_id, rank) VALUES (" + .@gid + ", '" + .@npc_name$ + "', " + .@target_effect_id + ", " + .@rank + ")");
+    }
+    
+    return;
+}
+
+// 应用MVP排行榜镜像特效
+function	script	ApplyMVPMirrorEffects	{
+    set .@gid, getarg(0);
+    set .@rank, getarg(1);
+    
+    // 只保留第一名特效，移除第二、三名
+    if (.@rank != 1) {
+        return;
+    }
+    
+    // 获取NPC名称用于状态跟踪
+    set .@npc_name$, strnpcinfo(0);
+    
+    // 检查数据库中是否已有特效记录
+    set .@has_record, query_sql("SELECT current_effect_id FROM npc_effect_status WHERE npc_gid = " + .@gid, .@current_effect_id);
+    
+    // 确定目标特效ID（MVP榜专用标识 - 2000系列）
+    set .@target_effect_id, 2001; // MVP榜一特效标识
+    
+    // 如果特效已经存在且相同，则跳过设置
+    if (.@has_record > 0 && .@current_effect_id == .@target_effect_id) {
+        return;
+    }
+    
+    // 清除现有特效
+    unitaura .@gid, 0;
+    
+    // MVP榜一：红色战斗特效
+    unitaura .@gid, 248; // 红色光环
+    unitaura .@gid, 1617; // 战斗光芒
+    unitaura .@gid, 312;  // 火焰特效
+    unitaura .@gid, 838;  // 紫色点缀
+    unitaura .@gid, 1085; // 金色点缀
+    
+    // 更新或插入特效状态记录
+    if (.@has_record > 0) {
+        query_sql("UPDATE npc_effect_status SET current_effect_id = " + .@target_effect_id + ", rank = " + .@rank + ", npc_name = '" + .@npc_name$ + "' WHERE npc_gid = " + .@gid);
+    } else {
+        query_sql("INSERT INTO npc_effect_status (npc_gid, npc_name, current_effect_id, rank) VALUES (" + .@gid + ", '" + .@npc_name$ + "', " + .@target_effect_id + ", " + .@rank + ")");
+    }
+    
+    return;
+}
+
+// 应用C点消费榜镜像特效（独立特效）
+function	script	ApplyCashMirrorEffects	{
+    set .@gid, getarg(0);
+    set .@rank, getarg(1);
+    
+    // 只保留第一名特效，移除第二、三名
+    if (.@rank != 1) {
+        return;
+    }
+    
+    // 获取NPC名称用于状态跟踪
+    set .@npc_name$, strnpcinfo(0);
+    
+    // 检查数据库中是否已有特效记录
+    set .@has_record, query_sql("SELECT current_effect_id FROM npc_effect_status WHERE npc_gid = " + .@gid, .@current_effect_id);
+    
+    // 确定目标特效ID（使用不同的ID范围避免与名人堂冲突）
+    set .@target_effect_id, 701; // C点榜一特效标识
+    
+    // 如果特效已经存在且相同，则跳过设置
+    if (.@has_record > 0 && .@current_effect_id == .@target_effect_id) {
+        return;
+    }
+    
+    // 清除现有特效
+    unitaura .@gid, 0;
+    
+    // C点榜一：红色华丽特效
+    unitaura .@gid, 248; 
+    unitaura .@gid, 1617; 
+    unitaura .@gid, 312;
+    unitaura .@gid, 838;
+    
+    // 更新或插入特效状态记录
+    if (.@has_record > 0) {
+        query_sql("UPDATE npc_effect_status SET current_effect_id = " + .@target_effect_id + ", rank = " + .@rank + ", npc_name = '" + .@npc_name$ + "' WHERE npc_gid = " + .@gid);
+    } else {
+        query_sql("INSERT INTO npc_effect_status (npc_gid, npc_name, current_effect_id, rank) VALUES (" + .@gid + ", '" + .@npc_name$ + "', " + .@target_effect_id + ", " + .@rank + ")");
+    }
+    
+    return;
+}
+
+// 重置名人堂镜像为默认外观
+function	script	ResetHallOfFameMirrorAppearance	{
+    set .@type$, getarg(0);  // "wealth" 或 "mvp"
+    set .@rank, getarg(1);   // 排名 (1-3)
+    
+    // 根据类型和排名获取正确的镜像NPC名称
+    set .@mirror_name$, callfunc("GetMirrorName", .@type$, .@rank);
+    
+    if (.@mirror_name$ == "") {
+        return;
+    }
+    
+    set .@mirror_gid, getnpcid(0, .@mirror_name$);
+    
+    if (.@mirror_gid > 0) {
+        // 停止当前所有特效并恢复默认外观
+        unitaura .@mirror_gid, 0;
+        
+        // 重置为默认职业外观（商人）
+        setunitdata .@mirror_gid, UNPC_CLASS, 0;
+        setunitdata .@mirror_gid, UNPC_HAIRSTYLE, 1;
+        setunitdata .@mirror_gid, UNPC_HAIRCOLOR, 0;
+        setunitdata .@mirror_gid, UNPC_CLOTHCOLOR, 0;
+        setunitdata .@mirror_gid, UNPC_HEADTOP, 0;
+        setunitdata .@mirror_gid, UNPC_HEADMIDDLE, 0;
+        setunitdata .@mirror_gid, UNPC_HEADBOTTOM, 0;
+        setunitdata .@mirror_gid, UNPC_ROBE, 0;
+        setunitdata .@mirror_gid, UNPC_SEX, 0; // 女性
+        setunitdata .@mirror_gid, UNPC_LOOKDIR, DIR_SOUTH;
+        
+        // 清除特效状态记录
+        query_sql("DELETE FROM npc_effect_status WHERE npc_gid = " + .@mirror_gid);
+    }
+    
+    return;
+}
+
+// 重置C点消费榜镜像为默认外观的函数
+function	script	ResetCashMirrorAppearance	{
+    set .@rank, getarg(0);  // 排名 (1-3)
+    
+    // 根据排名确定镜像NPC名称
+    set .@mirror_name$, callfunc("GetMirrorName", "cash", .@rank);
+    
+    if (.@mirror_name$ == "") {
+        return;
+    }
+    
+    // 获取镜像NPC的GID
+    set .@mirror_gid, getnpcid(0, .@mirror_name$);
+    
+    if (.@mirror_gid == 0) {
+        debugmes "[C点排行榜] 错误：找不到镜像NPC " + .@mirror_name$;
+        return;
+    }
+    
+    // 停止当前所有特效并恢复默认外观
+    unitaura .@mirror_gid, 0;
+    
+    // 重置为默认职业外观（卡普拉）
+    setunitdata .@mirror_gid, UNPC_CLASS, 0;
+    setunitdata .@mirror_gid, UNPC_HAIRSTYLE, 1;
+    setunitdata .@mirror_gid, UNPC_HAIRCOLOR, 0;
+    setunitdata .@mirror_gid, UNPC_CLOTHCOLOR, 0;
+    setunitdata .@mirror_gid, UNPC_HEADTOP, 0;
+    setunitdata .@mirror_gid, UNPC_HEADMIDDLE, 0;
+    setunitdata .@mirror_gid, UNPC_HEADBOTTOM, 0;
+    setunitdata .@mirror_gid, UNPC_ROBE, 0;
+    setunitdata .@mirror_gid, UNPC_SEX, 0; // 女性
+    setunitdata .@mirror_gid, UNPC_LOOKDIR, DIR_SOUTH;
+    
+    // 清除特效状态记录
+    query_sql("DELETE FROM npc_effect_status WHERE npc_gid = " + .@mirror_gid);
+    
+    debugmes "[C点排行榜] 已重置" + .@mirror_name$ + "为默认外观";
+    return;
+}
+
+// 发放排行榜奖励
+function	script	SendRankRewards	{
+    // 财富榜奖励配置
+    setarray .wealth_rewards[0],
+        5000000, 500,    // 榜一
+        4500000, 450,    // 榜二
+        4000000, 400;    // 榜三
+    
+    // MVP榜奖励配置
+    setarray .mvp_rewards[0],
+        5000000, 500,    // 榜一
+        4500000, 450,    // 榜二
+        4000000, 400;    // 榜三
+    
+    // 发放财富榜奖励
+    for(set .@i, 0; .@i < 3; set .@i, .@i + 1) {
+        set .@rows, query_sql("SELECT `char_id`,`name` FROM `char` WHERE `delete_date`=0 ORDER BY `zeny` DESC LIMIT 1 OFFSET " + .@i, .@cid, .@name$);
+        
+        if(.@rows > 0) {
+            set .@zeny_reward, .wealth_rewards[.@i * 2];
+            set .@cash_reward, .wealth_rewards[.@i * 2 + 1];
+            
+            // 记录奖励发放
+            query_sql("INSERT INTO rank_reward_logs (reward_type, rank, char_id, char_name, zeny_reward, cash_reward) VALUES (1, " + (.@i + 1) + ", " + .@cid + ", '" + .@name$ + "', " + .@zeny_reward + ", " + .@cash_reward + ")");
+            
+            // 发送邮件奖励
+            mail .@cid, "名人堂系统", "财富榜第" + (.@i + 1) + "名奖励", "恭喜您在财富榜中排名第" + (.@i + 1) + "名！\n获得奖励：" + .@zeny_reward + " Zeny 和 " + .@cash_reward + " Cash点数。", .@zeny_reward;
+            
+            if(.@cash_reward > 0) {
+                set .@cash_item_id, 7179; // Cash点数的物品ID
+                set .@cash_amount, .@cash_reward;
+                mail .@cid, "名人堂系统", "财富榜Cash奖励", "这是您的" + .@cash_reward + "点Cash奖励！", 0, .@cash_item_id, .@cash_amount;
+            }
+        }
+    }
+    
+    // 发放MVP榜奖励
+    set .@result, 0;
+    set .@has_ladder, query_sql("SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'mvp_ladder_rank' LIMIT 1", .@tmp);
+    
+    if (.@has_ladder > 0) {
+        set .@result, query_sql("SELECT c.`char_id`, c.`name` FROM `mvp_ladder_rank` r JOIN `char` c ON c.`char_id` = r.`char_id` ORDER BY r.`all_kills` DESC LIMIT 3", .@cids, .@names$);
+    } else {
+        set .@has_mvplog, query_sql("SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'mvplog' LIMIT 1", .@tmp);
+        if (.@has_mvplog > 0) {
+            set .@col_rows, query_sql("SELECT COLUMN_NAME FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'mvplog' AND COLUMN_NAME IN ('char_id','charid','killer_id','killerrid') LIMIT 1", .@col$);
+            if (.@col_rows > 0) {
+                set .@col$, .@col$[0];
+                set .@result, query_sql("SELECT c.`char_id`, c.`name` FROM `mvplog` m JOIN `char` c ON c.`char_id` = m.`"+ .@col$ +"` GROUP BY c.`char_id` ORDER BY COUNT(*) DESC LIMIT 3", .@cids, .@names$);
+            }
+        }
+    }
+    
+    if(.@result > 0) {
+        for(set .@i, 0; .@i < .@result; set .@i, .@i + 1) {
+            set .@zeny_reward, .mvp_rewards[.@i * 2];
+            set .@cash_reward, .mvp_rewards[.@i * 2 + 1];
+            
+            // 记录奖励发放
+            query_sql("INSERT INTO rank_reward_logs (reward_type, rank, char_id, char_name, zeny_reward, cash_reward) VALUES (2, " + (.@i + 1) + ", " + .@cids[.@i] + ", '" + .@names$[.@i] + "', " + .@zeny_reward + ", " + .@cash_reward + ")");
+            
+            // 发送邮件奖励
+            mail .@cids[.@i], "名人堂系统", "MVP击杀榜第" + (.@i + 1) + "名奖励", "恭喜您在MVP击杀榜中排名第" + (.@i + 1) + "名！\n获得奖励：" + .@zeny_reward + " Zeny 和 " + .@cash_reward + " Cash点数。", .@zeny_reward;
+            
+            if(.@cash_reward > 0) {
+                set .@cash_item_id, 7179; // Cash点数的物品ID
+                set .@cash_amount, .@cash_reward;
+                mail .@cids[.@i], "名人堂系统", "MVP击杀榜Cash奖励", "这是您的" + .@cash_reward + "点Cash奖励！", 0, .@cash_item_id, .@cash_amount;
+            }
+        }
+    }
+    
+    announce "名人堂排行榜奖励已通过邮件发放给前3名玩家，请查收！", bc_blue|bc_all;
+    return;
+}
+
+// 创建数据库表
+function	script	CreateDatabaseTables	{
+    query_sql("CREATE TABLE IF NOT EXISTS hall_of_fame_mirrors (id INT UNSIGNED NOT NULL AUTO_INCREMENT, char_id INT UNSIGNED NOT NULL, original_char_id INT UNSIGNED NOT NULL, name VARCHAR(24) NOT NULL, class SMALLINT UNSIGNED NOT NULL, base_level SMALLINT UNSIGNED NOT NULL, job_level SMALLINT UNSIGNED NOT NULL, hair SMALLINT UNSIGNED NOT NULL, hair_color SMALLINT UNSIGNED NOT NULL, clothes_color SMALLINT UNSIGNED NOT NULL, weapon SMALLINT UNSIGNED NOT NULL, shield SMALLINT UNSIGNED NOT NULL, head_top SMALLINT UNSIGNED NOT NULL, head_mid SMALLINT UNSIGNED NOT NULL, head_bottom SMALLINT UNSIGNED NOT NULL, equipment_data TEXT NULL, created_time INT UNSIGNED NOT NULL, PRIMARY KEY (id))");
+    
+    query_sql("CREATE TABLE IF NOT EXISTS rank_reward_logs (id INT UNSIGNED NOT NULL AUTO_INCREMENT, reward_type TINYINT NOT NULL, rank TINYINT NOT NULL, char_id INT UNSIGNED NOT NULL, char_name VARCHAR(24) NOT NULL, zeny_reward INT UNSIGNED NOT NULL, cash_reward INT UNSIGNED NOT NULL, reward_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (id))");
+    
+    query_sql("CREATE TABLE IF NOT EXISTS cash_consumption_stats (char_id INT NOT NULL, char_name VARCHAR(24) NOT NULL, total_spent INT UNSIGNED NOT NULL DEFAULT 0, record_count INT UNSIGNED NOT NULL DEFAULT 0, last_update TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (char_id), KEY idx_total_spent (total_spent))");
+    
+    mes "数据库表创建完成！";
+    return;
+}
+
+// ============================================
+// 财富榜镜像NPC
+// ============================================
+
+// 财富榜榜一镜像
+prontera,182,125,4	script	数字皇帝	4_F_KAFRA1,{
+	unittalk getnpcid(0,strnpcinfo(0)), "成为我超越我";
+	end;
+}
+
+// ============================================
+// MVP击杀榜镜像NPC
+// ============================================
+
+// MVP榜榜一镜像
+prontera,178,125,4	script	行走天灾	4_F_KAFRA1,{
+	unittalk getnpcid(0,strnpcinfo(0)), "成为我超越我";
+	end;
+}
+
+
+// ============================================
+// C点消费榜镜像NPC（前三名）
+// ============================================
+
+// C点消费榜榜一镜像
+prontera,174,125,4	script	C点消费榜一	4_F_KAFRA1,{
+	unittalk getnpcid(0,strnpcinfo(0)), "成为我超越我";
+	end;
+}
+
+// ============================================
+// 告示牌NPC
+// ============================================
+prontera,182,126,0	script	财富榜第一名	844,{
+OnInit:
+	delwaitingroom;
+	waitingroom "财富榜榜第一名",0;
+ 	end;
+}
+
+prontera,178,126,0	script	MVP击杀榜第一名	844,{
+OnInit:
+	delwaitingroom;
+	waitingroom "MVP击杀榜第一名",0;
+ 	end;
+}
+
+prontera,174,126,0	script	C点消费榜第一名	844,{
+OnInit:
+	delwaitingroom;
+	waitingroom "C点消费榜第一名",0;
+ 	end;
+}

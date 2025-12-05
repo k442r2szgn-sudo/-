@@ -1,0 +1,374 @@
+//==============================================
+// 脚本名称: 炫彩附魔镶嵌
+// 更新信息: Ver 2.0.0
+// 适用版本: BetterRa
+// 脚本授权: 付费
+// 脚本作者: likn
+// 定制联系: 272504137
+// 其他脚本: https://ro.betterra.cn/
+//=============================================
+// 更新信息
+// = V2.0.0 重新编写并简化代码
+//==============================================
+/*
+以下信息加入到Item_db
+37202,EF_01,花瓣,3,0,,0,,,,,,,,,,,,,,{ hateffect(HAT_EF_BLOSSOM_FLUTTERING,true); },{},{ hateffect(HAT_EF_BLOSSOM_FLUTTERING,false); }
+37203,EF_02,驱魔,3,0,,0,,,,,,,,,,,,,,{ hateffect(HAT_EF_RL_BANISHING_BUSTER,true); },{},{ hateffect(HAT_EF_RL_BANISHING_BUSTER,false); }
+37204,EF_03,星光,3,0,,0,,,,,,,,,,,,,{ hateffect(HAT_EF_LJOSALFAR,true); },{},{ hateffect(HAT_EF_LJOSALFAR,false); }
+37205,EF_04,金刚,3,0,,0,,,,,,,,,,,,,{ hateffect(HAT_EF_GUMGANG,true); },{},{ hateffect(HAT_EF_GUMGANG,false); }
+37206,EF_05,蝴蝶,3,0,,0,,,,,,,,,,,,,{ hateffect(HAT_EF_FLUTTER_BUTTERFLY,true); },{},{ hateffect(HAT_EF_FLUTTER_BUTTERFLY,false); }
+37207,EF_06,羽毛,3,0,,0,,,,,,,,,,,,,{ hateffect(HAT_EF_ANGEL_FLUTTERING,true); },{},{ hateffect(HAT_EF_ANGEL_FLUTTERING,false); }
+37208,EF_07,单聚,3,0,,0,,,,,,,,,,,,,,{ hateffect(HAT_EF_BLESSING_OF_ANGELS,true); },{},{ hateffect(HAT_EF_BLESSING_OF_ANGELS,false); }
+37209,EF_08,爆气,3,0,,0,,,,,,,,,,,,,,{ hateffect(HAT_EF_ELECTRIC,true); },{},{ hateffect(HAT_EF_ELECTRIC,false); }
+37210,EF_09,绿光,3,0,,0,,,,,,,,,,,,,{ hateffect(HAT_EF_GREEN_FLOOR,true); },{},{ hateffect(HAT_EF_GREEN_FLOOR,false); }
+37211,EF_10,缩小,3,0,,0,,,,,,,,,,,,,{ hateffect(HAT_EF_SHRINK,true); },{},{ hateffect(HAT_EF_SHRINK,false); }
+37212,EF_11,偶像,3,0,,0,,,,,,,,,,,,,{ hateffect(HAT_EF_VALHALLA_IDOL,true); },{},{ hateffect(HAT_EF_VALHALLA_IDOL,false); }
+37213,EF_12,天梯,3,0,,0,,,,,,,,,,,,,{ hateffect(HAT_EF_ANGEL_STAIRS,true); },{},{ hateffect(HAT_EF_ANGEL_STAIRS,false); }
+37214,EF_13,金光,3,0,,0,,,,,,,,,,,,,{ hateffect(HAT_EF_GLOW_OF_NEW_YEAR,true); },{},{ hateffect(HAT_EF_GLOW_OF_NEW_YEAR,false); }
+37215,EF_14,爱心,3,0,,0,,,,,,,,,,,,,{ hateffect(HAT_EF_BOTTOM_FORTUNEKISS,true); },{},{ hateffect(HAT_EF_BOTTOM_FORTUNEKISS,false); }
+37216,EF_15,红爆,3,0,,0,,,,,,,,,,,,,{ hateffect(HAT_EF_DOUBLEGUMGANG,true); },{},{ hateffect(HAT_EF_DOUBLEGUMGANG,false); }
+37217,EF_16,巨大,3,0,,0,,,,,,,,,,,,,{ hateffect(HAT_EF_GIANTBODY,true); },{},{ hateffect(HAT_EF_GIANTBODY,false); }
+37218,EF_17,无界,3,0,,0,,,,,,,,,,,,,{ hateffect(HAT_EF_CIRCLEPOWER,true); },{},{ hateffect(HAT_EF_CIRCLEPOWER,false); }
+37219,EF_18,嗜血,3,0,,0,,,,,,,,,,,,,{ hateffect(HAT_EF_BOTTOM_BLOODYLUST,true); },{},{ hateffect(HAT_EF_BOTTOM_BLOODYLUST,false); }
+37220,EF_19,水下,3,0,,0,,,,,,,,,,,,,{ hateffect(HAT_EF_WATER_BELOW,true); },{},{ hateffect(HAT_EF_WATER_BELOW,false); }
+37221,EF_20,光环,3,0,,0,,,,,,,,,,,,,{ hateffect(HAT_EF_LEVEL99_150,true); },{},{ hateffect(HAT_EF_LEVEL99_150,false); }
+37222,EF_21,地光,3,0,,0,,,,,,,,,,,,,{ hateffect(HAT_EF_YELLOWFLY3,true); },{},{ hateffect(HAT_EF_YELLOWFLY3,false); }
+37223,EF_22,影武,3,0,,0,,,,,,,,,,,,,{ hateffect(HAT_EF_KAGEMUSYA,true); },{},{ hateffect(HAT_EF_KAGEMUSYA,false); }
+37224,EF_23,紫星,3,0,,0,,,,,,,,,,,,,{ hateffect(HAT_EF_CHERRYBLOSSOM,true); },{},{ hateffect(HAT_EF_CHERRYBLOSSOM,false); }
+37225,EF_24,光罩,3,0,,0,,,,,,,,,,,,,{ hateffect(HAT_EF_WL_TELEKINESIS_INTENSE,true); },{},{ hateffect(HAT_EF_WL_TELEKINESIS_INTENSE,false); }
+37226,EF_25,光圈,3,0,,0,,,,,,,,,,,,,{ hateffect(HAT_EF_AB_OFFERTORIUM_RING,true); },{},{ hateffect(HAT_EF_AB_OFFERTORIUM_RING,false); }
+37227,EF_26,彩星,3,0,,0,,,,,,,,,,,,,{ hateffect(HAT_EF_FLORAL_WALTZ,true); },{},{ hateffect(HAT_EF_FLORAL_WALTZ,false); }
+37228,EF_27,爱心,3,0,,0,,,,,,,,,,,,,{ hateffect(HAT_EF_MAGICAL_FEATHER,true); },{},{ hateffect(HAT_EF_MAGICAL_FEATHER,false); }
+37229,EF_28,水下,3,0,,0,,,,,,,,,,,,,{ hateffect(HAT_EF_FIREWORK,true); },{},{ hateffect(HAT_EF_FIREWORK,false); }
+37230,EF_29,烟花,3,0,,0,,,,,,,,,,,,,{ hateffect(HAT_EF_RETURN_TW_1ST_HAT,true); },{},{ hateffect(HAT_EF_RETURN_TW_1ST_HAT,false); }
+37231,EF_30,紫蝶,3,0,,0,,,,,,,,,,,,,{ hateffect(HAT_EF_C_FLUTTERBUTTERFLY_BL,true); },{},{ hateffect(HAT_EF_C_FLUTTERBUTTERFLY_BL,false); }
+37232,EF_31,黑光,3,0,,0,,,,,,,,,,,,,{ hateffect(HAT_EF_QSCARABA,true); },{},{ hateffect(HAT_EF_QSCARABA,false); }
+37233,EF_32,紫阵,3,0,,0,,,,,,,,,,,,,{ hateffect(HAT_EF_MAGICCIRCLE,true); },{},{ hateffect(HAT_EF_MAGICCIRCLE,false); }
+37234,EF_33,花团,3,0,,0,,,,,,,,,,,,,{ hateffect(HAT_EF_LEVEL160_BLACK,true); },{},{ hateffect(HAT_EF_LEVEL160_BLACK,false); }
+37235,EF_34,杜兰,3,0,,0,,,,,,,,,,,,,{ hateffect(HAT_EF_LEVEL160_WHITE,true); },{},{ hateffect(HAT_EF_LEVEL160_WHITE,false); }
+37236,EF_35,闪光,3,0,,0,,,,,,,,,,,,,{ hateffect(HAT_EF_FULL_BLOOMCHERRY_TREE,true); },{},{ hateffect(HAT_EF_FULL_BLOOMCHERRY_TREE,false); }
+37237,EF_36,数码,3,0,,0,,,,,,,,,,,,,{ hateffect(HAT_EF_C_SHINING_ANGEL_WING,true); },{},{ hateffect(HAT_EF_C_SHINING_ANGEL_WING,false); }
+37238,EF_37,落星,3,0,,0,,,,,,,,,,,,,{ hateffect(HAT_EF_C_MAPLE_WHICH_FALLS_RD,true); },{},{ hateffect(HAT_EF_C_MAPLE_WHICH_FALLS_RD,false); }
+37239,EF_38,荣耀,3,0,,0,,,,,,,,,,,,,{ hateffect(HAT_EF_MAGICCIRCLERAINBOW,true); },{},{ hateffect(HAT_EF_MAGICCIRCLERAINBOW,false); }
+37240,EF_39,波利,3,0,,0,,,,,,,,,,,,,{ hateffect(HAT_EF_FLUFFYWING,true); },{},{ hateffect(HAT_EF_FLUFFYWING,false); }
+37241,EF_40,神龙,3,0,,0,,,,,,,,,,,,,{ hateffect(HAT_EF_C_GHOST_EFFECT,true); },{},{ hateffect(HAT_EF_C_GHOST_EFFECT,false); }
+37242,EF_41,涟漪,3,0,,0,,,,,,,,,,,,,{ hateffect(HAT_EF_160LV_GENETIC_YGREEN,true); },{},{ hateffect(HAT_EF_160LV_GENETIC_YGREEN,false); }
+37243,EF_42,枫叶,3,0,,0,,,,,,,,,,,,,{ hateffect(HAT_EF_2019RTC2ST_TW,true); },{},{ hateffect(HAT_EF_2019RTC2ST_TW,false); }
+37244,EF_43,落叶,3,0,,0,,,,,,,,,,,,,{ hateffect(HAT_EF_2019RTC3ST_TW,true); },{},{ hateffect(HAT_EF_2019RTC3ST_TW,false); }
+37245,EF_44,聚光,3,0,,0,,,,,,,,,,,,,{ hateffect(HAT_EF_CONS_OF_WIND,true); },{},{ hateffect(HAT_EF_CONS_OF_WIND,false); }
+37246,EF_45,传说,3,0,,0,,,,,,,,,,,,,{ hateffect(HAT_EF_MAPLE_FALLS,true); },{},{ hateffect(HAT_EF_MAPLE_FALLS,false); }
+37247,EF_46,神光,3,0,,0,,,,,,,,,,,,,{ hateffect(HAT_EF_BJ_HEADSETB,true); },{},{ hateffect(HAT_EF_BJ_HEADSETB,false); }
+37248,EF_47,玫瑰,3,0,,0,,,,,,,,,,,,,{ hateffect(HAT_EF_C_MAGIC_HEIR_TW,true); },{},{ hateffect(HAT_EF_C_MAGIC_HEIR_TW,false); }
+37249,EF_48,Joker,3,0,,0,,,,,,,,,,,,,{ hateffect(HAT_EF_C_SUDDEN_WEALTH_TW,true); },{},{ hateffect(HAT_EF_C_SUDDEN_WEALTH_TW,false); }
+
+*/
+//==============================================
+
+prt_in,122,36,6	script	世界之树-online#D3	10121,{
+function	XQ_Main;
+function	XQ_Core;
+function	XQ_View;
+function	XQ_Unld;
+
+	// NPC前置对话
+	mes .n$;
+	mes $ColourMes$;
+	mes "我可以使用魔法镶嵌炫彩附魔.";
+	mes "炫彩附魔仅能镶嵌到时装披肩.";
+	mes "再次变更时可拆卸保留原附魔.";
+	next;
+	.@Select = select("[X] 镶嵌炫彩附魔","[C] 拆卸炫彩附魔","[Q] 离开");
+	switch(.@Select){
+		case 1: XQ_Main(1);
+		case 2: XQ_Unld(1);
+		case 3: close;
+	}
+	end;
+
+	// 相关设置
+	OnInit:
+	
+	// NPC名称
+	.n$ = "「 亚  莉 」";
+		unitaura getnpcid(0),1091; 
+	unitaura getnpcid(0),1446; 
+	unitaura getnpcid(0),1058; 
+	settitleicon(getnpcid(0),0,"特效管理-亚莉");
+	// 可附魔炫彩附魔的卡槽位置 0关闭 1开启
+	setarray .EIdx[0], 0, 0, 1;
+	
+	// 炫彩附魔ID
+	setarray .Gem_Id_1[0], 37202, 37203, 37204, 37205, 37206, 37207, 37208, 37209, 37210, 37211, 37212, 37213, 37214, 37215, 37216, 37217, 37218, 37219, 37220, 37221, 37222, 37223, 37224, 37225, 37226, 37227, 37228, 37229, 37230, 37231, 37232, 37233, 37234, 37235, 37236, 37237, 37238, 37239, 37240, 37241, 37242, 37243, 37244, 37245, 37246, 37247, 37248, 37249;
+	// 炫彩常量ID
+	// 使用更紧凑的数组定义方式
+	setarray .HAT_EF_ID[0], 
+		1,3,4,9,12,13,14,15,16,17,18,19,20,21,23,24,26,27,28,29,
+		30,31,32,34,35,44,45,50,51,53,54,56,79,80,81,87,91,92,97,
+		98,122,128,129,130,131,132,134,135;	
+	// 试戴时间
+	.ViweTime = 10000;
+
+	// 允许插入炫彩附魔的装备类型(时装头上、头中、头下、披肩)
+	setarray .Equip[0], EQI_COSTUME_HEAD_TOP, EQI_COSTUME_HEAD_MID, EQI_COSTUME_HEAD_LOW, EQI_COSTUME_GARMENT;
+
+	// 镶嵌和拆卸需要的金钱和Cash
+	setarray .EZeny[0], 2000000, 5000000;
+	setarray .ECash[0], 100,     300;
+
+	while(1){
+		showscript "「 炫 彩 镶 嵌 」";
+		sleep 1000;
+		unitspecialeffect getnpcid(0),1086;
+		unitspecialeffect getnpcid(0),1087;
+	}
+	end;
+
+	// 购买完物品后触发事件
+	OnBuyItem:
+	// 跳转到核心函数
+	XQ_Core;
+	end;
+
+	function	XQ_Main	{
+		.@Select = getarg(0);
+		.@Num = .@Select;
+		clear; mes .n$;
+		mes $ColourMes$;
+		mes "请将^C71585炫彩附魔^000000移入到物品交易栏内.";
+		mes "点击购买后可进行^C71585镶嵌^000000或^C71585试戴^000000操作.";
+		mes $ColourMes$;
+		close2;
+		npcshopdelitem "镶嵌炫彩宝石#"+.@Num+"",501;
+		for(.@i = 0; .@i < getarraysize(getd(".Gem_Id_"+.@Num+"")); .@i++){
+			npcshopdelitem "镶嵌炫彩宝石#"+.@Num+"",getd(".Gem_Id_"+.@Num+"["+.@i+"]"),1;
+			npcshopadditem "镶嵌炫彩宝石#"+.@Num+"",getd(".Gem_Id_"+.@Num+"["+.@i+"]"),1;
+		}
+		callshop "镶嵌炫彩宝石#"+.@Num+"",1;
+		npcshopattach "镶嵌炫彩宝石#"+.@Num+"";
+		end;
+	}
+
+	function	XQ_Core	{
+		// 检查玩家是否wear了可镶嵌的时装装备
+		.@EquipCount = 0;
+		for(.@i = 0; .@i < getarraysize(.Equip); .@i++){
+			if(getequipisequiped(.Equip[.@i])){
+				.@EquipCount++;
+			}
+		}
+		if(.@EquipCount == 0){
+			clear; mes .n$;
+			mes $ColourMes$;
+			mes "你没有穿戴任何可镶嵌的时装装备哟.";
+			mes "可镶嵌的装备包括:时装头上、头中、头下、披肩.";
+			mes $ColourMes$;
+			close;
+		}
+		
+		// 让玩家选择要镶嵌的装备
+		clear; mes .n$;
+		mes $ColourMes$;
+		mesf "镶嵌炫彩附魔是: ^C71585%s^000000.", getitemname(@bought_nameid);
+		mesf "镶嵌需要的Zeny: ^C71585%s^000000.", .EZeny[0];
+		mesf "镶嵌需要的Cash: ^C71585%s^000000.", .ECash[0];
+		mes  "请选择要镶嵌的时装装备:";
+		mes $ColourMes$;
+		.@EquipMenu$ = "";
+		for(.@i = 0; .@i < getarraysize(.Equip); .@i++){
+			if(getequipisequiped(.Equip[.@i])){
+				.@EquipMenu$ = .@EquipMenu$ + "^C71585" + getitemname(getequipid(.Equip[.@i])) + "^000000:";
+			}
+		}
+		.@SelectedEquip = select(.@EquipMenu$);
+		.@ActualEquipIndex = -1;
+		.@Count = 0;
+		for(.@i = 0; .@i < getarraysize(.Equip); .@i++){
+			if(getequipisequiped(.Equip[.@i])){
+				.@Count++;
+				if(.@Count == .@SelectedEquip){
+					.@ActualEquipIndex = .@i;
+					break;
+				}
+			}
+		}
+		.@EquipID = getequipid(.Equip[.@ActualEquipIndex]);
+		.GName$ = getitemname(.@EquipID);
+		
+		.@Select = select("镶嵌炫彩附魔","试戴十秒看看","取消");
+		switch(.@Select){
+			case 1: break;
+			case 2: XQ_View;
+			case 3: close;
+		}
+		if(countitem(@bought_nameid) < 1){
+			clear; mes .n$;
+			mes $ColourMes$;
+			mesf "可是你身上没有^C71585%s^000000炫彩附魔.", getitemname(@bought_nameid);
+			mes $ColourMes$;
+			close;
+		}
+		if(Zeny < .EZeny[0] || #CASHPOINTS < .ECash[0]){
+			clear; mes .n$;
+			mes $ColourMes$;
+			mes "^C71585Zeny^000000或^C71585Cash^000000未能符合镶嵌要求.";
+			mes $ColourMes$;
+			close;
+		}
+		.@Select = select(.EIdx[0]?"镶嵌在^C71585"+.GName$+"^000000第二槽位":"",
+						  .EIdx[1]?"镶嵌在^C71585"+.GName$+"^000000第三槽位":"",
+						  .EIdx[2]?"镶嵌在^C71585"+.GName$+"^000000第四槽位":"");
+		switch(.@Select){
+			default: .@CardNum = .@Select;
+		}
+		.@SlotID = getequipcardid(.Equip[.@ActualEquipIndex], .@CardNum);
+		//dispbottom""+.@CardNum+" "+.@SlotID+" "+.@GemID+"";
+		if(.@SlotID){
+			clear; mes .n$;
+			mes $ColourMes$;
+			mesf "此槽位已嵌有^C71585%s^000000炫彩卡.", getitemname(.@SlotID);
+			mes  "请先拆卸炫彩卡后再继续镶嵌.";
+			mes $ColourMes$;
+			close;
+		}
+		clear; mes .n$;
+		mes $ColourMes$;
+		mes "镶嵌完成了施法很成功~";
+		mes $ColourMes$;
+		mes "^8B8989点击关闭按钮后获得炫彩附魔效果.^000000";
+		delitem @bought_nameid, 1;
+		Zeny -= .EZeny[0];
+		#CASHPOINTS -= .ECash[0];
+		close2;
+		setequipedcard (.Equip[.@ActualEquipIndex], .@CardNum, @bought_nameid);
+		announce "「 亚德莉 」: "+ strcharinfo(0) +"成功镶嵌了"+getitemname(@bought_nameid)+"炫彩卡.", bc_all;
+		end;
+	}
+	
+	function	XQ_Unld	{
+		// 检查玩家是否wear了可拆卸的时装装备
+		.@EquipCount = 0;
+		for(.@i = 0; .@i < getarraysize(.Equip); .@i++){
+			if(getequipisequiped(.Equip[.@i])){
+				.@EquipCount++;
+			}
+		}
+		if(.@EquipCount == 0){
+			clear; mes .n$;
+			mes $ColourMes$;
+			mes "你没有穿戴任何可拆卸的时装装备哟.";
+			mes "可拆卸的装备包括:时装头上、头中、头下、披肩.";
+			mes $ColourMes$;
+			close;
+		}
+		
+		// 让玩家选择要拆卸的装备
+		clear; mes .n$;
+		mes $ColourMes$;
+		mes "请选择要拆卸炫彩附魔的时装装备:";
+		mes $ColourMes$;
+		.@EquipMenu$ = "";
+		for(.@i = 0; .@i < getarraysize(.Equip); .@i++){
+			if(getequipisequiped(.Equip[.@i])){
+				.@EquipMenu$ = .@EquipMenu$ + "^C71585" + getitemname(getequipid(.Equip[.@i])) + "^000000:";
+			}
+		}
+		.@SelectedEquip = select(.@EquipMenu$);
+		.@ActualEquipIndex = -1;
+		.@Count = 0;
+		for(.@i = 0; .@i < getarraysize(.Equip); .@i++){
+			if(getequipisequiped(.Equip[.@i])){
+				.@Count++;
+				if(.@Count == .@SelectedEquip){
+					.@ActualEquipIndex = .@i;
+					break;
+				}
+			}
+		}
+		.@EquipID = getequipid(.Equip[.@ActualEquipIndex]);
+		.GName$ = getitemname(.@EquipID);
+		.@Select = select(.EIdx[0]?"拆卸^C71585"+.GName$+"^000000第二槽位":"",
+						  .EIdx[1]?"拆卸^C71585"+.GName$+"^000000第三槽位":"",
+						  .EIdx[2]?"拆卸^C71585"+.GName$+"^000000第四槽位":"");
+		switch(.@Select){
+			default: .@CardNum = .@Select;
+		}
+		.@SlotID = getequipcardid(.Equip[.@ActualEquipIndex], .@CardNum);
+		//dispbottom""+.@CardNum+" "+.@SlotID+" "+.@GemID+"";
+		if(.@SlotID){
+			clear; mes .n$;
+			mes $ColourMes$;
+			mesf "拆除的炫彩附魔: ^C71585%s^000000.", getitemname(.@SlotID);
+			mesf "拆除需要的Zeny: ^C71585%s^000000.", .EZeny[1];
+			mesf "拆除需要的Cash: ^C71585%s^000000.", .ECash[1];
+			mes  "准备好开始了吗?";
+			mes $ColourMes$;
+			if(select("确认:取消") == 2) close;
+			if(Zeny < .EZeny[1] || #CASHPOINTS < .ECash[1]){
+				clear; mes .n$;
+				mes $ColourMes$;
+				mes "^C71585Zeny^000000或^C71585Cash^000000未能符合拆卸要求.";
+				mes $ColourMes$;
+				close;
+			}
+			.@Card_ID = searcharray(.Gem_Id_1, .@SlotID);
+			.@Effect_ID = .HAT_EF_ID[.@Card_ID];
+			hateffect (.@Effect_ID, false);
+			setequipedcard (.Equip[.@ActualEquipIndex], .@CardNum, 0);
+			Zeny -= .EZeny[1];
+			#CASHPOINTS -= .ECash[1];
+			clear; mes .n$;
+			mes $ColourMes$;
+			mesf "已成功拆卸^C71585%s^000000炫彩附魔.", getitemname(.@SlotID);
+			mes $ColourMes$;
+			close2;
+			getitem .@SlotID, 1;
+			end;
+		}else{
+			clear; mes .n$;
+			mes $ColourMes$;
+			mes "这个槽位没有镶嵌任何炫彩附魔.";
+			mes $ColourMes$;
+			close;
+		}
+		end;
+	}
+	
+	function	XQ_View	{
+		if(ETimer){
+			clear; mes .n$;
+			mes $ColourMes$;
+			mes "试戴时间尚未结束请稍后再试.";
+			mes $ColourMes$;
+			close;
+		}
+		.@Card_ID = searcharray(.Gem_Id_1, @bought_nameid);
+		@View_ID = .HAT_EF_ID[.@Card_ID];
+		clear; mes .n$;
+		mes $ColourMes$;
+		mes "点击关闭按钮后开始试戴并计时.";
+		mes $ColourMes$;
+		close2;
+		addtimer .ViweTime, strnpcinfo(3) + "::OnEffectEnd";
+		hateffect (@View_ID, true);
+		ETimer++;
+		end;
+	}
+
+	OnEffectEnd:
+		dispbottom "「 亚德莉 」: 试戴时间结束了哟,喜不喜欢呢?";
+		deltimer strnpcinfo(3) + "::OnEffectEnd";
+		hateffect (@View_ID, false);
+		ETimer--;
+		end;
+
+	OnPCLogoutEvent:
+		if(ETimer){
+			deltimer strnpcinfo(3) + "::OnEffectEnd";
+			ETimer--;
+		}
+		end;
+	
+}
+
+// 选择萃取类型后的商店
+-	shop	镶嵌炫彩宝石#1	-1,501:-1;

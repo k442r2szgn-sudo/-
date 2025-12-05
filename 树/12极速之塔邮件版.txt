@@ -1,0 +1,1716 @@
+/*
+= 脚本名:<<极速之塔+极速之塔>>
+副本安装:
+--------------------------------------------------------------
+服务端: instance_db.yml
+--------------------------------------------------------------
+  - Id: 50
+    Name: 极速之塔
+    TimeLimit: 14400
+    IdleTimeOut: 300
+    Enter:
+      Map: 1@towed
+      X: 50
+      Y: 355
+    AdditionalMaps:
+     2@towed: true
+	
+*/
+
+1@towed	mapflag	partylock
+1@towed	mapflag	noteleport
+1@towed	mapflag	monster_noteleport
+1@towed	mapflag	nosave	SavePoint
+1@towed	mapflag	nomemo
+1@towed	mapflag	nobranch
+1@towed	mapflag	noicewall
+1@towed	mapflag	restricted	6
+1@towed	mapflag	mobspawnbase	750,750,750,700
+
+2@towed	mapflag	monster_noteleport	//魔物無法瞬移
+2@towed	mapflag	noteleport
+2@towed	mapflag	nosave	SavePoint
+2@towed	mapflag	nomemo
+2@towed	mapflag	nobranch
+2@towed	mapflag	noicewall
+2@towed	mapflag	restricted	6
+
+1@pop3,62,43,3	script	极速之塔	550,{
+//入场等级设定
+		if (BaseLevel < 99){
+			mes "[极速之塔]";
+			mes "等级不足";
+			close;
+		}
+//入场人数设定		
+		getpartymember getcharid(1);
+		if($@partymembercount>12){
+			mes "[极速之塔]";
+			mes "队伍人数过多";
+			close;
+		}
+		
+		
+		.@charleston_time = checkquest(60400,PLAYTIME);
+		if (.@charleston_time == 2) {
+			mes "^0000ff可以再次进入极速之塔。^000000";
+			erasequest 60400;
+			close;
+		} else  if (.@charleston_time == 0 || .@charleston_time == 1) {
+			mes "^ff0000副本冷却等待20小时。^000000";
+			close;
+		} else {
+			.@party_id = getcharid(1);
+			.@p_name$ = getpartyname(.@party_id);
+			.@md_name$ = "极速之塔";
+			if (!.@party_id) {
+				mes "请先组成一支队伍。";
+				close;
+			}
+			if (getcharid(0) == getpartyleader(.@party_id,2))
+			set .@menu$, "开启极速之塔:进入极速之塔:取消:销毁副本";
+		else
+			set .@menu$, ":进入极速之塔:取消";
+			switch(select(.@menu$)) {
+				case 1:
+					if(instance_mapname("1@mcd") != "") {
+						mes "- 副本不能重复开启。 -";
+						close;
+					}
+					.@instance = instance_create(.@md_name$);
+					set getvariableofinstance('party_id,instance_id(IM_PARTY)),getcharid(1);					
+					if (.@instance < 0) {
+							mes "队伍名称: "+.@p_name$;
+							mes "队    长: "+strcharinfo(0);
+							mes "^0000ff"+.@md_name$+" ^000000- 创建副本失败!";
+							close;
+					}
+					mes "^ff0000可以再次进入极速之塔了。^000000";
+					close;
+				case 2:
+						if(!instance_id(IM_PARTY)){
+							mes "队长还未生成副本";
+							close;
+						}				
+						if ( getvariableofinstance('Win,instance_id(IM_PARTY)) ) {
+							mes "[极速之塔]";
+							mes "副本已经结束";
+							close;
+						}
+					switch(instance_enter("极速之塔")) {
+						case 0:
+						mapannounce "prontera", getpartyname(getcharid(1)) + " 队伍的, " + strcharinfo(0) + ", 进入了 [极速之塔].",bc_map,"0x00ff99",FW_NORMAL,12;
+
+							setquest 60400; //state=1
+									if (is_party_leader() == true) {
+						callsub Mark_Towering;
+						}
+							end;	
+						case 1:
+							mes "只有注册过的成员可以进入副本 "+"极速之塔"+"。";
+							close;
+						case 2:
+							mes "副本进度 "+"极速之塔"+" 不存在。";
+							mes "队长还没有建立副本进度。";
+							close;
+						case 3:
+							mes "不明错误.";
+							close;
+					}
+				case 3:
+					end;	
+				case 4:
+				mes "^ff0000奖励功能已取消^000000";
+				close;
+				case 5:
+				if(instance_id())
+				instance_destroy(instance_id());
+					end;	
+			}
+		}
+		
+end;
+Mark_Towering:
+	set .@aid_leader, getattachedrid();
+	//
+	getpartymember(getcharid(1), 2);
+	set .@size, $@partymembercount;
+	copyarray .@partymemberaid[0],$@partymemberaid[0], .@size;
+
+	for(set .@i,0;.@i < .@size; set .@i, .@i+1) {
+		set .@aid, .@partymemberaid[.@i];
+		if (attachrid(.@aid)) {
+			set Towering,1; // 设置正在塔中
+			detachrid;
+		}
+	}
+	//
+	attachrid(.@aid_leader);
+	return;		
+OnInit:
+	
+	while(1){
+		showscript "[ 极速之塔 ]";
+		sleep 1000;
+	}	
+	end;		
+
+}
+
+1@towed,29,365,1	script	#1F ControllerN	844,{
+	end;
+
+OnInstanceInit:
+	set 'NET_Floor,1;
+	areamonster instance_mapname("1@towed"),7,351,17,387,"卷甲虫",1194,30,instance_npcname("#1F ControllerN", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),7,351,17,387,"打死你",1649,1,instance_npcname("#1F ControllerN", instance_id())+"::OnMyMobDead";
+	end;
+
+OnMyMobDead:
+	set .@mob_dead_num,mobcount(instance_mapname("1@towed"),instance_npcname("#1F ControllerN", instance_id())+"::OnMyMobDead");
+	if (.@mob_dead_num < 1) {
+		instance_announce 0, "第1层的所有魔物都被击败了。",bc_map,"0xffff00";
+		donpcevent instance_npcname("1FGatentower", instance_id())+"::OnEnable";
+		//SetItemPartyInMap in_102floor 1
+	}
+	else
+		instance_announce 0, "第1层还剩下魔物： - " + .@mob_dead_num,bc_map,"0x00ff99";
+	end;
+}
+
+1@towed,12,393,0	script	1FGatentower	45,2,2,{
+	end;
+OnInstanceInit:
+	disablenpc instance_npcname("1FGatentower", instance_id());
+	end;
+
+OnEnable:
+	enablenpc instance_npcname("1FGatentower", instance_id());
+	areamonster instance_mapname("1@towed"),93,351,103,387,"疯狂鬣狗",1783,30,instance_npcname("1FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),93,351,103,387,"虐死你",1650,1,instance_npcname("1FGatentower", instance_id())+"::OnMyMobDead";
+	set 'NET_Floor,2;
+	end;
+
+OnTouch_:
+	warp instance_mapname("1@towed"),136,354;
+	end;
+
+OnMyMobDead:
+	set .@mob_dead_num,mobcount(instance_mapname("1@towed"),instance_npcname("1FGatentower", instance_id())+"::OnMyMobDead");
+	if (.@mob_dead_num < 1) {
+		instance_announce 0, "第2层的所有魔物都被击败了。",bc_map,"0xffff00";
+		donpcevent instance_npcname("2FGatentower", instance_id())+"::OnEnable";
+		//SetItemPartyInMap in_102floor 2
+	}
+	else
+		instance_announce 0, "第2层还剩下魔物： - " + .@mob_dead_num,bc_map,"0x00ff99";
+	end;
+}
+
+1@towed,96,393,0	script	2FGatentower	45,2,2,{
+	end;
+OnInstanceInit:
+	disablenpc instance_npcname("2FGatentower", instance_id());
+	end;
+
+OnEnable:
+	enablenpc instance_npcname("2FGatentower", instance_id());
+	areamonster instance_mapname("1@towed"),181,351,191,387,"卡仑宝宝",1515,30,instance_npcname("2FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),181,351,191,387,"捅死你",1648,1,instance_npcname("2FGatentower", instance_id())+"::OnMyMobDead";
+	set 'NET_Floor,3;
+	end;
+
+OnTouch_:
+	warp instance_mapname("1@towed"),224,354;
+	end;
+
+OnMyMobDead:
+	set .@mob_dead_num,mobcount(instance_mapname("1@towed"),instance_npcname("2FGatentower", instance_id())+"::OnMyMobDead");
+	if (.@mob_dead_num < 1) {
+		instance_announce 0, "第3层的所有魔物都被击败了。",bc_map,"0xffff00";
+		donpcevent instance_npcname("3FGatentower", instance_id())+"::OnEnable";
+		//SetItemPartyInMap in_102floor 3
+	}
+	else
+		instance_announce 0, "第3层还剩下魔物： - " + .@mob_dead_num,bc_map,"0x00ff99";
+	end;
+}
+
+1@towed,184,393,0	script	3FGatentower	45,2,2,{
+	end;
+OnInstanceInit:
+	disablenpc instance_npcname("3FGatentower", instance_id());
+	end;
+
+OnEnable:
+	enablenpc instance_npcname("3FGatentower", instance_id());
+	areamonster instance_mapname("1@towed"),267,351,277,387,"邪骸浪人",1490,30,instance_npcname("3FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),267,351,277,387,"捶捶你",1647,1,instance_npcname("3FGatentower", instance_id())+"::OnMyMobDead";
+	set 'NET_Floor,4;
+	end;
+
+OnTouch_:
+	warp instance_mapname("1@towed"),310,354;
+	end;
+
+OnMyMobDead:
+	set .@mob_dead_num,mobcount(instance_mapname("1@towed"),instance_npcname("3FGatentower", instance_id())+"::OnMyMobDead");
+	if (.@mob_dead_num < 1) {
+		instance_announce 0, "第4层的所有魔物都被击败了。",bc_map,"0xffff00";
+		donpcevent instance_npcname("4FGatentower", instance_id())+"::OnEnable";
+		//SetItemPartyInMap in_102floor 4
+	}
+	else
+		instance_announce 0, "第4层还剩下魔物： - " + .@mob_dead_num,bc_map,"0x00ff99";
+	end;
+}
+
+1@towed,270,393,0	script	4FGatentower	45,2,2,{
+	end;
+OnInstanceInit:
+	disablenpc instance_npcname("4FGatentower", instance_id());
+	end;
+
+OnEnable:
+	enablenpc instance_npcname("4FGatentower", instance_id());
+	areamonster instance_mapname("1@towed"),352,351,362,387,"蝙蝠弓箭手",1253,30,instance_npcname("4FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),352,351,362,387,"殴打你",1646,1,instance_npcname("4FGatentower", instance_id())+"::OnMyMobDead";
+	set 'NET_Floor,5;
+	end;
+
+OnTouch_:
+	warp instance_mapname("1@towed"),395,354;
+	end;
+
+OnMyMobDead:
+	set .@mob_dead_num,mobcount(instance_mapname("1@towed"),instance_npcname("4FGatentower", instance_id())+"::OnMyMobDead");
+	if (.@mob_dead_num < 1) {
+		instance_announce 0, "第5层的所有魔物都被击败了。",bc_map,"0xffff00";
+		donpcevent instance_npcname("5FGatentower", instance_id())+"::OnEnable";
+		//SetItemPartyInMap in_102floor 5
+	}
+	else
+		instance_announce 0, "第5层还剩下魔物： - " + .@mob_dead_num,bc_map,"0x00ff99";
+	end;
+}
+
+1@towed,355,393,0	script	5FGatentower	45,2,2,{
+	end;
+OnInstanceInit:
+	disablenpc instance_npcname("5FGatentower", instance_id());
+	end;
+
+OnEnable:
+	enablenpc instance_npcname("5FGatentower", instance_id());
+	areamonster instance_mapname("1@towed"),9,267,19,303,"人鱼士兵",1264,30,instance_npcname("5FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),9,267,19,303,"轮死你",2241,1,instance_npcname("5FGatentower", instance_id())+"::OnMyMobDead";
+	set 'NET_Floor,6;
+	end;
+
+OnTouch_:
+	warp instance_mapname("1@towed"),52,270;
+	end;
+
+OnMyMobDead:
+	set .@mob_dead_num,mobcount(instance_mapname("1@towed"),instance_npcname("5FGatentower", instance_id())+"::OnMyMobDead");
+	if (.@mob_dead_num < 1) {
+		instance_announce 0, "第6层的所有魔物都被击败了。",bc_map,"0xffff00";
+		donpcevent instance_npcname("6FGatentower", instance_id())+"::OnEnable";
+		//SetItemPartyInMap in_102floor 6
+	}
+	else
+		instance_announce 0, "第6层还剩下魔物： - " + .@mob_dead_num,bc_map,"0x00ff99";
+	end;
+}
+
+1@towed,12,309,0	script	6FGatentower	45,2,2,{
+	end;
+OnInstanceInit:
+	disablenpc instance_npcname("6FGatentower", instance_id());
+	end;
+
+OnEnable:
+	enablenpc instance_npcname("6FGatentower", instance_id());
+	areamonster instance_mapname("1@towed"),93,267,103,303,"玩偶熊",1622,30,instance_npcname("6FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),93,267,103,303,"拍拍你",2240,1,instance_npcname("6FGatentower", instance_id())+"::OnMyMobDead";
+	set 'NET_Floor,7;
+	end;
+
+OnTouch_:
+	warp instance_mapname("1@towed"),136,270;
+	end;
+
+OnMyMobDead:
+	set .@mob_dead_num,mobcount(instance_mapname("1@towed"),instance_npcname("6FGatentower", instance_id())+"::OnMyMobDead");
+	if (.@mob_dead_num < 1) {
+		instance_announce 0, "第7层的所有魔物都被击败了。",bc_map,"0xffff00";
+		donpcevent instance_npcname("7FGatentower", instance_id())+"::OnEnable";
+		//SetItemPartyInMap in_102floor 7
+	}
+	else
+		instance_announce 0, "第7层还剩下魔物： - " + .@mob_dead_num,bc_map,"0x00ff99";
+	end;
+}
+
+1@towed,96,309,0	script	7FGatentower	45,2,2,{
+	end;
+OnInstanceInit:
+	disablenpc instance_npcname("7FGatentower", instance_id());
+	end;
+
+OnEnable:
+	enablenpc instance_npcname("7FGatentower", instance_id());
+	areamonster instance_mapname("1@towed"),181,267,191,303,"阿修罗机械战士",1365,15,instance_npcname("7FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),181,267,191,303,"阿修罗狂战士",1202,15,instance_npcname("7FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),181,267,191,303,"亲亲你",2239,1,instance_npcname("7FGatentower", instance_id())+"::OnMyMobDead";
+	set 'NET_Floor,8;
+	end;
+
+OnTouch_:
+	warp instance_mapname("1@towed"),224,270;
+	end;
+
+OnMyMobDead:
+	set .@mob_dead_num,mobcount(instance_mapname("1@towed"),instance_npcname("7FGatentower", instance_id())+"::OnMyMobDead");
+	if (.@mob_dead_num < 1) {
+		instance_announce 0, "第8层的所有魔物都被击败了。",bc_map,"0xffff00";
+		donpcevent instance_npcname("8FGatentower", instance_id())+"::OnEnable";
+		//SetItemPartyInMap in_102floor 8
+	}
+	else
+		instance_announce 0, "第8层还剩下魔物： - " + .@mob_dead_num,bc_map,"0x00ff99";
+	end;
+}
+
+1@towed,184,309,0	script	8FGatentower	45,2,2,{
+	end;
+OnInstanceInit:
+	disablenpc instance_npcname("8FGatentower", instance_id());
+	end;
+
+OnEnable:
+	enablenpc instance_npcname("8FGatentower", instance_id());
+	areamonster instance_mapname("1@towed"),267,267,277,303,"塔噜安",1584,30,instance_npcname("8FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),267,267,277,303,"抱抱你",2238,1,instance_npcname("8FGatentower", instance_id())+"::OnMyMobDead";
+	set 'NET_Floor,9;
+	end;
+
+OnTouch_:
+	warp instance_mapname("1@towed"),310,270;
+	end;
+
+OnMyMobDead:
+	set .@mob_dead_num,mobcount(instance_mapname("1@towed"),instance_npcname("8FGatentower", instance_id())+"::OnMyMobDead");
+	if (.@mob_dead_num < 1) {
+		instance_announce 0, "第9层的所有魔物都被击败了。",bc_map,"0xffff00";
+		donpcevent instance_npcname("9FGatentower", instance_id())+"::OnEnable";
+		//SetItemPartyInMap in_102floor 9
+	}
+	else
+		instance_announce 0, "第9层还剩下魔物： - " + .@mob_dead_num,bc_map,"0x00ff99";
+	end;
+}
+
+1@towed,270,309,0	script	9FGatentower	45,2,2,{
+	end;
+OnInstanceInit:
+	disablenpc instance_npcname("9FGatentower", instance_id());
+	end;
+
+OnEnable:
+	enablenpc instance_npcname("9FGatentower", instance_id());
+	areamonster instance_mapname("1@towed"),352,267,362,303,"达纳托斯的苦恼",1712,3,instance_npcname("9FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),352,267,362,303,"达纳托斯的悲哀",1711,3,instance_npcname("9FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),352,267,362,303,"达纳托斯的绝望",1710,3,instance_npcname("9FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),352,267,362,303,"达纳托斯的憎恨",1709,3,instance_npcname("9FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),352,267,362,303,"来打我吊毛",2237,1,instance_npcname("9FGatentower", instance_id())+"::OnMyMobDead";
+	set 'NET_Floor,10;
+	end;
+
+OnTouch_:
+	warp instance_mapname("1@towed"),395,270;
+	end;
+
+OnMyMobDead:
+	set .@mob_dead_num,mobcount(instance_mapname("1@towed"),instance_npcname("9FGatentower", instance_id())+"::OnMyMobDead");
+	if (.@mob_dead_num < 1) {
+		instance_announce 0, "第10层的所有魔物都被击败了。",bc_map,"0xffff00";
+		donpcevent instance_npcname("10FGatentower", instance_id())+"::OnEnable";
+		//SetItemPartyInMap in_102floor 10
+	}
+	else
+		instance_announce 0, "第10层还剩下魔物： - " + .@mob_dead_num,bc_map,"0x00ff99";
+	end;
+}
+
+1@towed,355,309,0	script	10FGatentower	45,2,2,{
+	end;
+OnInstanceInit:
+	disablenpc instance_npcname("10FGatentower", instance_id());
+	end;
+
+OnEnable:
+	enablenpc instance_npcname("10FGatentower", instance_id());
+	areamonster instance_mapname("1@towed"),9,180,19,216,"三头龙",1720,15,instance_npcname("10FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),9,180,19,216,"有本事干我",2236,1,instance_npcname("10FGatentower", instance_id())+"::OnMyMobDead";
+	set 'NET_Floor,11;
+	end;
+
+OnTouch_:
+	warp instance_mapname("1@towed"),52,183;
+	end;
+
+OnMyMobDead:
+	set .@mob_dead_num,mobcount(instance_mapname("1@towed"),instance_npcname("10FGatentower", instance_id())+"::OnMyMobDead");
+	if (.@mob_dead_num < 1) {
+		instance_announce 0, "第11层的所有魔物都被击败了。",bc_map,"0xffff00";
+		donpcevent instance_npcname("11FGatentower", instance_id())+"::OnEnable";
+		//SetItemPartyInMap in_102floor 11
+	}
+	else
+		instance_announce 0, "第11层还剩下魔物： - " + .@mob_dead_num,bc_map,"0x00ff99";
+	end;
+}
+
+1@towed,12,222,0	script	11FGatentower	45,2,2,{
+	end;
+OnInstanceInit:
+	disablenpc instance_npcname("11FGatentower", instance_id());
+	end;
+
+OnEnable:
+	enablenpc instance_npcname("11FGatentower", instance_id());
+	areamonster instance_mapname("1@towed"),93,180,103,216,"爱丽削",1735,10,instance_npcname("11FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),93,180,103,216,"爱丽俄",1736,10,instance_npcname("11FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),93,180,103,216,"爱丽哲",1737,10,instance_npcname("11FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),93,180,103,216,"你行不行",2235,1,instance_npcname("11FGatentower", instance_id())+"::OnMyMobDead";
+	set 'NET_Floor,12;
+	end;
+
+OnTouch_:
+	warp instance_mapname("1@towed"),136,183;
+	end;
+
+OnMyMobDead:
+	set .@mob_dead_num,mobcount(instance_mapname("1@towed"),instance_npcname("11FGatentower", instance_id())+"::OnMyMobDead");
+	if (.@mob_dead_num < 1) {
+		instance_announce 0, "第12层的所有魔物都被击败了。",bc_map,"0xffff00";
+		donpcevent instance_npcname("12FGatentower", instance_id())+"::OnEnable";
+		//SetItemPartyInMap in_102floor 12
+	}
+	else
+		instance_announce 0, "第12层还剩下魔物： - " + .@mob_dead_num,bc_map,"0x00ff99";
+	end;
+}
+
+1@towed,96,222,0	script	12FGatentower	45,2,2,{
+	end;
+OnInstanceInit:
+	disablenpc instance_npcname("12FGatentower", instance_id());
+	end;
+
+OnEnable:
+	enablenpc instance_npcname("12FGatentower", instance_id());
+	areamonster instance_mapname("1@towed"),181,180,191,216,"寒冰巨人",1777,30,instance_npcname("12FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),181,180,191,216,"大力点打我",1873,1,instance_npcname("12FGatentower", instance_id())+"::OnMyMobDead";
+	set 'NET_Floor,13;
+	end;
+
+OnTouch_:
+	warp instance_mapname("1@towed"),224,183;
+	end;
+
+OnMyMobDead:
+	set .@mob_dead_num,mobcount(instance_mapname("1@towed"),instance_npcname("12FGatentower", instance_id())+"::OnMyMobDead");
+	if (.@mob_dead_num < 1) {
+		instance_announce 0, "第13层的所有魔物都被击败了。",bc_map,"0xffff00";
+		donpcevent instance_npcname("13FGatentower", instance_id())+"::OnEnable";
+		//SetItemPartyInMap in_102floor 13
+	}
+	else
+		instance_announce 0, "第13层还剩下魔物： - " + .@mob_dead_num,bc_map,"0x00ff99";
+	end;
+}
+
+1@towed,184,222,0	script	13FGatentower	45,2,2,{
+	end;
+OnInstanceInit:
+	disablenpc instance_npcname("13FGatentower", instance_id());
+	end;
+
+OnEnable:
+	enablenpc instance_npcname("13FGatentower", instance_id());
+	areamonster instance_mapname("1@towed"),267,180,277,216,"黑方体恶魔",1755,10,instance_npcname("13FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),267,180,277,216,"褐方体恶魔",1754,10,instance_npcname("13FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),267,180,277,216,"打不痛我",1768,1,instance_npcname("13FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),267,180,277,216,"血牛魔仙",1751,1,instance_npcname("13FGatentower", instance_id())+"::OnMyMobDead";
+	set 'NET_Floor,14;
+	end;
+
+OnTouch_:
+	warp instance_mapname("1@towed"),310,183;
+	end;
+
+OnMyMobDead:
+	set .@mob_dead_num,mobcount(instance_mapname("1@towed"),instance_npcname("13FGatentower", instance_id())+"::OnMyMobDead");
+	if (.@mob_dead_num < 1) {
+		instance_announce 0, "第14层的所有魔物都被击败了。",bc_map,"0xffff00";
+		donpcevent instance_npcname("14FGatentower", instance_id())+"::OnEnable";
+		//SetItemPartyInMap in_102floor 14
+	}
+	else
+		instance_announce 0, "第14层还剩下魔物： - " + .@mob_dead_num,bc_map,"0x00ff99";
+	end;
+}
+
+1@towed,270,222,0	script	14FGatentower	45,2,2,{
+	end;
+OnInstanceInit:
+	disablenpc instance_npcname("14FGatentower", instance_id());
+	end;
+
+OnEnable:
+	enablenpc instance_npcname("14FGatentower", instance_id());
+	areamonster instance_mapname("1@towed"),352,180,362,216,"女妖",1867,30,instance_npcname("14FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),352,180,362,216,"来AB我",1871,1,instance_npcname("14FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),352,180,362,216,"血牛魔仙",1832,1,instance_npcname("14FGatentower", instance_id())+"::OnMyMobDead";
+	set 'NET_Floor,15;
+	end;
+
+OnTouch_:
+
+	warp instance_mapname("1@towed"),395,183;
+	end;
+
+OnMyMobDead:
+	set .@mob_dead_num,mobcount(instance_mapname("1@towed"),instance_npcname("14FGatentower", instance_id())+"::OnMyMobDead");
+	if (.@mob_dead_num < 1) {
+		instance_announce 0, "第15层的所有魔物都被击败了。",bc_map,"0xffff00";
+		donpcevent instance_npcname("15FGatentower", instance_id())+"::OnEnable";
+		//SetItemPartyInMap in_102floor 15
+	}
+	else
+		instance_announce 0, "第15层还剩下魔物： - " + .@mob_dead_num,bc_map,"0x00ff99";
+	end;
+}
+
+1@towed,355,222,0	script	15FGatentower	45,2,2,{
+	end;
+OnInstanceInit:
+	disablenpc instance_npcname("15FGatentower", instance_id());
+	end;
+
+OnEnable:
+	enablenpc instance_npcname("15FGatentower", instance_id());
+	areamonster instance_mapname("1@towed"),9,96,19,132,"赛依连",1799,2,instance_npcname("15FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),9,96,19,132,"哈沃得",1801,2,instance_npcname("15FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),9,96,19,132,"艾勒梅斯",1800,2,instance_npcname("15FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),9,96,19,132,"凯特莉娜",1804,2,instance_npcname("15FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),9,96,19,132,"迪文",1803,2,instance_npcname("15FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),9,96,19,132,"你不够我打",1957,1,instance_npcname("15FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),9,96,19,132,"牛怪",2010,1,instance_npcname("15FGatentower", instance_id())+"::OnMyMobDead";
+	set 'NET_Floor,16;
+	end;
+
+OnTouch_:
+	warp instance_mapname("1@towed"),52,99;
+	end;
+
+OnMyMobDead:
+	set .@mob_dead_num,mobcount(instance_mapname("1@towed"),instance_npcname("15FGatentower", instance_id())+"::OnMyMobDead");
+	if (.@mob_dead_num < 1) {
+		instance_announce 0, "第16层的所有魔物都被击败了。",bc_map,"0xffff00";
+		donpcevent instance_npcname("16FGatentower", instance_id())+"::OnEnable";
+		//SetItemPartyInMap in_102floor 16
+	}
+	else
+		instance_announce 0, "第16层还剩下魔物： - " + .@mob_dead_num,bc_map,"0x00ff99";
+	end;
+}
+
+1@towed,12,138,0	script	16FGatentower	45,2,2,{
+	end;
+OnInstanceInit:
+	disablenpc instance_npcname("16FGatentower", instance_id());
+	end;
+
+OnEnable:
+	enablenpc instance_npcname("16FGatentower", instance_id());
+	areamonster instance_mapname("1@towed"),93,96,103,132,"玛嘉雷特",1802,2,instance_npcname("16FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),93,96,103,132,"赛依连",1799,2,instance_npcname("16FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),93,96,103,132,"哈沃得",1801,2,instance_npcname("16FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),93,96,103,132,"艾勒梅斯",1800,2,instance_npcname("16FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),93,96,103,132,"凯特莉娜",1804,2,instance_npcname("16FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),93,96,103,132,"你出去吧",1956,1,instance_npcname("16FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),93,96,103,132,"牛怪",2010,1,instance_npcname("16FGatentower", instance_id())+"::OnMyMobDead";
+	set 'NET_Floor,17;
+	end;
+
+OnTouch_:
+	warp instance_mapname("1@towed"),136,99;
+	end;
+
+OnMyMobDead:
+	set .@mob_dead_num,mobcount(instance_mapname("1@towed"),instance_npcname("16FGatentower", instance_id())+"::OnMyMobDead");
+	if (.@mob_dead_num < 1) {
+		instance_announce 0, "第17层的所有魔物都被击败了。",bc_map,"0xffff00";
+		donpcevent instance_npcname("17FGatentower", instance_id())+"::OnEnable";
+		//SetItemPartyInMap in_102floor 17
+	}
+	else
+		instance_announce 0, "第17层还剩下魔物： - " + .@mob_dead_num,bc_map,"0x00ff99";
+	end;
+}
+
+1@towed,96,138,0	script	17FGatentower	45,2,2,{
+	end;
+OnInstanceInit:
+	disablenpc instance_npcname("17FGatentower", instance_id());
+	end;
+
+OnEnable:
+	enablenpc instance_npcname("17FGatentower", instance_id());
+	areamonster instance_mapname("1@towed"),181,96,191,132,"玛嘉雷特",1802,2,instance_npcname("17FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),181,96,191,132,"赛依连",1799,2,instance_npcname("17FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),181,96,191,132,"哈沃得",1801,2,instance_npcname("17FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),181,96,191,132,"艾勒梅斯",1800,2,instance_npcname("17FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),181,96,191,132,"迪文",1803,2,instance_npcname("17FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),181,96,191,132,"暗●超魔导师 凯特莉娜",2202,1,instance_npcname("17FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),181,96,191,132,"牛怪",2010,1,instance_npcname("17FGatentower", instance_id())+"::OnMyMobDead";
+	set 'NET_Floor,18;
+	end;
+
+OnTouch_:
+	warp instance_mapname("1@towed"),224,99;
+	end;
+
+OnMyMobDead:
+	set .@mob_dead_num,mobcount(instance_mapname("1@towed"),instance_npcname("17FGatentower", instance_id())+"::OnMyMobDead");
+	if (.@mob_dead_num < 1) {
+		instance_announce 0, "第18层的所有魔物都被击败了。",bc_map,"0xffff00";
+		donpcevent instance_npcname("18FGatentower", instance_id())+"::OnEnable";
+		//SetItemPartyInMap in_102floor 18
+	}
+	else
+		instance_announce 0, "第18层还剩下魔物： - " + .@mob_dead_num,bc_map,"0x00ff99";
+	end;
+}
+
+1@towed,184,138,0	script	18FGatentower	45,2,2,{
+	end;
+OnInstanceInit:
+	disablenpc instance_npcname("18FGatentower", instance_id());
+	end;
+
+OnEnable:
+	enablenpc instance_npcname("18FGatentower", instance_id());
+	areamonster instance_mapname("1@towed"),267,96,277,132,"玛嘉雷特",1802,2,instance_npcname("18FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),267,96,277,132,"赛依连",1799,2,instance_npcname("18FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),267,96,277,132,"凯特莉娜",1804,2,instance_npcname("18FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),267,96,277,132,"艾勒梅斯",1800,2,instance_npcname("18FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),267,96,277,132,"迪文",1803,2,instance_npcname("18FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),267,96,277,132,"暗●神工匠 哈沃得",1990,1,instance_npcname("18FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),267,96,277,132,"牛怪",2010,1,instance_npcname("18FGatentower", instance_id())+"::OnMyMobDead";
+	set 'NET_Floor,19;
+	end;
+
+OnTouch_:
+	warp instance_mapname("1@towed"),310,99;
+	end;
+
+OnMyMobDead:
+	set .@mob_dead_num,mobcount(instance_mapname("1@towed"),instance_npcname("18FGatentower", instance_id())+"::OnMyMobDead");
+	if (.@mob_dead_num < 1) {
+		instance_announce 0, "第19层的所有魔物都被击败了。",bc_map,"0xffff00";
+		donpcevent instance_npcname("19FGatentower", instance_id())+"::OnEnable";
+		//SetItemPartyInMap in_102floor 19
+	}
+	else
+		instance_announce 0, "第19层还剩下魔物： - " + .@mob_dead_num,bc_map,"0x00ff99";
+	end;
+}
+
+1@towed,270,138,0	script	19FGatentower	45,2,2,{
+	end;
+OnInstanceInit:
+	disablenpc instance_npcname("19FGatentower", instance_id());
+	end;
+
+OnEnable:
+	enablenpc instance_npcname("19FGatentower", instance_id());
+	areamonster instance_mapname("1@towed"),352,96,362,132,"地狱猎蝇",1872,15,instance_npcname("19FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),352,96,362,132,"贝雷杰",2022,1,instance_npcname("19FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),352,96,362,132,"牛怪",2010,1,instance_npcname("19FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),352,96,362,132,"血牛魔仙",1795,1,instance_npcname("19FGatentower", instance_id())+"::OnMyMobDead";
+	set 'NET_Floor,20;
+	end;
+
+OnTouch_:
+	warp instance_mapname("1@towed"),395,99;
+	end;
+
+OnMyMobDead:
+	set .@mob_dead_num,mobcount(instance_mapname("1@towed"),instance_npcname("19FGatentower", instance_id())+"::OnMyMobDead");
+	if (.@mob_dead_num < 1) {
+		instance_announce 0, "第20层的所有魔物都被击败了。",bc_map,"0xffff00";
+		donpcevent instance_npcname("20FGatentower", instance_id())+"::OnEnable";
+		//SetItemPartyInMap in_102floor 20
+	}
+	else
+		instance_announce 0, "第20层还剩下魔物： - " + .@mob_dead_num,bc_map,"0x00ff99";
+	end;
+}
+
+1@towed,355,138,0	script	20FGatentower	45,2,2,{
+	end;
+OnInstanceInit:
+	disablenpc instance_npcname("20FGatentower", instance_id());
+	end;
+
+OnEnable:
+	enablenpc instance_npcname("20FGatentower", instance_id());
+	areamonster instance_mapname("1@towed"),9,9,19,45,"玛嘉雷特",1802,2,instance_npcname("20FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),9,9,19,45,"赛依连",1799,2,instance_npcname("20FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),9,9,19,45,"凯特莉娜",1804,2,instance_npcname("20FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),9,9,19,45,"哈沃得",1801,2,instance_npcname("20FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),9,9,19,45,"迪文",1803,2,instance_npcname("20FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),9,9,19,45,"暗●十字刺客 艾勒梅斯",2010,1,instance_npcname("20FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),9,9,19,45,"牛怪",2010,1,instance_npcname("20FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),9,9,19,45,"血牛魔仙",1795,2,instance_npcname("20FGatentower", instance_id())+"::OnMyMobDead";
+	set 'NET_Floor,21;
+	end;
+
+OnTouch_:
+	warp instance_mapname("1@towed"),52,12;
+	end;
+
+OnMyMobDead:
+	set .@mob_dead_num,mobcount(instance_mapname("1@towed"),instance_npcname("20FGatentower", instance_id())+"::OnMyMobDead");
+	if (.@mob_dead_num < 1) {
+		instance_announce 0, "第21层的所有魔物都被击败了。",bc_map,"0xffff00";
+		donpcevent instance_npcname("21FGatentower", instance_id())+"::OnEnable";
+		//SetItemPartyInMap in_102floor 21
+	}
+	else
+		instance_announce 0, "第21层还剩下魔物： - " + .@mob_dead_num,bc_map,"0x00ff99";
+	end;
+}
+
+1@towed,12,51,0	script	21FGatentower	45,2,2,{
+	end;
+OnInstanceInit:
+	disablenpc instance_npcname("21FGatentower", instance_id());
+	end;
+
+OnEnable:
+	enablenpc instance_npcname("21FGatentower", instance_id());
+	areamonster instance_mapname("1@towed"),93,9,103,45,"熔岩蜥蜴",1834,15,instance_npcname("21FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),93,9,103,45,"不死鸟",1835,15,instance_npcname("21FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),93,9,103,45,"伊夫利特",1832,1,instance_npcname("21FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),93,9,103,45,"牛怪",2010,1,instance_npcname("21FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),93,9,103,45,"血牛魔仙",1795,2,instance_npcname("21FGatentower", instance_id())+"::OnMyMobDead";
+	set 'NET_Floor,22;
+	end;
+
+OnTouch_:
+	warp instance_mapname("1@towed"),136,12;
+	end;
+
+OnMyMobDead:
+	set .@mob_dead_num,mobcount(instance_mapname("1@towed"),instance_npcname("21FGatentower", instance_id())+"::OnMyMobDead");
+	if (.@mob_dead_num < 1) {
+		instance_announce 0, "第22层的所有魔物都被击败了。",bc_map,"0xffff00";
+		donpcevent instance_npcname("22FGatentower", instance_id())+"::OnEnable";
+		//SetItemPartyInMap in_102floor 22
+	}
+	else
+		instance_announce 0, "第22层还剩下魔物： - " + .@mob_dead_num,bc_map,"0x00ff99";
+	end;
+}
+
+1@towed,96,51,0	script	22FGatentower	45,2,2,{
+	end;
+OnInstanceInit:
+	disablenpc instance_npcname("22FGatentower", instance_id());
+	end;
+
+OnEnable:
+	enablenpc instance_npcname("22FGatentower", instance_id());
+	areamonster instance_mapname("1@towed"),181,9,191,45,"巴基力",1765,3,instance_npcname("22FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),181,9,191,45,"兰特克力斯",1751,1,instance_npcname("22FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),181,9,191,45,"牛怪",2010,2,instance_npcname("22FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),181,9,191,45,"血牛魔仙",1795,2,instance_npcname("22FGatentower", instance_id())+"::OnMyMobDead";
+	set 'NET_Floor,23;
+	end;
+
+OnTouch_:
+	warp instance_mapname("1@towed"),224,12;
+	end;
+
+OnMyMobDead:
+	set .@mob_dead_num,mobcount(instance_mapname("1@towed"),instance_npcname("22FGatentower", instance_id())+"::OnMyMobDead");
+	if (.@mob_dead_num < 1) {
+		instance_announce 0, "第23层的所有魔物都被击败了。",bc_map,"0xffff00";
+		donpcevent instance_npcname("23FGatentower", instance_id())+"::OnEnable";
+		//SetItemPartyInMap in_102floor 23
+	}
+	else
+		instance_announce 0, "第23层还剩下魔物： - " + .@mob_dead_num,bc_map,"0x00ff99";
+	end;
+}
+
+1@towed,184,51,0	script	23FGatentower	45,2,2,{
+	end;
+OnInstanceInit:
+	disablenpc instance_npcname("23FGatentower", instance_id());
+	end;
+
+OnEnable:
+	enablenpc instance_npcname("23FGatentower", instance_id());
+	areamonster instance_mapname("1@towed"),267,9,277,45,"玛嘉雷特",1802,2,instance_npcname("23FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),267,9,277,45,"艾勒梅斯",1800,2,instance_npcname("23FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),267,9,277,45,"凯特莉娜",1804,2,instance_npcname("23FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),267,9,277,45,"哈沃得",1801,2,instance_npcname("23FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),267,9,277,45,"迪文",1803,2,instance_npcname("23FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),267,9,277,45,"暗●骑士领主 赛依连",2022,1,instance_npcname("23FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),267,9,277,45,"牛怪",2010,2,instance_npcname("23FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),267,9,277,45,"血牛魔仙",1795,2,instance_npcname("23FGatentower", instance_id())+"::OnMyMobDead";
+	set 'NET_Floor,24;
+	end;
+
+OnTouch_:
+	warp instance_mapname("1@towed"),310,12;
+	end;
+
+OnMyMobDead:
+	set .@mob_dead_num,mobcount(instance_mapname("1@towed"),instance_npcname("23FGatentower", instance_id())+"::OnMyMobDead");
+	if (.@mob_dead_num < 1) {
+		instance_announce 0, "第24层的所有魔物都被击败了。",bc_map,"0xffff00";
+		donpcevent instance_npcname("24FGatentower", instance_id())+"::OnEnable";
+		//SetItemPartyInMap in_102floor 24
+	}
+	else
+		instance_announce 0, "第24层还剩下魔物： - " + .@mob_dead_num,bc_map,"0x00ff99";
+	end;
+}
+
+1@towed,270,51,0	script	24FGatentower	45,2,2,{
+	end;
+OnInstanceInit:
+	disablenpc instance_npcname("24FGatentower", instance_id());
+	end;
+
+OnEnable:
+	enablenpc instance_npcname("24FGatentower", instance_id());
+	areamonster instance_mapname("1@towed"),352,9,362,45,"哒哒乔",1986,7,instance_npcname("24FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),352,9,362,45,"变异蜈蚣",1987,7,instance_npcname("24FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),352,9,362,45,"毒黄蜂",1994,7,instance_npcname("24FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),352,9,362,45,"纳迦",1993,7,instance_npcname("24FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),352,9,362,45,"飞马",1992,7,instance_npcname("24FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),352,9,362,45,"硬石猛犸",1990,2,instance_npcname("24FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),352,9,362,45,"三角兽",2010,1,instance_npcname("24FGatentower", instance_id())+"::OnMyMobDead";
+	areamonster instance_mapname("1@towed"),352,9,362,45,"血牛魔仙",1795,3,instance_npcname("24FGatentower", instance_id())+"::OnMyMobDead";
+	set 'NET_Floor,25;
+	end;
+
+OnTouch_:
+	warp instance_mapname("1@towed"),395,12;
+	end;
+
+OnMyMobDead:
+	set .@mob_dead_num,mobcount(instance_mapname("1@towed"),instance_npcname("24FGatentower", instance_id())+"::OnMyMobDead");
+	if (.@mob_dead_num < 1) {
+		'Win = 1;
+		//instance_announce 0, "第25层的所有魔物都被击败了。",bc_map,"0xffff00";
+		donpcevent instance_npcname("25FGatentower", instance_id())+"::OnEnable";
+		//SetItemPartyInMap in_102floor 25
+	}
+	else
+		instance_announce 0, "第25层还剩下魔物： - " + .@mob_dead_num,bc_map,"0x00ff99";
+	end;
+}
+
+
+
+1@towed,355,51,0	script	25FGatentower	45,2,2,{
+	end;
+OnInstanceInit:
+	disablenpc instance_npcname("25FGatentower", instance_id());
+	end;
+
+OnEnable:
+	enablenpc instance_npcname("25FGatentower", instance_id());
+	initnpctimer;
+	end;
+
+OnTouch_:
+	if(Towering){
+		// 奖励功能已取消
+		}
+		Towering = 0;
+		
+	// 传送到极速之塔后续地图
+	warp instance_mapname("2@towed"),101,72;
+	end;
+
+
+OnTimer180000:
+	disablenpc instance_npcname("25FGatentower", instance_id());
+	donpcevent instance_npcname("25FGatentower-2", instance_id())+"::OnEnable";
+	stopnpctimer;
+	end;
+}
+
+1@towed,355,51,0	script	25FGatentower-2	45,2,2,{
+	end;
+OnInstanceInit:
+	disablenpc instance_npcname("25FGatentower-2", instance_id());
+	end;
+
+OnEnable:
+	enablenpc instance_npcname("25FGatentower-2", instance_id());
+	end;
+
+OnTouch_:
+	warp "prontera",156,120;
+	end;
+}
+
+1@towed,50,360,5	script	楼层验证石	111,{
+	mes "[楼层验证石]";
+	mes "我可以带你回到之前的楼层，或者使用陨石粉末快速传送到高层。";
+	next;
+	
+	switch(select("返回之前的楼层:挑战夜胜魔:取消")){
+	case 1:
+		mes "[楼层验证石]";
+		mes "我将带你回去刚才的楼层。";
+		close2;
+		if ('NET_Floor == 3) warp instance_mapname("1@towed"),136,354;
+		if ('NET_Floor == 4) warp instance_mapname("1@towed"),224,354;
+		if ('NET_Floor == 5) warp instance_mapname("1@towed"),310,354;
+		if ('NET_Floor == 6) warp instance_mapname("1@towed"),395,354;
+		if ('NET_Floor == 7) warp instance_mapname("1@towed"),52,270;
+		if ('NET_Floor == 8) warp instance_mapname("1@towed"),136,270;
+		if ('NET_Floor == 9) warp instance_mapname("1@towed"),224,270;
+		if ('NET_Floor == 10) warp instance_mapname("1@towed"),310,270;
+		if ('NET_Floor == 11) warp instance_mapname("1@towed"),395,270;
+		if ('NET_Floor == 12) warp instance_mapname("1@towed"),52,183;
+		if ('NET_Floor == 13) warp instance_mapname("1@towed"),136,183;
+		if ('NET_Floor == 14) warp instance_mapname("1@towed"),224,183;
+		if ('NET_Floor == 15) warp instance_mapname("1@towed"),310,183;
+		if ('NET_Floor == 16) warp instance_mapname("1@towed"),395,183;
+		if ('NET_Floor == 17) warp instance_mapname("1@towed"),52,99;
+		if ('NET_Floor == 18) warp instance_mapname("1@towed"),136,99;
+		if ('NET_Floor == 19) warp instance_mapname("1@towed"),224,99;
+		if ('NET_Floor == 20) warp instance_mapname("1@towed"),310,99;
+		if ('NET_Floor == 21) warp instance_mapname("1@towed"),395,99;
+		if ('NET_Floor == 22) warp instance_mapname("1@towed"),52,12;
+		if ('NET_Floor == 23) warp instance_mapname("1@towed"),136,12;
+		if ('NET_Floor == 24) warp instance_mapname("1@towed"),224,12;
+		if ('NET_Floor == 25) warp instance_mapname("1@towed"),310,12;
+		end;
+		
+	case 2:
+		mes "[楼层验证石]";
+		mes "挑战夜胜魔吗？";
+		mes "这需要消耗15个邪恶之心。";
+		next;
+		select("挑战夜胜魔");
+		if(countitem(7583) < 15){
+			mes "[楼层验证石]";
+			mes "所需的邪恶之心不够";
+			close;
+		}
+		delitem 7583,15;
+		warp instance_mapname("2@towed"),101,72;
+		end;
+		
+	case 3:
+		close;
+	}
+}
+
+
+//=======================极速之塔后续部分=======================
+
+2@towed,0,0,0	script	#星座之塔总控制台	-1,{
+	end;
+Oninit:
+	//每层小怪加成属性
+	$@C_HP_mob=10;
+	$@C_ATKMIN_mob=1000;
+	$@C_ATKMAX_mob=1000;
+	$@C_MATKMIN_mob=1000;
+	$@C_MATKMAX_mob=1000;
+	$@C_DEF_mob=0;
+	$@C_MDEF_mob=0;
+	$@C_HIT_mob=5;
+	
+	//每层MPV加成属性
+	$@C_HP_mvpmob=5;
+	$@C_ATKMIN_mvpmob=1000;
+	$@C_ATKMAX_mvpmob=1000;
+	$@C_MATKMIN_mvpmob =1000;
+	$@C_MATKMAX_mvpmob =1000;
+	$@C_DEF_mvpmob=0;
+	$@C_MDEF_mvpmob=0;
+	$@C_HIT_mvpmob=5;
+	
+	//101层BOSS加成属性
+	$@N_HP_par=30;
+	$@N_ATKMIN_par=550;
+	$@N_ATKMAX_par=550;
+	$@N_MATKMIN_par=550;
+	$@N_MATKMAX_par=550;
+	$@N_DEF_par=0;
+	$@N_MDEF_par=0;
+	$@N_HIT_par=100;
+
+	//101层浮游冰与火加成属性
+	$@MATKMIN_bullmob=150;
+	$@MATKMAX_bullmob=150;
+
+	//100层BOSS加成属性
+	$@B_HP_mvpmob=20;
+	$@B_ATKMIN_mvpmob=10;
+	$@B_ATKMAX_mvpmob=10;
+	$@B_MATKMIN_mvpmob=55;
+	$@B_MATKMAX_mvpmob=55;
+	$@B_DEF_mvpmob=0;
+	$@B_MDEF_mvpmob=0;
+	
+	//100层BOSS全屏技能加成属性
+	$@B_MATKMIN_skillmob=140;
+	$@B_MATKMAX_skillmob=140;
+	end;
+
+OnInstanceInit:	
+    'start_boss = 0;
+	for(.@i=0;.@i<101;.@i++)
+		setd "'warpselect"+(.@i+1)+"F",0;
+    set 'map_1$, instance_mapname("1@towed");
+    set 'map_2$, instance_mapname("2@towed");
+	'floor_LV = 0;
+	.@k = 0;
+	for(.@i = 0 ;.@i < 5 ;.@i++){
+		for(.@j = 0 ;.@j < 5 ;.@j++){
+            'point_x1[.@k] = 7 + 84*.@j;
+            'point_y1[.@k] = 7 +86*.@i;
+            'point_x2[.@k] = 34 + 84*.@j;
+            'point_y2[.@k] = 48 +86*.@i;	
+            'point_start_x[.@k] = 53 + 84*.@j;
+            'point_start_y[.@k] = 12 +86*.@i;
+		    .@k++;
+		}
+	}
+	end;		
+}
+
+
+
+function	script	#最后奖励	{
+	script4each "{ if(checkquest(atoi('Quest$[1])) != -1){ if(Title_7 != 1) T_wujinchenggong += 1; completequest atoi('Quest$[1]); setquesttime atoi('Quest$[2]),atoi('Quest$[3]); } }",SFE_PARTY,'Pid;
+
+	// 奖励功能已取消
+	announce "[极速之塔]: "+strcharinfo(0)+"完成了极速之塔.",bc_all;
+	return;
+}
+
+function	script	get_item	{
+	// 使用邮件发送函数发放奖励
+	callsub L_SendRewardByMail_Tower, getarg(0), getarg(1);
+	return;
+}
+
+//========== 邮件发送奖励函数 ==========
+function	script	L_SendRewardByMail_Tower	{
+	set .@item_id, getarg(0);
+	set .@amount, getarg(1);
+	set .@item_name$, getitemname(.@item_id);
+	set .@char_id, getcharid(0);
+	set .@char_name$, strcharinfo(0);
+	
+	// 尝试直接给予物品
+	if (checkweight(.@item_id, .@amount) == 1) {
+		getitem .@item_id, .@amount;
+		return 1; // 成功直接给予
+	} else {
+		// 背包已满，通过邮件发送
+		set .@sender_name$, "极速之塔奖励系统";
+		set .@mail_title$, "极速之塔奖励";
+		set .@mail_body$, "您在极速之塔中获得的物品 [" + .@item_name$ + "] x" + .@amount + " 由于背包已满，已通过邮件发送给您。";
+		set .@mail_zeny, 0;
+		set .@mail_item_id, .@item_id;
+		set .@mail_amount, .@amount;
+		
+		// 发送邮件
+		mail .@char_id, .@sender_name$, .@mail_title$, .@mail_body$, .@mail_zeny, .@mail_item_id, .@mail_amount;
+		
+		// 提示玩家
+		dispbottom "^FF0000[系统提示]^000000 由于背包已满，您获得的 [" + .@item_name$ + " x" + .@amount + "] 已通过邮件发送，请查收。";
+		return 2; // 邮件发送
+	}
+}
+
+
+// 魔物属性递增MVP
+function	script	Con_mvp_Monster	{
+	/*
+	.@mvp_UID = getarg(0);
+	.@level= getarg(1);
+	getunitdata .@mvp_UID,.@por_arr;
+	.@MAXHP=.@por_arr[3];
+	.@ATKMIN=.@por_arr[33];
+	.@ATKMAX=.@por_arr[34];
+	.@MATKMIN=.@por_arr[35];
+	.@MATKMAX=.@por_arr[36];
+	.@DEF=.@por_arr[37];
+	.@MDEF=.@por_arr[38];
+	.@HIT=.@por_arr[39];
+	setunitdata .@mvp_UID,UMOB_MAXHP,.@MAXHP*($@C_HP_mvpmob+.@level);
+	setunitdata .@mvp_UID,UMOB_ATKMIN,.@ATKMIN+($@C_ATKMIN_mvpmob+.@level*100);
+	setunitdata .@mvp_UID,UMOB_ATKMAX,.@ATKMAX+($@C_ATKMAX_mvpmob+.@level*100);
+	setunitdata .@mvp_UID,UMOB_MATKMIN,.@MATKMIN+($@C_MATKMIN_mvpmob+.@level*100);
+	setunitdata .@mvp_UID,UMOB_MATKMAX,.@MATKMAX+($@C_MATKMAX_mvpmob+.@level*100);
+	//setunitdata .@mvp_UID,UMOB_DEF,.@DEF+($@C_DEF_mvpmob+.@level*15);
+	//setunitdata .@mvp_UID,UMOB_MDEF,.@MDEF+($C_MDEF_mvpmob+.@level*15);
+	setunitdata .@mvp_UID,UMOB_HIT,.@HIT+($@C_HIT_mvpmob+.@level*15);
+	*/
+	return;
+}
+
+function	script	better_Monster	{
+	/*
+	.@mob_UID = getarg(0);
+	.@level= getarg(1);
+	getunitdata .@mob_UID,.@por_arr;
+	.@MAXHP=.@por_arr[3];
+	.@ATKMIN=.@por_arr[33];
+	.@ATKMAX=.@por_arr[34];
+	.@MATKMIN=.@por_arr[35];
+	.@MATKMAX=.@por_arr[36];
+	.@DEF=.@por_arr[37];
+	.@MDEF=.@por_arr[38];
+	.@HIT=.@por_arr[39];
+	setunitdata .@mob_UID,UMOB_MODE,12437;
+	setunitdata .@mob_UID,UMOB_MAXHP,.@MAXHP*($@C_HP_mob+.@level);
+	setunitdata .@mob_UID,UMOB_ATKMIN,.@ATKMIN+($@C_ATKMIN_mob+.@level*100);
+	setunitdata .@mob_UID,UMOB_ATKMAX,.@ATKMAX+($@C_ATKMAX_mob+.@level*100);
+	setunitdata .@mob_UID,UMOB_MATKMIN,.@MATKMIN+($@C_MATKMIN_mob+.@level*100);
+	setunitdata .@mob_UID,UMOB_MATKMAX,.@MATKMAX+($@C_MATKMAX_mob+.@level*100);
+	//setunitdata .@mob_UID,UMOB_DEF,.@DEF+($@C_DEF_mob+.@level*15);
+	//setunitdata .@mob_UID,UMOB_MDEF,.@MDEF+($@C_MDEF_mob+.@level*15);
+	setunitdata .@mob_UID,UMOB_HIT,.@HIT+($@C_HIT_mob+.@level*15);
+	setunitdata .@mob_UID,UMOB_DAMAGE_TAKEN,(100-(.@level/10)*10);
+	*/
+	return;
+}
+
+function	script	#25层奖励	{
+	// 25层奖励功能已取消
+	return;
+}
+
+//=======================中间BOSS
+2@towed,82,112,2	script	#101FShadowDust1	844,{
+	end;
+	
+OnInstanceInit:
+	donpcevent instance_npcname("#101FShadowDust")+"::OnEnable";
+	areamonster instance_mapname("2@towed"),67,69,101,106,"骷髅触角魔",1957,1,instance_npcname("#101FShadowDust1")+"::OnMyMobDead";
+	end;
+	
+OnMyMobDead:
+	// 奖励功能已取消
+	set .@map$, instance_mapname("2@towed");
+	set .@mob_dead_num,mobcount(.@map$,instance_npcname("#101FShadowDust1")+"::OnMyMobDead");
+	if (.@mob_dead_num < 1) {
+		mapannounce .@map$, "神秘的声音: 谁给你的胆子,竟然敢踏入我的圣地?!",bc_map,"0xffff00";
+		donpcevent instance_npcname("#101FShadowDust")+"::OnDisable";
+		donpcevent instance_npcname("纳户特基格")+"::OnEnable";
+	}
+	end;
+}
+
+2@towed,82,113,2	script	#101FShadowDust	844,{
+	end;
+	
+OnInstanceInit:
+	disablenpc instance_npcname("#101FShadowDust");
+	end;
+	
+OnDisable:
+	killmonsterall instance_mapname("2@towed");
+	end;
+	
+OnEnable:
+	set .@map$, instance_mapname("2@towed");
+	areamonster instance_mapname("2@towed"),67,69,101,106,"骨头之荆棘",1958,1;
+	areamonster instance_mapname("2@towed"),67,69,101,106,"魔力之荆棘",1960,1;
+	areamonster instance_mapname("2@towed"),67,69,101,106,"净化之荆棘",1961,1;
+	areamonster instance_mapname("2@towed"),67,69,101,106,"骨头之荆棘",1958,1;
+	areamonster instance_mapname("2@towed"),67,69,101,106,"魔力之荆棘",1960,1;
+	areamonster instance_mapname("2@towed"),67,69,101,106,"魔力之荆棘",1960,1;
+	areamonster instance_mapname("2@towed"),67,69,101,106,"骨头之荆棘",1958,1;
+	areamonster instance_mapname("2@towed"),67,69,101,106,"恢复之荆棘",1959,1;
+	areamonster instance_mapname("2@towed"),67,69,101,106,"魔力之荆棘",1960,1;
+	areamonster instance_mapname("2@towed"),67,69,101,106,"骨头之荆棘",1958,1;
+	areamonster instance_mapname("2@towed"),67,69,101,106,"净化之荆棘",1961,1;
+	areamonster instance_mapname("2@towed"),67,69,101,106,"恢复之荆棘",1959,1;
+	areamonster instance_mapname("2@towed"),67,69,101,106,"恢复之荆棘",1959,1;
+	areamonster instance_mapname("2@towed"),67,69,101,106,"净化之荆棘",1961,1;
+	areamonster instance_mapname("2@towed"),67,69,101,106,"骨头之荆棘",1958,1;
+	areamonster instance_mapname("2@towed"),67,69,101,106,"魔力之荆棘",1960,1;
+	areamonster instance_mapname("2@towed"),67,69,101,106,"恢复之荆棘",1959,1;
+	areamonster instance_mapname("2@towed"),67,69,101,106,"骨头之荆棘",1958,1;
+	areamonster instance_mapname("2@towed"),67,69,101,106,"魔力之荆棘",1960,1;
+	areamonster instance_mapname("2@towed"),67,69,101,106,"魔力之荆棘",1960,1;
+	areamonster instance_mapname("2@towed"),67,69,101,106,"骨头之荆棘",1958,1;
+	areamonster instance_mapname("2@towed"),67,69,101,106,"净化之荆棘",1961,1;
+	areamonster instance_mapname("2@towed"),67,69,101,106,"魔力之荆棘",1960,1;
+	areamonster instance_mapname("2@towed"),67,69,101,106,"骨头之荆棘",1958,1;
+	areamonster instance_mapname("2@towed"),67,69,101,106,"骨头之荆棘",1958,1;
+	switch(rand(1,3)) {
+	case 1:
+		areamonster instance_mapname("2@towed"),67,69,101,106,"骨头之荆棘",1958,1;
+		break;
+	case 2:
+		areamonster instance_mapname("2@towed"),67,69,101,106,"魔力之荆棘",1960,1;
+		break;
+	case 3:
+		areamonster instance_mapname("2@towed"),67,69,101,106,"净化之荆棘",1961,1;
+		break;
+	}
+	switch(rand(1,3)) {
+	case 1:
+		areamonster instance_mapname("2@towed"),67,69,101,106,"骨头之荆棘",1958,1;
+		break;
+	case 2:
+		areamonster instance_mapname("2@towed"),67,69,101,106,"魔力之荆棘",1960,1;
+		break;
+	case 3:
+		areamonster instance_mapname("2@towed"),67,69,101,106,"净化之荆棘",1961,1;
+		break;
+	}
+	end;
+}
+
+2@towed,103,107,3	script	纳户特基格	1956,{
+	end;
+OnInstanceInit:
+OnDisable:
+	disablenpc instance_npcname(strnpcinfo(0));
+	end;
+	
+OnEnable:
+	sleep 5000;
+	enablenpc instance_npcname(strnpcinfo(0));
+	initnpctimer;
+	npctalk "[纳户特基格]:嗯, 有客人来了? ";
+	end;
+OnTimer5500:	
+	npctalk "[纳户特基格]不过很抱歉, 轮到我出场的时候.游戏就该结束了.";
+	stopnpctimer;
+	npcspeed 150;
+	setunitdata getnpcid(0), UNPC_CLASS, 1956;
+	unitwalk getnpcid(0,instance_npcname("纳户特基格")),95,97,instance_npcname(strnpcinfo(0))+"::OnBOSS";
+	end;
+
+OnBOSS:
+	donpcevent instance_npcname("#25F_BOSS")+"::OnEnable";	
+	disablenpc instance_npcname(strnpcinfo(0));
+	end;	
+}
+
+2@towed,2,3,4	script	#25F_BOSS	-1,{
+	end;
+OnInstanceInit:
+	disablenpc instance_npcname(strnpcinfo(0));
+	end;
+OnEnable:
+	
+	enablenpc instance_npcname(strnpcinfo(0));
+	initnpctimer;
+	monster instance_mapname(strnpcinfo(4)),95,97,"纳户特基格",1956,1,instance_npcname(strnpcinfo(0))+"::OnMyMobDead";
+	'Boss_25_UID = $@mobid[0];
+	/*
+	getunitdata 'Boss_25_UID,.@por_arr;
+	.@MAXHP=.@por_arr[3];
+	.@ATKMIN=.@por_arr[33];
+	.@ATKMAX=.@por_arr[34];
+	.@MATKMIN=.@por_arr[35];
+	.@MATKMAX=.@por_arr[36];
+	.@DEF=.@por_arr[37];
+	.@MDEF=.@por_arr[38];
+	.@HIT=.@por_arr[39];
+	setunitdata 'Boss_25_UID,UMOB_MAXHP,.@MAXHP+($@N_HP_par);
+	setunitdata 'Boss_25_UID,UMOB_ATKMIN,.@ATKMIN+($@N_ATKMIN_par);
+	setunitdata 'Boss_25_UID,UMOB_ATKMAX,.@ATKMAX+($@N_ATKMAX_par);
+	setunitdata 'Boss_25_UID,UMOB_MATKMIN,.@MATKMIN+($@N_MATKMIN_par);
+	setunitdata 'Boss_25_UID,UMOB_MATKMAX,.@MATKMAX+($@N_MATKMAX_par);
+	setunitdata 'Boss_25_UID,UMOB_DEF,.@DEF+($@N_DEF_par);
+	setunitdata 'Boss_25_UID,UMOB_MDEF,.@MDEF+($@N_MDEF_par);
+	setunitdata 'Boss_25_UID,UMOB_HIT,.@HIT+($@N_HIT_par);	
+	*/
+	end;
+	
+OnTimer1000:
+	if (!'boss_25_die){
+		getunitdata 'Boss_25_UID,'Boss_25_data;
+		.@label$ = instance_npcname(strnpcinfo(0)) + "::OnSkillunit";
+		.@x = 'Boss_25_data[6];
+		.@y = 'Boss_25_data[7];
+		.@skill = rand(1,6);
+		.@map$=instance_mapname(strnpcinfo(4));
+		switch(.@skill) {
+	case 1:
+			//广范围
+			unittalk 'Boss_25_UID, "!!";
+			.@k=0;
+			for(.@i = 0; .@i < 5; .@i++){
+				monster .@map$,.@x-9+2*.@i,.@y+9-2*.@i,"--ja--",1001,1,.@label$;
+				.@id[.@k] = $@mobid[0];
+				.@k++;
+				monster .@map$,.@x+9-2*.@i,.@y+9-2*.@i,"--ja--",1001,1,.@label$;
+				.@id[.@k] = $@mobid[0];
+				.@k++;
+			}
+			for(.@i = 0; .@i < 5; .@i++){
+				monster .@map$,.@x-9+2*.@i,.@y-9+2*.@i,"--ja--",1001,1,.@label$;
+				.@id[.@k] = $@mobid[0];
+				.@k++;
+				monster .@map$,.@x+9-2*.@i,.@y-9+2*.@i,"--ja--",1001,1,.@label$;
+				.@id[.@k] = $@mobid[0];
+				.@k++;
+			}
+			for(.@i = 0; .@i < 20; .@i++) {
+			////debugmes "lll";
+			setunitdata .@id[.@i], UMOB_DMGIMMUNE, 1;
+			setunitdata .@id[.@i], UMOB_CLASS, 139;
+			//unitskilluseid .@id[.@i], 353, 1;
+			}
+			sleep 500;
+			.@k=0;
+			for(.@i = 0; .@i < 10; .@i++){
+				if(unitexists(.@id[.@k]) == true){
+					unitskillusepos .@id[.@k],83,5,.@x-9+2*.@i,.@y+9-2*.@i,-10;
+					unitaura .@id[.@k],10710;
+					unitspecialeffect .@id[.@k],1254,AREA;
+					.@k++;
+				}
+			}
+			for(.@i = 0; .@i < 10; .@i++){
+				if(unitexists(.@id[.@k]) == true){
+					unitskillusepos .@id[.@k],83,5,.@x+9-2*.@i,.@y-9+2*.@i,-10;
+					unitaura .@id[.@k],10710;
+					unitspecialeffect .@id[.@k],1254,AREA;
+					.@k++;
+				}
+			}
+			sleep 1000;
+			break;
+		case 2:
+			//十字地震术
+			unittalk 'Boss_25_UID, "!!";
+			sleep 1000;
+			monster .@map$,.@x+3,.@y+3,"--ja--",1001,1,.@label$;
+			.@id[0] = $@mobid[0];
+			monster .@map$,.@x-3,.@y-3,"--ja--",1001,1,.@label$;
+			.@id[1] = $@mobid[0];
+			monster .@map$,.@x-3,.@y+3,"--ja--",1001,1,.@label$;
+			.@id[2] = $@mobid[0];
+			monster .@map$,.@x+3,.@y-3,"--ja--",1001,1,.@label$;
+			.@id[3] = $@mobid[0];
+			for(.@i = 0; .@i < 4; .@i++) {
+			setunitdata .@id[.@i], UMOB_DMGIMMUNE, 1;
+			setunitdata .@id[.@i], UMOB_CLASS, 139;
+			//setunitdata .@id[.@i], 29, 1;
+			//unitskilluseid .@id[.@i], 353, 1;
+			}
+			sleep 500;
+			for(.@i=0;.@i<10;.@i++){
+				if(unitexists(.@id[0]) == true)
+					unitskillusepos .@id[0],21,5,.@x+(.@i+1)*2,.@y,-5;
+				if(unitexists(.@id[1]) == true)                    
+					unitskillusepos .@id[1],21,5,.@x-(.@i+1)*2,.@y,-5;
+				if(unitexists(.@id[2]) == true)                    
+					unitskillusepos .@id[2],21,5,.@x,.@y+(.@i+1)*2,-5;
+				if(unitexists(.@id[3]) == true)                    
+					unitskillusepos .@id[3],21,5,.@x,.@y-(.@i+1)*2,-5;
+				sleep 10;
+			}
+			sleep 1000;
+			break;
+		case 3:
+			//扩散地震
+			unittalk 'Boss_25_UID, "怒爆!!";
+			sleep 500;
+			monster .@map$,.@x+3,.@y+3,"--ja--",1001,1,.@label$;
+			.@id[0] = $@mobid[0];
+			monster .@map$,.@x-3,.@y-3,"--ja--",1001,1,.@label$;
+			.@id[1] = $@mobid[0];
+			monster .@map$,.@x-3,.@y+3,"--ja--",1001,1,.@label$;
+			.@id[2] = $@mobid[0];
+			monster .@map$,.@x+3,.@y-3,"--ja--",1001,1,.@label$;
+			.@id[3] = $@mobid[0];
+			for(.@i = 0; .@i < 4; .@i++) {
+			setunitdata .@id[.@i], UMOB_DMGIMMUNE, 1;
+			setunitdata .@id[.@i], UMOB_CLASS, 139;
+			//setunitdata .@id[.@i], 29, 1;
+			//unitskilluseid .@id[.@i], 353, 1;
+			}
+			sleep 500;
+			for(.@i=0;.@i<5;.@i++){
+				if(unitexists(.@id[0]) == true)
+					unitskillusepos .@id[0],21,5,.@x+(.@i+1)*2,.@y,-5;
+				if(unitexists(.@id[1]) == true)                    
+					unitskillusepos .@id[1],21,5,.@x-(.@i+1)*2,.@y,-5;
+				if(unitexists(.@id[2]) == true)                    
+					unitskillusepos .@id[2],21,5,.@x,.@y+(.@i+1)*2,-5;
+				if(unitexists(.@id[3]) == true)                    
+					unitskillusepos .@id[3],21,5,.@x,.@y-(.@i+1)*2,-5;
+				sleep 10;
+			}
+			sleep 500;
+			if(unitexists(.@id[0]) == true)
+				unitskillusepos .@id[0],21,5,.@x+4,.@y+4,-5;
+			if(unitexists(.@id[1]) == true)                    
+				unitskillusepos .@id[1],21,5,.@x-4,.@y+4,-5;
+			if(unitexists(.@id[2]) == true)                    
+				unitskillusepos .@id[2],21,5,.@x+4,.@y-4,-5;
+			if(unitexists(.@id[3]) == true)                    
+				unitskillusepos .@id[3],91,5,.@x-4,.@y-4,-5;
+			sleep 1000;
+			break;
+		case 4:
+			//交叉火牆
+			unittalk 'Boss_25_UID, "!!";
+			sleep 1000;
+			monster .@map$,.@x,.@y,"--ja--",1001,1,.@label$;
+			.@id[0] = $@mobid[0];
+			monster .@map$,.@x,.@y,"--ja--",1001,1,.@label$;
+			.@id[1] = $@mobid[0];
+			monster .@map$,.@x,.@y,"--ja--",1001,1,.@label$;
+			.@id[2] = $@mobid[0];
+			monster .@map$,.@x,.@y,"--ja--",1001,1,.@label$;
+			.@id[3] = $@mobid[0];
+			for(.@i = 0; .@i < 4; .@i++) {
+				setunitdata .@id[.@i], UMOB_DMGIMMUNE, 1;
+				setunitdata .@id[.@i], UMOB_CLASS, 139;
+				//setunitdata .@id[.@i], 29, 1;
+				//unitskilluseid .@id[.@i], 353, 1;
+			}
+			sleep 500;
+			for(.@i = 0; .@i < 8; .@i++){
+				if(unitexists(.@id[0]) == true)
+					unitskillusepos .@id[0],18,5,.@x+(.@i+1)*2,.@y+(.@i+1)*2,-5;
+				if(unitexists(.@id[1]) == true)                    
+					unitskillusepos .@id[1],18,5,.@x+(.@i+1)*2,.@y-(.@i+1)*2,-5;
+				if(unitexists(.@id[2]) == true)                    
+					unitskillusepos .@id[2],18,5,.@x-(.@i+1)*2,.@y-(.@i+1)*2,-5;
+				if(unitexists(.@id[3]) == true)                    
+					unitskillusepos .@id[3],18,5,.@x-(.@i+1)*2,.@y+(.@i+1)*2,-5;
+				sleep 10;
+			}
+			sleep 5000;
+			break;
+		case 5:
+			break;
+			//闇审判事件
+			unittalk 'Boss_25_UID, "!!";
+			set .@label$, strnpcinfo(0)+"::OnMyMobDead";
+			sleep 1000;
+			for(.@i = 0; .@i < 4; .@i++){
+				
+				for(.@j = 0; .@j < 4; .@j++){
+					monster .@map$,.@x-13+.@j*9,.@y+13-.@i*9,"--ja--",1001,1,.@label$;				
+					.@id[.@k++] = $@mobid[0];				
+				}
+			}
+			
+			for(.@i = 0; .@i < getarraysize(.@id); .@i++) {
+				if(unitexists(.@id[.@i]) == true)
+					unitskilluseid .@id[.@i], 353, 1;
+			}
+			
+			sleep 500;
+			for(.@i = 0; .@i < getarraysize(.@id); .@i++) {
+				if(unitexists(.@id[.@i]) == true)
+					unitskilluseid .@id[.@i], 339, 5;
+			}
+			sleep 3000;
+			break;
+		case 6:
+			//咖般塔音	
+			sleep 1000;
+			.@k=0;
+			for(.@i = 0; .@i < 5; .@i++){
+				
+				for(.@j = 0; .@j < 5; .@j++){
+					monster .@map$,.@x-9+.@j*6,.@y+9-.@i*6,"--ja--",1001,1,.@label$;					
+					.@id[.@k++] = $@mobid[0];
+					
+				}
+			}
+			
+			
+			
+			for(.@i = 0; .@i < getarraysize(.@id);
+			    .@i++) {
+				////debugmes "lll";
+				setunitdata .@id[.@i], UMOB_DMGIMMUNE, 1;
+				setunitdata .@id[.@i], UMOB_CLASS, 139;
+				//unitskilluseid .@id[.@i], 353, 1;
+			}
+			.@k=0;
+			sleep 500;
+			for(.@i = 0; .@i < 5; .@i++) {
+				
+				for(.@j = 0; .@j < 5; .@j++){
+					if(unitexists(.@id[.@i]) == true)
+						unitskillusepos .@id[.@k++],483,5,.@x-9+.@j*6,.@y+9-.@i*6,-5;
+				}
+			}
+			sleep 3000;
+			break;
+		}
+		sleep 1000;
+		for(set .@i,0;.@i < getarraysize(.@id);
+		    set .@i,.@i+1) {
+			mobremove .@id[.@i];
+		}
+		if (!'boss_25_die){
+			initnpctimer;
+			end;
+		}
+		end;
+
+	OnSkillunit:
+		end;
+
+	OnMyMobDead:
+		'boss_25_die=1;
+		killmonsterall strnpcinfo(4);
+		stopnpctimer;
+		donpcevent instance_npcname("纳户特基格#die")+"::OnTalk";
+		end;
+	}
+}
+
+
+2@towed,95,97,3	script	纳户特基格#die	1956,{
+	end;
+OnInstanceInit:
+	disablenpc instance_npcname(strnpcinfo(0));
+	end;
+OnTalk:
+	enablenpc instance_npcname(strnpcinfo(0));
+	initnpctimer;
+	
+OnTimer500:
+	npctalk "[纳户特基格]:这...这不可能!";
+	end;
+	
+OnTimer5500:
+	npctalk "[纳户特基格]:不不不!  不不不不不~!";
+	end;
+	
+OnTimer10500:
+	stopnpctimer;
+	enablenpc instance_npcname("莱蒂西亚#101");
+	disablenpc instance_npcname(strnpcinfo(0));
+	end;
+}
+
+2@towed,91,94,5	script	莱蒂西亚#101	10041,{
+	//cutin "4job_leticia_02",2;
+	if('reward25){
+		mes "[莱蒂西亚]";	
+		mes "这里破坏的严重已经下不去，拉着我的手吧。我送你下去。";	
+		if(select("离开:取消")==2)end;
+		warp "prontera",155,102;
+		end;
+	}
+	mes "[莱蒂西亚]";
+	mes "是那样。你撒手不管的那个家伙是原来呆在原地的家伙吗。";	
+	next;
+	mes "[莱蒂西亚]";	
+	mes "从他身上得到一个这个。我不需要，给你吧。";	
+	close2;
+	// 使用邮件发送函数发放T2附魔盒奖励
+	callfunc "L_SendRewardByMail_Tower", 603, 8; // T2附魔盒
+	callfunc "L_SendRewardByMail_Tower", 603, 2; // T2附魔盒
+	// 设置已领取奖励标志
+	'reward25 = 1;
+	// 传送玩家回城
+	warp "prontera",155,102;
+	end;	
+OnInstanceInit:
+	'reward25=0;
+	disablenpc instance_npcname(strnpcinfo(0));
+	end;
+}
+
+
+function	script	movestart	{
+	if('bull_stop==1){
+        npcspeed 1;
+        for(.@i=0;.@i<11;.@i++){
+            .x[.@i]=143+.@i*3;
+        }
+        setarray .y[0],88;
+        setunitdata getnpcid(0), UNPC_CLASS, 2337;
+        .@Bubbles=atoi(replacestr(strnpcinfo(0),"#浮游冰",""));	
+        unitwalk getnpcid(0),.x[.@Bubbles],.y[0];
+        end;
+	}
+	return;
+}
+
+function	script	bull_skill	{
+	.@bull_UID = getarg(0);
+	.@matk_ctr= getarg(1);	
+	getunitdata .@bull_UID,.@por_arr;
+	.@MATKMIN=.@por_arr[35];
+	.@MATKMAX=.@por_arr[36];
+	setunitdata .@bull_UID,UMOB_MODE,239009792;	
+	setunitdata .@bull_UID,UMOB_MATKMIN,.@MATKMIN+($@MATKMIN_bullmob*.@matk_ctr);
+	setunitdata .@bull_UID,UMOB_MATKMAX,.@MATKMAX+($@MATKMAX_bullmob*.@matk_ctr);
+	return;
+}
+
+function	script	1楼层魔物调用	{
+	.@floor= getarg(0);
+	.@map$= getarg(1);
+	.@x1= getarg(2);
+	.@y1= getarg(3);
+	.@x2= getarg(4);
+	.@y2= getarg(5);
+	.@label$= getarg(6);
+	.@mob_count= getarg(7);
+	.@mob_mvp_count= getarg(8);
+	.@mob_id= 'mob_id[rand(getarraysize('mob_id))];
+	.@mvp_mob_id= 'mvp_mob_id[rand(getarraysize('mvp_mob_id))];
+	areamonster .@map$,.@x1,.@y1,.@x2,.@y2,"--ja--",.@mob_id,.@mob_count,.@label$;
+	for(set .@i,0;.@i<.@mob_mvp_count;set .@i,.@i+1){
+		monster .@map$,.@x1+rand(.@x2-.@x1),.@y1+rand(.@y2-.@y1),"--ja--",.@mvp_mob_id,1,.@label$;
+	}
+	return;
+}
+
+function	script	1楼层MVP魔物调用	{
+	.@floor= getarg(0);
+	.@map$= getarg(1);
+	.@x1= getarg(2);
+	.@y1= getarg(3);
+	.@x2= getarg(4);
+	.@y2= getarg(5);
+	.@label$= getarg(6);
+	.@mob_mvp_count= getarg(7);
+	.@mvp_mob_id= 'mvp_mob_id[rand(getarraysize('mvp_mob_id))];
+	for(set .@i,0;.@i<.@mob_mvp_count;set .@i,.@i+1){
+		monster .@map$,.@x1+rand(.@x2-.@x1),.@y1+rand(.@y2-.@y1),"--ja--",.@mvp_mob_id,1,.@label$;
+	}
+	return;
+}

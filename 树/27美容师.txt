@@ -1,0 +1,268 @@
+//------------------------------------------------------------------------------//
+//										//
+//　脚本名称：美容中心								//
+//　作者：魅									//
+//  测试环境：Eathena-Txt-13702.Eathena-Sql-13702				//
+//  可自行更改染发&换发&染衣的范围						//
+//  ex:	if(@yanse >= 251) if((@yanse <0) || (@yanse >251))  <---251色		//
+//  if(@yanse >= 502) if((@yanse <0) || (@yanse >502))  <---502色		//
+//  改法都是改这两句话而已，还有一些文字部分					//
+//										//		//
+//------------------------------------------------------------------------------//
+prt_in,135,106,3	script	世界之树-online#16	640,{
+	mes "^FF0000发^EE0011型^D80027设^C2003D计^AE0051服^980067装^82007D设^000000";
+	mes "欢迎光临美发店";
+	mes "想要时尚找我就对啦~";
+	mes "需要什么服务呢??";
+	next;
+	switch(select("染发服务","发型设计","服装设计")) {
+case 1:
+	callfunc "Hair_color";
+	end;
+case 2:
+	callfunc "Hair_hair";
+	end;
+case 3:
+	callfunc "Hair_color_Close";
+	end;	}	
+OnInit: 
+	unitaura getnpcid(0),1091; 
+	settitleicon(getnpcid(0),0,"形象设计-蒂尔");
+	while(1){
+		showscript "[ 形 象 设 计 ]";
+		sleep 1000;
+	}
+	end;
+}
+
+//====================================================//
+
+function	script	Hair_color	{
+	mes "[染发员蒂尔]";
+	mes "漂亮的你难道不想染个新发色吗？";
+	mes "换个色彩可以换个心情哦。";
+	mes "发色总共有131色";
+	next;
+	switch(select("帮头发染颜色","头发最初色")) {
+
+	case 1:
+
+		mes "[染发员蒂尔]";
+		mes "很好,请选择一种方式...";
+		next;
+		switch(select("边看边选","直接输入颜色代号"))
+		{
+		case 1:
+			do {
+			if(@yanse >= 131) {
+			mes "[染发员蒂尔]";
+			mes "所有的颜色你都看过了,你决定要哪款了吗?";
+			close;
+			break;
+			}
+			set @yanse,@yanse+1;
+			setlook 6,@yanse;
+			mes "[染发员蒂尔]";
+			mes "觉得这款如何?";
+			mes "这款的代号是：^FF0000"+@yanse+"^000000！";
+			mes "若你喜欢这款，以后也可输入代号来修改";
+			next;
+			} while(select("下一款","确定")==1);
+			mes "[服装设计师]";
+			mes "完成了,希望你对它也比较满意吧!";
+			close;
+			break;
+
+		case 2:
+			mes "[染发员蒂尔]";
+			mes "请输入一个0到131的数字";
+			next;
+			do {
+			input @yanse;
+			if((@yanse <0) || (@yanse >131)) {
+			mes "[染发员蒂尔]";
+			mes "对不起,输入的范围有误.";
+			close;
+			break;
+			}
+			setlook 6,@yanse;
+			mes "[染发员蒂尔]";
+			mes "你决定要这款了吗?";
+			next;
+			} while(select("确定","重新输入")==2);
+			mes "[染发员蒂尔]";
+			mes "完成了,希望你对它也比较满意吧!";
+			close;
+			break;
+		}
+
+	case 2:
+		mes "[染发员蒂尔]";
+		mes "是否确定要把发色还原成最基本色呢?";
+		next;
+		menu "是的,我要最初",-,"结束对话",G_end;
+		setlook 6,0;
+		mes "[染发员蒂尔]";
+		mes "好的,完成了...";
+	G_end:
+		close;
+		break;
+
+
+}
+
+}
+
+//====================================================//
+
+function	script	Hair_hair	{
+	mes "[理发员美莎]";
+	mes "发型也是一种极具个性化的艺术。";
+	mes "想要个完美的发型吗？";
+	mes "发型总共有32种";
+	next;
+	switch(select("换个新造型","发型最初型")) {
+
+	case 1:
+		mes "[理发员美莎]";
+		mes "很好,请选择一种方式...";
+		next;
+		switch(select("边看边选","直接输入颜色代号"))
+		{
+		case 1:
+			do {
+			if(@yanse2 >= 32) {
+			mes "[服发设计师]";
+			mes "所有的颜色你都看过了,你决定要哪款了吗?";
+			close;
+			break;
+			}
+			set @yanse2,@yanse2+1;
+			setlook 1,@yanse2;
+			mes "[理发员美莎]";
+			mes "觉得这款如何?";
+			mes "这款的代号是：^FF0000"+@yanse2+"^000000！";
+			mes "若你喜欢这款，以后也可输入代号来修改";
+			next;
+			} while(select("下一款","确定")==1);
+			mes "[理发员美莎]";
+			mes "完成了,希望你对它也比较满意吧!";
+			close;
+			break;
+
+		case 2:
+			mes "[理发员美莎]";
+			mes "请输入一个1到32的数字";
+			next;
+			do {
+			input @yanse2;
+			if((@yanse2 <1) || (@yanse2 >32)) {
+			mes "[理发员美莎]";
+			mes "对不起,输入的范围有误.";
+			close;
+			break;
+			}
+			setlook 1,@yanse2;
+			mes "[理发员美莎]";
+			mes "你决定要这款了吗?";
+			next;
+			} while(select("确定","重新输入")==2);
+			mes "[理发员美莎]";
+			mes "完成了,希望你对它也比较满意吧!";
+			close;
+			break;
+		}
+
+	case 2:
+		mes "[理发员美莎]";
+		mes "是否确定要把发型还原成最基本色呢?";
+		next;
+		menu "是的,我要最初",-,"结束对话",G_end;
+		setlook 1,1;
+		mes "[理发员美莎]";
+		mes "好的,完成了...";
+	G_end:
+		close;
+		break;
+
+
+}
+
+}
+
+//====================================================//
+
+function	script	Hair_color_Close	{
+	mes "[服装设计师]";
+	mes "欢迎光临~~";
+	mes "有很多选择哦~但是选了就不要后悔";
+	mes "衣服总共有700色";
+	mes "想染成什么样呢？";
+	next;
+	switch(select("换个新衣服","衣服最初色")) {
+
+	case 1:
+		mes "[服装设计]";
+		mes "很好,请选择一种方式...";
+		next;
+		switch(select("边看边选","直接输入颜色代号"))
+		{
+		case 1:
+			do {
+			if(@yanse3 >= 700) {
+			mes "[服装设计师]";
+			mes "所有的颜色你都看过了,你决定要哪款了吗?";
+			close;
+			break;
+			}
+			set @yanse3,@yanse3+1;
+			setlook 7,@yanse3;
+			mes "[服装设计师]";
+			mes "觉得这款如何?";
+			mes "这款的代号是：^FF0000"+@yanse3+"^000000！";
+			mes "若你喜欢这款，以后也可输入代号来修改";
+			next;
+			} while(select("下一款","确定")==1);
+			mes "[服装设计师]";
+			mes "完成了,希望你对它也比较满意吧!";
+			close;
+			break;
+
+		case 2:
+			mes "[服装设计师]";
+			mes "请输入一个0到700的数字";
+			next;
+			do {
+			input @yanse3;
+			if((@yanse3 <0) || (@yanse3 >700)) {
+			mes "[服装设计师]";
+			mes "对不起,输入的范围有误.";
+			close;
+			break;
+			}
+			setlook 7,@yanse3;
+			mes "[服装设计师]";
+			mes "你决定要这款了吗?";
+			next;
+			} while(select("确定","重新输入")==2);
+			mes "[服装设计师]";
+			mes "完成了,希望你对它也比较满意吧!";
+			close;
+			break;
+		}
+
+	case 2:
+		mes "[服装设计师]";
+		mes "是否确定要把衣服还原成最基本色呢?";
+		next;
+		menu "是的,我要最初",-,"结束对话",G_end;
+		setlook 7,0;
+		mes "[服装设计师]";
+		mes "好的,完成了...";
+	G_end:
+		close;
+		break;
+
+
+}
+}

@@ -1,0 +1,1056 @@
+//==========================================
+// 无数据库拍卖行系统
+// 使用游戏变量和数组存储数据
+//==========================================
+
+-	script	AuctionSystem	-1,{
+OnInit:
+	// 初始化拍卖系统变量
+	set $@AuctionCount, 0; // 拍卖物品总数
+	set $@AuctionTimer, 0; // 拍卖计时器
+	// 可拍卖白名单（按需增删：填入允许上架的道具ID）
+	setarray $@AuctionAllowedID[0], 607,608,969,985,601,602; // 示例：红/蓝药水、Ygg 种子等
+	set $@AuctionAllowedCount, getarraysize($@AuctionAllowedID);
+	end;
+
+OnClock0000:
+OnClock1200:
+	// 每天两次清理过期拍卖
+	callfunc "AuctionCleanup";
+	end;
+}
+
+//==========================================
+// 拍卖行NPC
+//==========================================
+
+prt_in,120,38,5	script	世界之树-online#20	113,{
+	mes "[拍卖行管理员]";
+	// 非活动时间：普通玩家不可交互；GM>=99 或调试模式可进入调试菜单
+	if (!$@FixedAuctionActive && getgmlevel() < 99 && !$@FixedAuctionDebug) {
+		mes "现在不是拍卖时间。";
+		mes "拍卖时间：上午10:30、下午3:30、晚上8:00。";
+		mes "每场持续30分钟，期间方可参与。";
+		close;
+	}
+	// 调试入口：允许GM或调试模式直接开启测试场次
+	if (!$@FixedAuctionActive && (getgmlevel() >= 99 || $@FixedAuctionDebug)) {
+		mes "调试模式：当前暂无场次，可开启测试。";
+		next;
+		switch(select("开启Zeny测试场次:开启点数测试场次:离开")) {
+		case 1:
+			// 使用跨NPC事件并调用 OnStartZeny（保持单参数语法）
+			donpcevent "FixedAuctionSystem::OnStartZeny";
+			// 根据是否已激活给出反馈，避免误导
+			if ($@FixedAuctionActive) {
+				mes "已开启Zeny测试场次。请重新与我交互进行出价。";
+			} else {
+				mes "开启失败：需要GM权限或启用调试模式。";
+			}
+			close;
+		case 2:
+			// 使用跨NPC事件并调用 OnStartCash（保持单参数语法）
+			donpcevent "FixedAuctionSystem::OnStartCash";
+			if ($@FixedAuctionActive) {
+				mes "已开启点数测试场次。请重新与我交互进行出价。";
+			} else {
+				mes "开启失败：需要GM权限或启用调试模式。";
+			}
+			close;
+		case 3:
+			close;
+		}
+	}
+	// 当前拍品剩余时间基于拍品时长（5分钟）
+	set .@item_name$, getitemname($@FixedAuctionItemID);
+	set .@remaining, ($@FixedAuctionStartTick + $@FixedAuctionLotDurationSec - gettimetick(2)) / 60;
+	if (.@remaining < 0) set .@remaining, 0;
+
+	mes "当前正在拍卖：";
+	mes .@item_name$ + " × " + $@FixedAuctionItemQty;
+	mes "货币：" + (($@FixedAuctionCurrency==1)?"Zeny":"CASHPOINTS");
+	mes "起拍价：" + callfunc("FmtW", $@FixedAuctionBasePrice) + (($@FixedAuctionCurrency==1)?" Zeny":" 点数");
+	mes "最低加价：" + callfunc("FmtW", $@FixedAuctionMinIncrement) + (($@FixedAuctionCurrency==1)?" Zeny":" 点数");
+	if ($@FixedAuctionCurrentBid > 0) {
+		mes "当前最高出价：" + callfunc("FmtW", $@FixedAuctionCurrentBid) + (($@FixedAuctionCurrency==1)?" Zeny":" 点数");
+		mes "出价者：" + $@FixedAuctionBidderName$;
+	} else {
+		mes "当前状态：无人出价";
+	}
+	mes "本拍品剩余时间：" + .@remaining + " 分钟";
+	next;
+
+	switch(select("参与竞拍:快速加价30%:离开")) {
+	case 1:
+		set .@min_bid, ($@FixedAuctionCurrentBid > 0) ? ($@FixedAuctionCurrentBid + $@FixedAuctionMinIncrement) : $@FixedAuctionBasePrice;
+		mes "[拍卖行管理员]";
+		mes "[竞拍价最少价30%]";
+		mes "请输入您的出价（最低：" + callfunc("FmtW", .@min_bid) + (($@FixedAuctionCurrency==1)?" Zeny":" 点数") + "）：";
+		next;
+		input .@bid;
+		if (.@bid < .@min_bid) {
+			mes "[拍卖行管理员]";
+			mes "每次叫价不得少于商品售价的30%。";
+			close;
+		}
+		if ($@FixedAuctionCurrency == 1) {
+			if (Zeny < .@bid) {
+				mes "[拍卖行管理员]";
+				mes "您的Zeny不足。";
+				close;
+			}
+		} else {
+			if (#CASHPOINTS < .@bid) {
+				mes "[拍卖行管理员]";
+				mes "您的点数不足。";
+				close;
+			}
+		}
+		set $@FixedAuctionCurrentBid, .@bid;
+		set $@FixedAuctionBidderID, getcharid(0);
+		set $@FixedAuctionBidderName$, strcharinfo(0);
+		// 广播新的出价，金额使用w换算
+		announce $@FixedAuctionBidderName$+" 出价 " + callfunc("FmtW", .@bid) + (($@FixedAuctionCurrency==1)?" Zeny":" 点数") + " 竞拍 " + $@FixedAuctionItemName$ + " × " + $@FixedAuctionItemQty + "！", bc_all;
+		mes "[拍卖行管理员]";
+		mes "出价成功！当前最高出价：" + callfunc("FmtW", .@bid) + (($@FixedAuctionCurrency==1)?" Zeny":" 点数");
+		close;
+	case 2:
+		// 快速加价30%（基于初始售价）
+		set .@min_bid, ($@FixedAuctionCurrentBid > 0) ? ($@FixedAuctionCurrentBid + $@FixedAuctionMinIncrement) : $@FixedAuctionBasePrice;
+		set .@quick_bid, $@FixedAuctionBasePrice * 130 / 100; // 快速加价30%（基于初始售价）
+		
+		mes "[拍卖行管理员]";
+		mes "快速加价30%竞拍：";
+		mes "物品：" + $@FixedAuctionItemName$ + " × " + $@FixedAuctionItemQty;
+		mes "当前最低出价：" + callfunc("FmtW", .@min_bid) + (($@FixedAuctionCurrency==1)?" Zeny":" 点数");
+		mes "快速出价：" + callfunc("FmtW", .@quick_bid) + (($@FixedAuctionCurrency==1)?" Zeny":" 点数");
+		mes "（比初始售价高出30%）";
+		if ($@FixedAuctionCurrency == 1) {
+			mes "您的Zeny余额：" + callfunc("FmtW", Zeny) + " Zeny";
+		} else {
+			mes "您的点数余额：" + callfunc("FmtW", #CASHPOINTS) + " 点数";
+		}
+		next;
+		
+		if (select("确认快速出价:取消") == 2) {
+			mes "[拍卖行管理员]";
+			mes "已取消快速出价。";
+			close;
+		}
+		
+		if ($@FixedAuctionCurrency == 1) {
+			if (Zeny < .@quick_bid) {
+				mes "[拍卖行管理员]";
+				mes "您的Zeny不足进行快速出价。";
+				mes "需要：" + callfunc("FmtW", .@quick_bid) + " Zeny，当前余额：" + callfunc("FmtW", Zeny) + " Zeny";
+				close;
+			}
+		} else {
+			if (#CASHPOINTS < .@quick_bid) {
+				mes "[拍卖行管理员]";
+				mes "您的点数不足进行快速出价。";
+				mes "需要：" + callfunc("FmtW", .@quick_bid) + " 点数，当前余额：" + callfunc("FmtW", #CASHPOINTS) + " 点数";
+				close;
+			}
+		}
+		
+		set $@FixedAuctionCurrentBid, .@quick_bid;
+		set $@FixedAuctionBidderID, getcharid(0);
+		set $@FixedAuctionBidderName$, strcharinfo(0);
+		
+		// 广播快速出价信息
+		announce $@FixedAuctionBidderName$+" 快速出价 " + callfunc("FmtW", .@quick_bid) + (($@FixedAuctionCurrency==1)?" Zeny":" 点数") + "（加价30%）竞拍 " + $@FixedAuctionItemName$ + " × " + $@FixedAuctionItemQty + "！", bc_all;
+		
+		mes "[拍卖行管理员]";
+		mes "快速出价成功！";
+		mes "当前最高出价：" + callfunc("FmtW", .@quick_bid) + (($@FixedAuctionCurrency==1)?" Zeny":" 点数");
+		close;
+	case 3:
+		close;
+	}
+	OnInit:
+	// 设置标题图标
+	settitleicon(getnpcid(0),0,"杰西卡");
+	
+	// 循环显示脚本标题
+	while(1){
+		showscript "[ 拍 卖 助 理 ]";
+		sleep 1000;
+	}
+	end;	
+}
+
+function	script	AuctionAddItem	{
+	mes "[拍卖行管理员]";
+	mes "请选择您要拍卖的物品。";
+	mes "注意：拍卖需要支付5%的手续费。";
+	next;
+	
+	// 检查玩家是否有物品可以拍卖
+	set .@invcount, getinventorylist();
+	if (.@invcount == 0) {
+		mes "[拍卖行管理员]";
+		mes "您的背包里没有物品可以拍卖。";
+		close;
+	}
+	
+	// 显示物品列表
+	set .@max_display, 10;
+	set .@start, 0;
+	
+	while(1) {
+		mes "[拍卖行管理员]";
+		mes "请选择要拍卖的物品：";
+		mes "======================";
+		
+		set .@count, 0;
+		for (set .@i, .@start; .@i < .@invcount && .@count < .@max_display; set .@i, .@i + 1) {
+			getitemname @inventorylist_id[.@i];
+			set .@menu$[.@count], @itemname$ + " [+" + @inventorylist_refine[.@i] + "]";
+			set .@index[.@count], .@i;
+			set .@count, .@count + 1;
+		}
+		
+		// 添加翻页选项
+		if (.@start > 0) {
+			set .@menu$[.@count], "上一页";
+			set .@index[.@count], -1;
+			set .@count, .@count + 1;
+		}
+		if (.@start + .@max_display < .@invcount) {
+			set .@menu$[.@count], "下一页";
+			set .@index[.@count], -2;
+			set .@count, .@count + 1;
+		}
+		
+		set .@menu$[.@count], "取消";
+		set .@index[.@count], -3;
+		
+		set .@choice, select(.@menu$[0] + ":" + .@menu$[1] + ":" + .@menu$[2] + ":" + .@menu$[3] + ":" + .@menu$[4] + ":" + .@menu$[5] + ":" + .@menu$[6] + ":" + .@menu$[7] + ":" + .@menu$[8] + ":" + .@menu$[9] + ":" + .@menu$[10]) - 1;
+		
+		set .@selected, .@index[.@choice];
+		
+		if (.@selected == -1) {
+			// 上一页
+			set .@start, .@start - .@max_display;
+			continue;
+		}
+		else if (.@selected == -2) {
+			// 下一页
+			set .@start, .@start + .@max_display;
+			continue;
+		}
+		else if (.@selected == -3) {
+			// 取消
+			mes "[拍卖行管理员]";
+			mes "已取消拍卖。";
+			close;
+		}
+		else {
+			// 选择了物品
+			break;
+		}
+	}
+	
+	set .@item_index, .@selected;
+	set .@item_id, @inventorylist_id[.@item_index];
+	set .@amount, @inventorylist_amount[.@item_index];
+	set .@refine, @inventorylist_refine[.@item_index];
+	
+	// 获取物品详细信息（函数式以免 @itemname$ 在无玩家上下文出错）
+	set .@item_name$, getitemname(.@item_id);
+	set .@item_type, getiteminfo(.@item_id, 2);
+	
+	// 检查物品是否可交易
+	if (!getiteminfo(.@item_id, 6)) {
+		mes "[拍卖行管理员]";
+		mes "该物品不能交易或拍卖。";
+		close;
+	}
+	// 白名单检查：不在允许列表则禁止上架
+	if (!callfunc("AuctionIsAllowed", .@item_id)) {
+		mes "[拍卖行管理员]";
+		mes "该物品未在可拍卖列表中。";
+		close;
+	}
+	
+	mes "[拍卖行管理员]";
+	mes "您选择了：";
+	mes .@item_name$ + " × " + .@amount;
+	mes "精炼值: +" + .@refine;
+	next;
+	
+	// 输入起拍价
+	mes "[拍卖行管理员]";
+	mes "请输入起拍价：";
+	next;
+	input .@price;
+	
+	if (.@price < 100) {
+		mes "[拍卖行管理员]";
+		mes "起拍价不能低于100 Zeny。";
+		close;
+	}
+	
+	// 输入一口价
+	mes "[拍卖行管理员]";
+	mes "请输入一口价（0表示不设一口价）：";
+	next;
+	input .@buynow;
+	
+	if (.@buynow > 0 && .@buynow <= .@price) {
+		mes "[拍卖行管理员]";
+		mes "一口价必须高于起拍价。";
+		close;
+	}
+	
+	// 输入拍卖时间（小时）
+	mes "[拍卖行管理员]";
+	mes "请输入拍卖时间（小时，1-72）：";
+	next;
+	input .@hours;
+	
+	if (.@hours < 1 || .@hours > 72) {
+		mes "[拍卖行管理员]";
+		mes "拍卖时间必须在1-72小时之间。";
+		close;
+	}
+	
+	// 确认信息
+	mes "[拍卖行管理员]";
+	mes "请确认拍卖信息：";
+	mes "物品：" + .@item_name$;
+	mes "起拍价：" + .@price + " Zeny";
+	mes "一口价：" + ((.@buynow > 0) ? .@buynow + " Zeny" : "无");
+	mes "拍卖时间：" + .@hours + "小时";
+	mes "手续费：" + (.@price * 5 / 100) + " Zeny";
+	next;
+	
+	if (select("确认拍卖:取消") == 2) {
+		mes "[拍卖行管理员]";
+		mes "已取消拍卖。";
+		close;
+	}
+	
+	// 检查手续费
+	if (Zeny < (.@price * 5 / 100)) {
+		mes "[拍卖行管理员]";
+		mes "您的Zeny不足支付手续费。";
+		close;
+	}
+	
+	// 扣除手续费
+	set Zeny, Zeny - (.@price * 5 / 100);
+	
+	// 从玩家背包移除物品
+	delitem .@item_id, 1;
+	
+	// 寻找空闲的拍卖槽位
+	set .@slot, -1;
+	for (set .@i, 0; .@i < $@AuctionCount; set .@i, .@i + 1) {
+		if ($@AuctionItemID[.@i] == 0) {
+			set .@slot, .@i;
+			break;
+		}
+	}
+	
+	if (.@slot == -1) {
+		// 没有空闲槽位，创建新的
+		set .@slot, $@AuctionCount;
+		set $@AuctionCount, $@AuctionCount + 1;
+	}
+	
+	// 存储拍卖信息
+	set $@AuctionItemID[.@slot], .@item_id;
+	set $@AuctionItemName$[.@slot], .@item_name$;
+	set $@AuctionSellerID[.@slot], getcharid(0);
+	set $@AuctionSellerName$[.@slot], strcharinfo(0);
+	set $@AuctionPrice[.@slot], .@price;
+	set $@AuctionBuyNow[.@slot], .@buynow;
+	set $@AuctionStartTime[.@slot], gettimetick(2);
+	set $@AuctionDuration[.@slot], .@hours;
+	set $@AuctionRefine[.@slot], .@refine;
+	set $@AuctionBidderID[.@slot], 0;
+	set $@AuctionBidderName$[.@slot], "";
+	set $@AuctionCurrentBid[.@slot], 0;
+	
+	mes "[拍卖行管理员]";
+	mes "物品已成功上架拍卖行！";
+	mes "拍卖槽位: " + .@slot;
+	mes "祝您好运！";
+	close;
+}
+
+function	script	AuctionBrowse	{
+	mes "[拍卖行管理员]";
+	mes "正在加载拍卖物品...";
+	next;
+	
+	// 检查过期拍卖
+	callfunc "AuctionCheckExpired";
+	
+	set .@count, 0;
+	set .@display_count, 0;
+	
+	// 显示拍卖物品列表
+	mes "[拍卖行管理员]";
+	mes "当前拍卖物品列表：";
+	mes "=================================";
+	
+	for (set .@i, 0; .@i < $@AuctionCount; set .@i, .@i + 1) {
+		if ($@AuctionItemID[.@i] == 0) continue;
+		
+		// 计算剩余时间
+		set .@remaining, ($@AuctionStartTime[.@i] + ($@AuctionDuration[.@i] * 3600) - gettimetick(2)) / 3600;
+		if (.@remaining <= 0) continue; // 跳过过期物品
+		
+		set .@count, .@count + 1;
+		
+		mes .@count + ". " + $@AuctionItemName$[.@i];
+		mes "   卖家：" + $@AuctionSellerName$[.@i];
+		mes "   当前价格：" + (($@AuctionCurrentBid[.@i] > 0) ? $@AuctionCurrentBid[.@i] : $@AuctionPrice[.@i]) + " Zeny";
+		if ($@AuctionBuyNow[.@i] > 0) {
+			mes "   一口价：" + $@AuctionBuyNow[.@i] + " Zeny";
+		}
+		mes "   剩余时间：" + .@remaining + "小时";
+		if ($@AuctionBidderName$[.@i] != "") {
+			mes "   当前出价者：" + $@AuctionBidderName$[.@i];
+		}
+		mes "---------------------------------";
+		
+		set .@auction_index[.@count], .@i;
+		set .@display_count, .@display_count + 1;
+		
+		if (.@display_count >= 10) break; // 最多显示10个
+	}
+	
+	if (.@count == 0) {
+		mes "[拍卖行管理员]";
+		mes "目前没有正在拍卖的物品。";
+		close;
+	}
+	
+	next;
+	mes "[拍卖行管理员]";
+	mes "请选择要查看的物品编号（0返回）：";
+	next;
+	input .@choice;
+	
+	if (.@choice == 0) {
+		close;
+	}
+	
+	if (.@choice < 1 || .@choice > .@count) {
+		mes "[拍卖行管理员]";
+		mes "无效的选择。";
+		close;
+	}
+	
+	set .@slot, .@auction_index[.@choice];
+	
+	mes "[拍卖行管理员]";
+	mes "物品详情：";
+	mes "名称：" + $@AuctionItemName$[.@slot];
+	mes "卖家：" + $@AuctionSellerName$[.@slot];
+	mes "精炼：+" + $@AuctionRefine[.@slot];
+	mes "起拍价：" + $@AuctionPrice[.@slot] + " Zeny";
+	mes "当前出价：" + (($@AuctionCurrentBid[.@slot] > 0) ? $@AuctionCurrentBid[.@slot] : "无人出价");
+	if ($@AuctionBuyNow[.@slot] > 0) {
+		mes "一口价：" + $@AuctionBuyNow[.@slot] + " Zeny";
+	}
+	set .@remaining, ($@AuctionStartTime[.@slot] + ($@AuctionDuration[.@slot] * 3600) - gettimetick(2)) / 3600;
+	mes "剩余时间：" + .@remaining + "小时";
+	next;
+	
+	// 检查是否是卖家自己
+	if ($@AuctionSellerID[.@slot] == getcharid(0)) {
+		mes "[拍卖行管理员]";
+		mes "这是您自己拍卖的物品，不能出价。";
+		close;
+	}
+	
+	switch(select("手动输入价格竞拍:自动加价30%竞拍:自定义加价竞拍" + (($@AuctionBuyNow[.@slot] > 0) ? ":一口价购买" : "") + ":返回")) {
+	case 1:
+		// 手动输入价格竞拍
+		set .@min_bid, (($@AuctionCurrentBid[.@slot] > 0) ? $@AuctionCurrentBid[.@slot] + 100 : $@AuctionPrice[.@slot]);
+		mes "[拍卖行管理员]";
+		mes "请输入您的出价金额：";
+		mes "当前最低出价：" + .@min_bid + " Zeny";
+		mes "您的Zeny余额：" + Zeny + " Zeny";
+		next;
+		input .@bid;
+		
+		if (.@bid < .@min_bid) {
+			mes "[拍卖行管理员]";
+			mes "出价不能低于当前最低出价 " + .@min_bid + " Zeny。";
+			close;
+		}
+		
+		if (Zeny < .@bid) {
+			mes "[拍卖行管理员]";
+			mes "您的Zeny不足。当前余额：" + Zeny + " Zeny";
+			close;
+		}
+		
+		// 确认出价
+		mes "[拍卖行管理员]";
+		mes "确认出价 " + .@bid + " Zeny 竞拍 " + $@AuctionItemName$[.@slot] + "？";
+		next;
+		if (select("确认出价:取消") == 2) {
+			mes "[拍卖行管理员]";
+			mes "已取消出价。";
+			close;
+		}
+		
+		// 更新拍卖记录
+		set $@AuctionCurrentBid[.@slot], .@bid;
+		set $@AuctionBidderID[.@slot], getcharid(0);
+		set $@AuctionBidderName$[.@slot], strcharinfo(0);
+		
+		// 广播出价信息
+		announce strcharinfo(0) + " 出价 " + .@bid + " Zeny 竞拍 " + $@AuctionItemName$[.@slot] + "！", bc_all;
+		
+		mes "[拍卖行管理员]";
+		mes "出价成功！";
+		mes "当前最高出价：" + .@bid + " Zeny";
+		close;
+		
+	case 2:
+		// 自动加价30%竞拍（基于初始售价）
+		set .@min_bid, (($@AuctionCurrentBid[.@slot] > 0) ? $@AuctionCurrentBid[.@slot] + 100 : $@AuctionPrice[.@slot]);
+		set .@auto_bid, $@AuctionPrice[.@slot] * 130 / 100; // 自动加价30%（基于初始售价）
+		
+		mes "[拍卖行管理员]";
+		mes "自动加价30%竞拍：";
+		mes "物品：" + $@AuctionItemName$[.@slot];
+		mes "当前最低出价：" + .@min_bid + " Zeny";
+		mes "自动出价：" + .@auto_bid + " Zeny";
+		mes "（比初始售价高出30%）";
+		mes "您的Zeny余额：" + Zeny + " Zeny";
+		next;
+		
+		if (select("确认自动出价:取消") == 2) {
+			mes "[拍卖行管理员]";
+			mes "已取消自动出价。";
+			close;
+		}
+		
+		if (Zeny < .@auto_bid) {
+			mes "[拍卖行管理员]";
+			mes "您的Zeny不足进行自动出价。";
+			mes "需要：" + .@auto_bid + " Zeny，当前余额：" + Zeny + " Zeny";
+			close;
+		}
+		
+		// 更新拍卖记录
+		set $@AuctionCurrentBid[.@slot], .@auto_bid;
+		set $@AuctionBidderID[.@slot], getcharid(0);
+		set $@AuctionBidderName$[.@slot], strcharinfo(0);
+		
+		// 广播出价信息
+		announce strcharinfo(0) + " 自动出价 " + .@auto_bid + " Zeny 竞拍 " + $@AuctionItemName$[.@slot] + "！", bc_all;
+		
+		mes "[拍卖行管理员]";
+		mes "自动出价成功！";
+		mes "当前最高出价：" + .@auto_bid + " Zeny";
+		close;
+		
+	case 3:
+		// 自定义加价竞拍
+		set .@min_bid, (($@AuctionCurrentBid[.@slot] > 0) ? $@AuctionCurrentBid[.@slot] + 100 : $@AuctionPrice[.@slot]);
+		
+		mes "[拍卖行管理员]";
+		mes "自定义加价竞拍：";
+		mes "物品：" + $@AuctionItemName$[.@slot];
+		mes "当前最低出价：" + .@min_bid + " Zeny";
+		mes "您的Zeny余额：" + Zeny + " Zeny";
+		mes "请输入加价百分比（10-100）：";
+		next;
+		input .@percent;
+		
+		if (.@percent < 10 || .@percent > 100) {
+			mes "[拍卖行管理员]";
+			mes "加价百分比必须在10%到100%之间。";
+			close;
+		}
+		
+		set .@custom_bid, .@min_bid * (100 + .@percent) / 100;
+		
+		mes "[拍卖行管理员]";
+		mes "自定义加价竞拍：";
+		mes "加价百分比：" + .@percent + "%";
+		mes "当前最低出价：" + .@min_bid + " Zeny";
+		mes "自定义出价：" + .@custom_bid + " Zeny";
+		mes "确认使用此价格出价？";
+		next;
+		
+		if (select("确认出价:取消") == 2) {
+			mes "[拍卖行管理员]";
+			mes "已取消自定义出价。";
+			close;
+		}
+		
+		if (Zeny < .@custom_bid) {
+			mes "[拍卖行管理员]";
+			mes "您的Zeny不足进行自定义出价。";
+			mes "需要：" + .@custom_bid + " Zeny，当前余额：" + Zeny + " Zeny";
+			close;
+		}
+		
+		// 更新拍卖记录
+		set $@AuctionCurrentBid[.@slot], .@custom_bid;
+		set $@AuctionBidderID[.@slot], getcharid(0);
+		set $@AuctionBidderName$[.@slot], strcharinfo(0);
+		
+		// 广播出价信息
+		announce strcharinfo(0) + " 自定义出价 " + .@custom_bid + " Zeny（加价" + .@percent + "%）竞拍 " + $@AuctionItemName$[.@slot] + "！", bc_all;
+		
+		mes "[拍卖行管理员]";
+		mes "自定义出价成功！";
+		mes "当前最高出价：" + .@custom_bid + " Zeny";
+		close;
+		
+	case 4:
+		// 一口价购买
+		if ($@AuctionBuyNow[.@slot] <= 0) {
+			mes "[拍卖行管理员]";
+			mes "该物品没有设置一口价。";
+			close;
+		}
+		
+		if (Zeny < $@AuctionBuyNow[.@slot]) {
+			mes "[拍卖行管理员]";
+			mes "您的Zeny不足。";
+			close;
+		}
+		
+		// 扣除Zeny并完成交易
+		set Zeny, Zeny - $@AuctionBuyNow[.@slot];
+		
+		// 给买家物品
+		getitem $@AuctionItemID[.@slot], 1;
+		
+		// 记录交易完成
+		set $@AuctionItemID[.@slot], 0; // 标记为已售出
+		
+		// 记录卖家应得的Zeny（实际实现中需要给卖家Zeny）
+		// 这里只是记录，实际发放需要在其他机制中实现
+		set $@AuctionCompleted$[$@AuctionCompletedCount], $@AuctionSellerName$[.@slot] + ":" + ($@AuctionBuyNow[.@slot] * 95 / 100) + ":" + $@AuctionItemName$[.@slot];
+		set $@AuctionCompletedCount, $@AuctionCompletedCount + 1;
+		
+		mes "[拍卖行管理员]";
+		mes "购买成功！";
+		mes "物品已发送到您的背包。";
+		close;
+	}
+}
+
+function	script	AuctionMyItems	{
+	mes "[拍卖行管理员]";
+	mes "正在加载您的拍卖物品...";
+	next;
+	
+	set .@count, 0;
+	
+	mes "[拍卖行管理员]";
+	mes "您的拍卖物品：";
+	mes "=================================";
+	
+	for (set .@i, 0; .@i < $@AuctionCount; set .@i, .@i + 1) {
+		if ($@AuctionItemID[.@i] == 0) continue;
+		if ($@AuctionSellerID[.@i] != getcharid(0)) continue;
+		
+		set .@remaining, ($@AuctionStartTime[.@i] + ($@AuctionDuration[.@i] * 3600) - gettimetick(2)) / 3600;
+		if (.@remaining <= 0) continue;
+		
+		set .@count, .@count + 1;
+		
+		mes .@count + ". " + $@AuctionItemName$[.@i];
+		mes "   当前价格：" + (($@AuctionCurrentBid[.@i] > 0) ? $@AuctionCurrentBid[.@i] : $@AuctionPrice[.@i]) + " Zeny";
+		if ($@AuctionBidderName$[.@i] != "") {
+			mes "   当前出价者：" + $@AuctionBidderName$[.@i];
+		} else {
+			mes "   当前状态：无人出价";
+		}
+		mes "   剩余时间：" + .@remaining + "小时";
+		mes "---------------------------------";
+		
+		set .@auction_index[.@count], .@i;
+	}
+	
+	if (.@count == 0) {
+		mes "[拍卖行管理员]";
+		mes "您没有正在拍卖的物品。";
+		close;
+	}
+	
+	close;
+}
+
+function	script	AuctionMyBids	{
+	mes "[拍卖行管理员]";
+	mes "正在加载您的竞拍记录...";
+	next;
+	
+	set .@count, 0;
+	
+	mes "[拍卖行管理员]";
+	mes "您的竞拍记录：";
+	mes "=================================";
+	
+	for (set .@i, 0; .@i < $@AuctionCount; set .@i, .@i + 1) {
+		if ($@AuctionItemID[.@i] == 0) continue;
+		if ($@AuctionBidderID[.@i] != getcharid(0)) continue;
+		
+		set .@remaining, ($@AuctionStartTime[.@i] + ($@AuctionDuration[.@i] * 3600) - gettimetick(2)) / 3600;
+		
+		set .@count, .@count + 1;
+		
+		mes .@count + ". " + $@AuctionItemName$[.@i];
+		mes "   卖家：" + $@AuctionSellerName$[.@i];
+		mes "   您的出价：" + $@AuctionCurrentBid[.@i] + " Zeny";
+		mes "   剩余时间：" + .@remaining + "小时";
+		if (.@remaining <= 0) {
+			mes "   ^FF0000状态：已结束^000000";
+		} else {
+			mes "   状态：竞拍中";
+		}
+		mes "---------------------------------";
+	}
+	
+	if (.@count == 0) {
+		mes "[拍卖行管理员]";
+		mes "您没有参与任何竞拍。";
+	}
+	
+	close;
+}
+
+function	script	AuctionCancel	{
+	mes "[拍卖行管理员]";
+	mes "正在加载您的拍卖物品...";
+	next;
+	
+	set .@count, 0;
+	
+	mes "[拍卖行管理员]";
+	mes "可取消的拍卖物品：";
+	mes "=================================";
+	
+	for (set .@i, 0; .@i < $@AuctionCount; set .@i, .@i + 1) {
+		if ($@AuctionItemID[.@i] == 0) continue;
+		if ($@AuctionSellerID[.@i] != getcharid(0)) continue;
+		if ($@AuctionBidderID[.@i] != 0) continue; // 有人出价不能取消
+		
+		set .@remaining, ($@AuctionStartTime[.@i] + ($@AuctionDuration[.@i] * 3600) - gettimetick(2)) / 3600;
+		if (.@remaining <= 0) continue;
+		
+		set .@count, .@count + 1;
+		
+		mes .@count + ". " + $@AuctionItemName$[.@i];
+		mes "   价格：" + $@AuctionPrice[.@i] + " Zeny";
+		mes "   剩余时间：" + .@remaining + "小时";
+		mes "---------------------------------";
+		
+		set .@auction_index[.@count], .@i;
+	}
+	
+	if (.@count == 0) {
+		mes "[拍卖行管理员]";
+		mes "您没有可以取消的拍卖物品。";
+		mes "（只有无人出价的物品可以取消）";
+		close;
+	}
+	
+	next;
+	mes "[拍卖行管理员]";
+	mes "请选择要取消的拍卖物品编号（0返回）：";
+	next;
+	input .@choice;
+	
+	if (.@choice == 0) {
+		close;
+	}
+	
+	if (.@choice < 1 || .@choice > .@count) {
+		mes "[拍卖行管理员]";
+		mes "无效的选择。";
+		close;
+	}
+	
+	set .@slot, .@auction_index[.@choice];
+	
+	// 确认取消
+	mes "[拍卖行管理员]";
+	mes "确定要取消拍卖 " + $@AuctionItemName$[.@slot] + " 吗？";
+	mes "注意：手续费不会退还。";
+	next;
+	
+	if (select("确定取消:不取消") == 2) {
+		mes "[拍卖行管理员]";
+		mes "已取消操作。";
+		close;
+	}
+	
+	// 返还物品给卖家
+	getitem $@AuctionItemID[.@slot], 1;
+	
+	// 清除拍卖记录
+	set $@AuctionItemID[.@slot], 0;
+	
+	mes "[拍卖行管理员]";
+	mes "拍卖已取消，物品已返还到您的背包。";
+	close;
+}
+
+function	script	AuctionCheckExpired	{
+	// 检查并处理过期拍卖
+	for (set .@i, 0; .@i < $@AuctionCount; set .@i, .@i + 1) {
+		if ($@AuctionItemID[.@i] == 0) continue;
+		
+		set .@remaining, ($@AuctionStartTime[.@i] + ($@AuctionDuration[.@i] * 3600) - gettimetick(2));
+		if (.@remaining <= 0) {
+			// 拍卖过期
+			if ($@AuctionBidderID[.@i] > 0) {
+				// 有人出价，交易成功
+				// 记录交易完成
+				set $@AuctionCompleted$[$@AuctionCompletedCount], $@AuctionSellerName$[.@i] + ":" + ($@AuctionCurrentBid[.@i] * 95 / 100) + ":" + $@AuctionItemName$[.@i];
+				set $@AuctionCompletedCount, $@AuctionCompletedCount + 1;
+				
+				// 记录买家获得物品
+				set $@AuctionBuyerItem$[$@AuctionBuyerItemCount], $@AuctionBidderName$[.@i] + ":" + $@AuctionItemID[.@i] + ":" + $@AuctionItemName$[.@i];
+				set $@AuctionBuyerItemCount, $@AuctionBuyerItemCount + 1;
+			} else {
+				// 无人出价，返还物品给卖家
+				set $@AuctionReturn$[$@AuctionReturnCount], $@AuctionSellerName$[.@i] + ":" + $@AuctionItemID[.@i] + ":" + $@AuctionItemName$[.@i];
+				set $@AuctionReturnCount, $@AuctionReturnCount + 1;
+			}
+			
+			// 清除拍卖记录
+			set $@AuctionItemID[.@i], 0;
+		}
+	}
+	return;
+}
+
+function	script	AuctionCleanup	{
+	// 清理过期拍卖
+	callfunc "AuctionCheckExpired";
+	
+	// 处理交易完成的物品和Zeny分发
+	// 这里需要根据服务器架构实现实际的物品和Zeny分发机制
+	// 例如通过邮件系统或定时发放
+	
+	return;
+}
+
+//==========================================
+// 拍卖系统管理命令
+//==========================================
+
+-	script	AuctionCommands	-1,{
+OnInit:
+	bindatcmd "auctioninfo", "AuctionCommands::OnAuctionInfo";
+	end;
+
+OnAuctionInfo:
+	// 显示拍卖系统信息
+	mes "[拍卖系统信息]";
+	mes "总拍卖槽位: " + $@AuctionCount;
+	mes "活跃拍卖: " + callfunc("AuctionGetActiveCount");
+	mes "已完成交易: " + $@AuctionCompletedCount;
+	mes "待返还物品: " + $@AuctionReturnCount;
+	close;
+}
+
+function	script	AuctionGetActiveCount	{
+	set .@count, 0;
+	for (set .@i, 0; .@i < $@AuctionCount; set .@i, .@i + 1) {
+		if ($@AuctionItemID[.@i] != 0) {
+			set .@count, .@count + 1;
+		}
+	}
+	return .@count;
+}
+
+function	script	AuctionIsAllowed	{
+	set .@item_id, getarg(0);
+	// 如果未配置白名单（数量<=0），默认允许所有可交易物品
+	if ($@AuctionAllowedCount <= 0) return 1;
+	for (set .@i, 0; .@i < $@AuctionAllowedCount; set .@i, .@i + 1) {
+		if ($@AuctionAllowedID[.@i] == .@item_id) return 1;
+	}
+	return 0;
+}
+
+// 金额换算：>=10000 显示为 "Xw"，保留两位小数
+function	script	FmtW	{
+	set .@n, getarg(0);
+	if (.@n >= 10000) {
+		set .@whole, .@n / 10000;
+		set .@rem, .@n % 10000;
+		if (.@rem == 0) return "" + .@whole + "w";
+		set .@frac2, (.@rem * 100) / 10000; // 两位小数（整数法）
+		if (.@frac2 == 0) return "" + .@whole + "w";
+		set .@pad$, (.@frac2 < 10) ? "0" : "";
+		return "" + .@whole + "." + .@pad$ + .@frac2 + "w";
+	}
+	return "" + .@n;
+}
+-	script	FixedAuctionSystem	-1,{
+OnInit:
+	set $@FixedAuctionDurationSec, 1800; // 每场30分钟
+	set $@FixedAuctionLotTotal, 6; // 每场6个拍品
+	set $@FixedAuctionLotDurationSec, 300; // 每拍品5分钟
+	// 拍品池（可按需修改/扩展）
+	setarray $@FixedAuctionPool_Zeny[0], 607,608,969,985,601,602;
+	setarray $@FixedAuctionPool_Cash[0], 607,608,969,985,601,602;
+	// 其他初始化
+	set $@FixedAuctionActive, 0;
+	set $@FixedAuctionDebug, 0; // 调试模式：1=随时可开启测试
+	// GM 调试命令
+	bindatcmd "auctionstartzeny", "FixedAuctionSystem::OnStartZeny";
+	bindatcmd "auctionstartcash", "FixedAuctionSystem::OnStartCash";
+	bindatcmd "auctionend", "FixedAuctionSystem::OnEnd";
+	bindatcmd "auctiondebug", "FixedAuctionSystem::OnDebug";
+	end;
+
+OnClock1030:
+	callsub S_StartZeny;
+	end;
+
+OnClock1530:
+	callsub S_StartZeny;
+	end;
+
+OnClock2000:
+	callsub S_StartCash;
+	end;
+
+// GM 手动控制入口
+OnStartZeny:
+	// 如果附加了玩家，则进行GM校验；调试模式下放行
+	if (getcharid(0) > 0) {
+		if (!$@FixedAuctionDebug && getgmlevel() < 99) end;
+	}
+	callsub S_StartZeny;
+	end;
+OnStartCash:
+	// 如果附加了玩家，则进行GM校验；调试模式下放行
+	if (getcharid(0) > 0) {
+		if (!$@FixedAuctionDebug && getgmlevel() < 99) end;
+	}
+	callsub S_StartCash;
+	end;
+OnEnd:
+	// 手动结束整场拍卖（立即停止当前拍品并不再轮播）
+	if (getcharid(0) > 0) {
+		if (getgmlevel() < 99) end;
+	}
+	callsub S_EndSession;
+	stopnpctimer;
+	end;
+OnDebug:
+	if (getcharid(0) > 0) {
+		if (getgmlevel() < 99) end;
+	}
+	set $@FixedAuctionDebug, !$@FixedAuctionDebug;
+	announce "拍卖调试模式：" + (($@FixedAuctionDebug)?"开启":"关闭"), bc_self;
+	end;
+
+S_StartZeny:
+	set $@FixedAuctionCurrency, 1; // 1=Zeny
+	set $@FixedAuctionBasePrice, 5000000;
+	set $@FixedAuctionMinIncrement, $@FixedAuctionBasePrice * 30 / 100;
+	set $@FixedAuctionLotIndex, 0;
+	set $@FixedAuctionActive, 1;
+	callsub S_StartLot;
+	return;
+
+S_StartCash:
+	set $@FixedAuctionCurrency, 2; // 2=CASHPOINTS
+	set $@FixedAuctionBasePrice, 3000;
+	set $@FixedAuctionMinIncrement, $@FixedAuctionBasePrice * 30 / 100;
+	set $@FixedAuctionLotIndex, 0;
+	set $@FixedAuctionActive, 1;
+	callsub S_StartLot;
+	return;
+
+// 开启当前轮拍品
+S_StartLot:
+	if ($@FixedAuctionLotIndex >= $@FixedAuctionLotTotal) {
+		callsub S_EndSession;
+		return;
+	}
+	if ($@FixedAuctionCurrency == 1) {
+		set .@poolsize, getarraysize($@FixedAuctionPool_Zeny);
+		set .@idx, rand(.@poolsize);
+		set $@FixedAuctionItemID, $@FixedAuctionPool_Zeny[.@idx];
+	} else {
+		set .@poolsize, getarraysize($@FixedAuctionPool_Cash);
+		set .@idx, rand(.@poolsize);
+		set $@FixedAuctionItemID, $@FixedAuctionPool_Cash[.@idx];
+	}
+	set $@FixedAuctionItemQty, rand(1,5);
+	set $@FixedAuctionItemName$, getitemname($@FixedAuctionItemID);
+	set $@FixedAuctionCurrentBid, 0;
+	set $@FixedAuctionBidderID, 0;
+	set $@FixedAuctionBidderName$, "";
+	set $@FixedAuctionStartTick, gettimetick(2);
+	stopnpctimer;
+	initnpctimer;
+	announce "拍卖 第"+($@FixedAuctionLotIndex+1)+"/"+$@FixedAuctionLotTotal+" 个拍品开始："+$@FixedAuctionItemName$+" × "+$@FixedAuctionItemQty+"，起价 "+callfunc("FmtW", $@FixedAuctionBasePrice)+(($@FixedAuctionCurrency==1)?" Zeny":" 点数")+"，最低加价 "+callfunc("FmtW", $@FixedAuctionMinIncrement)+(($@FixedAuctionCurrency==1)?" Zeny":" 点数")+"。", bc_all;
+	return;
+
+// 每个拍品5分钟结束后结算并轮播下一个
+OnTimer300000:
+	callsub S_End; // 结算当前拍品
+	end;
+
+// 结算当前拍品（并继续下一拍品或结束整场）
+S_End:
+	if (!$@FixedAuctionActive) return;
+	if ($@FixedAuctionBidderID > 0) {
+		if ($@FixedAuctionCurrency == 1) {
+			if (attachrid($@FixedAuctionBidderID)) {
+				if (Zeny >= $@FixedAuctionCurrentBid) {
+					set Zeny, Zeny - $@FixedAuctionCurrentBid;
+					getitem $@FixedAuctionItemID, $@FixedAuctionItemQty;
+					announce "拍品结束，"+$@FixedAuctionBidderName$+" 以 "+callfunc("FmtW", $@FixedAuctionCurrentBid)+" Zeny 成功拍得 "+$@FixedAuctionItemName$+" × "+$@FixedAuctionItemQty+"！", bc_all;
+				} else {
+					announce "拍品结束，最高出价者资金不足，流拍。", bc_all;
+				}
+				detachrid;
+			}
+		} else {
+			if (attachrid($@FixedAuctionBidderID)) {
+				if (#CASHPOINTS >= $@FixedAuctionCurrentBid) {
+					set #CASHPOINTS, #CASHPOINTS - $@FixedAuctionCurrentBid;
+					getitem $@FixedAuctionItemID, $@FixedAuctionItemQty;
+					announce "拍品结束，"+$@FixedAuctionBidderName$+" 以 "+callfunc("FmtW", $@FixedAuctionCurrentBid)+" 点数成功拍得 "+$@FixedAuctionItemName$+" × "+$@FixedAuctionItemQty+"！", bc_all;
+				} else {
+					announce "拍品结束，最高出价者点数不足，流拍。", bc_all;
+				}
+				detachrid;
+			}
+		}
+	} else {
+		announce "拍品结束，无人出价，流拍。", bc_all;
+	}
+	// 进入下一个拍品或结束
+	set $@FixedAuctionLotIndex, $@FixedAuctionLotIndex + 1;
+	if ($@FixedAuctionLotIndex >= $@FixedAuctionLotTotal) {
+		callsub S_EndSession;
+	} else {
+		callsub S_StartLot;
+	}
+	return;
+
+// 结束整场拍卖（6个拍品全部结束）
+S_EndSession:
+	if (!$@FixedAuctionActive) return;
+	set $@FixedAuctionActive, 0;
+	stopnpctimer;
+	announce "拍卖会结束，共 " + $@FixedAuctionLotTotal + " 个拍品。感谢参与！", bc_all;
+	return;
+}

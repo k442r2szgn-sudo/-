@@ -1,0 +1,207 @@
+//==============================================
+// 脚本：BOSS快捷传送系统
+// 版本：Ver 2.0.0
+// 适用：BetterRa(21年8月以后定制的服务端版本)
+// 代码：likn
+// 授权: 付费
+// 更新信息
+// V2.0.0 仅保留BOSS快捷传送功能
+//==============================================
+
+prontera,146,97,6	script	世界之树-online#MvpSystem	733,{
+	function	F_Main;
+	function	F_MvpSpwanInfo;
+	F_Main;
+	end;
+
+//=================================================================================================
+OnInit: /*                              基础参数设置                                              */
+//=================================================================================================
+	// 创建初始数据库
+	query_sql("CREATE TABLE IF NOT EXISTS `mvp_ladder_rank` (`char_id` int(11) unsigned NOT NULL DEFAULT '0', `name` varchar(30) NOT NULL DEFAULT '',`day_kills` int(11) unsigned NOT NULL default '0',`week_kills` int(11) unsigned NOT NULL default '0',`month_kills` int(11) unsigned NOT NULL default '0',`all_kills` int(11) unsigned NOT NULL default '0', PRIMARY KEY  (`char_id`)) ENGINE=InnoDB");
+
+
+
+	// NPC名称
+	.nm$ = "「^FF0000奥西^000000」";
+
+	// MVP魔物用于重生时间检索(如有遗漏请自行补充)
+	setarray .mvp_id[1],
+		1159, //皮里恩
+		1038, //俄赛里斯
+		1046, //死灵
+		1086, //黄金虫
+		1785, //阿特罗斯
+		1039, //巴风特
+		1630, //白素贞
+		1272, //黑暗之王
+		1112, //海盗之王
+		1719, //迪塔勒泰晤勒斯
+		1389, //德古拉男爵
+		1115, //虎王
+		1418, //墨蛇君
+		1871, //堕落的大神官希巴姆
+		1252, //卡伦
+		1768, //影魔
+		1885, //青冠龙
+		1832, //伊夫利特
+		1492, //元灵武士
+		1734, //基尔D-01
+		1251, //冰暴骑士
+		1688, //嗒妮小姐
+		1147, //蚁后
+		1059, //蜂后
+		1150, //月夜猫
+		1087, //兽人英雄
+		1190, //兽人酋长
+		1157, //法老王
+		1623, //RSX0806
+		1583, //塔奥群卡
+		1312, //乌龟将军
+		1751, //兰特克力斯
+		1685; //贝思波
+
+	setarray .mvp_map$[1],
+		"moc_fild17", //皮里恩
+		"moc_pryd04", //俄赛里斯
+		"gef_dun02", //死灵
+		"prt_sewb4", //黄金虫
+		"ra_fild02", //阿特罗斯
+		"prt_maze03", //巴风特
+		"lou_dun03", //白素贞
+		"gl_chyard", //黑暗之王
+		"treasure02", //海盗之王
+		"abyss_03", //迪塔勒泰晤勒斯
+		"gef_dun01", //德古拉男爵
+		"gld_dun01", //虎王
+		"gon_dun03", //墨蛇君
+		"abbey02", //堕落的大神官希巴姆
+		"xmas_fild01", //卡伦
+		"ra_san05", //影魔
+		"mosk_dun03", //青冠龙
+		"thor_v03", //伊夫利特
+		"ama_dun03", //元灵武士
+		"kh_dun02", //基尔D-01
+		"xmas_dun02", //冰暴骑士
+		"ayo_dun02", //嗒妮小姐
+		"anthell02", //蚁后
+		"mjolnir_04", //蜂后
+		"pay_dun04", //月夜猫
+		"gef_fild02", //兽人英雄
+		"gef_fild10", //兽人酋长
+		"in_sphinx5", //法老王
+		"ein_dun02", //RSX0806
+		"beach_dun", //塔奥群卡
+		"tur_dun04", //乌龟将军
+		"odin_tem03", //兰特克力斯
+		"jupe_core"; //贝思波
+
+	// 禁止在MVP重生地图使用召唤类物品
+	for(.@i = 1; .@i < getarraysize(.mvp_map$); ++.@i)
+		setmapflag .mvp_map$[.@i], mf_nobranch;
+
+	// NPC称号
+	unitaura getnpcid(0),203; 
+	settitleicon(getnpcid(0),0,"奥西");
+
+	// NPC头顶招牌
+	while(true){
+		showscript "「MVP传送」";
+		sleep 1500;
+	}
+	end;
+
+//=================================================================================================
+/*                                         初始对话内容                                           */
+//=================================================================================================
+	function	F_Main	{
+		disable_items;
+		mes .nm$;
+		mes	$ColourMes$;
+		mes "快速传送到BOSS刷新地点.";
+		mes	$ColourMes$;
+		F_MvpSpwanInfo;
+		end;
+	}
+
+//=================================================================================================
+/*                                         奖励信息查询                                           */
+//=================================================================================================
+	function	F_MvpSpwanInfo	{
+		do{
+			// 重置数据
+			deletearray $@boss_gid,128;
+			deletearray $@boss_spawn,128;
+			deletearray $@spawn_mapname,128;
+			deletearray $@spawn_amount,128;
+			mes "";
+			clear;
+			mes .nm$;
+			mes	$ColourMes$;
+			mes "绿色名称为BOSS已重生.";
+			mes "灰色名称为BOSS未重生.";
+			mes	$ColourMes$;
+			.@Menu$ = "";
+			for (.@i = 1; .@i < getarraysize(.mvp_id); ++.@i){
+				getbossinfo(.mvp_map$[.@i],.mvp_id[.@i]);
+				.@Menu$ = .@Menu$ + (!$@boss_spawn?"^008000["+.@i+"]"+strmobinfo(1,.mvp_id[.@i])+"^000000":"^696969["+.@i+"]"+strmobinfo(1,.mvp_id[.@i])+"^000000")+":";
+			}
+			.@Num = select(.@Menu$);
+			.@Mvp = .mvp_id[.@Num];
+			getmobspawninfo(.@Mvp);
+			getbossinfo(.mvp_map$[.@Num],.@Mvp);
+			clear;
+			mes .nm$;
+			mes	$ColourMes$;
+			mes "魔物名称: ^DAA520"+strmobinfo(1,.@Mvp)+"^000000";
+			mes ""+($@boss_spawn == 0?"重生时间: ^008000已重生^000000":"重生时间: "+(($@boss_spawn / 1000) % (24 * 3600)) / 3600+"小时"+((($@boss_spawn / 1000) % 3600) / 60)+"分钟"+($@boss_spawn / 1000) % 60+"秒.")+"";
+			mes "所在地图: ^000080"+$@spawn_mapname$+"^000000";
+			mes "刷新数量: "+$@spawn_amount+"";
+			mes "地图人数: "+getmapusers($@spawn_mapname$)+"";
+			mes	$ColourMes$;
+			.@Select = select("[1]送我过去","[2]返回主页");
+		}while(.@Select == 2);
+		warp $@spawn_mapname$,0,0;
+		end;
+	}
+
+
+//=================================================================================================
+OnPCKillMvpEvent:/*                    MVP魔物击杀事件                                            */
+//=================================================================================================
+	// 获取魔物地图信息
+	getmobspawninfo(killedrid);
+	// 判断魔物ID和击杀地图是否符合条件
+	if(inarray(.mvp_id,killedrid) != -1 && strcharinfo(3) == $@spawn_mapname$){
+		// 记录击杀数据
+		query_sql("INSERT INTO `mvp_ladder_rank` SET `char_id`='"+ getcharid(0) +"', `name`='"+ strcharinfo(0) +"', `day_kills` = '1', `week_kills` = '1', `month_kills` = '1', `all_kills` = '1' ON DUPLICATE KEY UPDATE `day_kills` = `day_kills` + 1, `week_kills`=`week_kills` + 1, `month_kills` = `month_kills` + 1,`all_kills` = `all_kills` + 1" );
+		// 控制台输出击杀信息
+		//consolemes (CONSOLEMES_DEBUG,"\033[0;36m[MVP击杀系统]: [\033[0;37m%s\033[0;36m]在[\033[0;37m%s\033[0;36m]击杀了[\033[0;37m%s\033[0;36m]", strcharinfo(0), strcharinfo(3), getmonsterinfo( killedrid, MOB_NAME ));
+		// 全服广播
+		announce "[MVP积分系统]: "+strcharinfo(0)+"击杀了MVP魔物"+strmobinfo(1,killedrid)+"!", bc_all;
+		// Mvp积分
+		MvpRankPoint += 1;
+	}
+	end;
+
+//=================================================================================================
+/*                                         魔物重生事件                                           */
+//=================================================================================================
+OnMVPSpawnFilter:
+	// 获取MVP信息
+	getbossinfo("all");
+    getmobspawninfo($spawn_mobid);
+	
+	// 检查是否是列表中的MVP魔物
+	if(inarray(.mvp_id,$spawn_mobid) != -1 && inarray(.mvp_map$,$@spawn_mapname$) != -1){
+		// 发送魔物重生公告
+		announce "[MVP积分系统]: Mvp级魔物"+getunitname($spawn_gid)+"已经在"+$@spawn_mapname$+"地图重生了!", bc_all;
+		
+		// 记录重生日志到控制台
+		consolemes (CONSOLEMES_DEBUG,"\033[0;36m[MVP重生系统]: Mvp级魔物\033[0;37m"+getunitname($spawn_gid)+"\033[0;36m在\033[0;37m"+$@spawn_mapname$+"\033[0;36m地图重生了!\033[0m");
+		
+		// 可选：记录重生时间到数据库
+		// query_sql("INSERT INTO `mvp_respawn_log` (`mob_id`, `map_name`, `respawn_time`) VALUES ('"+$spawn_mobid+"', '"+$@spawn_mapname$+"', NOW())");
+	}
+	end;
+}

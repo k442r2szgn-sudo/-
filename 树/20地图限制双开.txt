@@ -1,0 +1,69 @@
+//===== Saphira Ro 脚本 ================================== 
+//= 同一地图禁止双开登录
+//===== 作者: ================================================== 
+//= Tauro
+//===== 当前版本: =====================================
+//= 2.0
+//===== 兼容于: =====================================
+//= rAthena SVN
+//===== 描述: =========================================
+//= 在指定地图中禁止所有相同IP在同一地图内
+//= 基于IP验证，无账户白名单
+//===== 说明: ============================================
+//= 编辑第36行地图列表以设置限制地图
+//= 编辑第98行设置loadevent地图
+//= 脚本将禁止所有相同IP的账户在同一限制地图内
+//===== 更新日志: =============================================
+//= 2.0 移除Gepard验证器，强制使用IP验证
+//= 2.0 移除不受影响的账户ID白名单
+//= 2.0 简化逻辑，直接禁止所有相同IP在同一地图内
+//= 1.1 添加$MapsWorks$以防止脚本在其他含有loadevent的脚本中生效
+//= 1.1 更新getmapxy错误以适应新命令
+//===== 联系信息: ========================================
+//= [Tauro] 
+//= Discord: Trinity#7962
+//============================================================
+-	script	dl_map	-1,{
+	end;
+
+OnInit:
+	// 防止脚本在其他含有loadevent的脚本中生效的地图列表
+	setarray $MapsWorks$[0], "guild_vs1","prtg_cas03","guild_vs4","guild_vs2","guild_vs3","guild_vs5","prt_lib_q","rwc01","bat_b01","bat_room";
+	end;
+	
+OnPCLoadMapEvent:
+	query_sql("SELECT last_ip FROM `login` WHERE account_id = "+getcharid(3)+"", .@UltimaIp$);
+	query_sql("SELECT account_id FROM `login` WHERE last_ip = '"+.@UltimaIp$+"'", .@CuentaId);
+	for(set .@i ,0;.@i<getarraysize(.@CuentaId);set .@i,.@i+1) {
+		if(attachrid(.@CuentaId[.@i])) {
+			.@map$ = strcharinfo(3);
+			for(set .@q,0; .@q <=getarraysize($MapsWorks$); set .@q,.@q+1){
+				if (.@map$ == $MapsWorks$[.@q]){
+					set .@j,.@j+1;
+					set .@error,getcharid(3,strcharinfo(0));
+				}
+			}
+		}	
+	}
+	detachrid;
+
+	attachrid .@error;
+	if(.@j > 1) {
+		dispbottom "很抱歉，此地图不允许相同IP双开登录。";
+		warp "prontera",156,183;
+	}
+
+	end;
+}
+
+//加载事件
+guild_vs2	mapflag	loadevent
+guild_vs1	mapflag	loadevent
+guild_vs3	mapflag	loadevent
+guild_vs4	mapflag	loadevent
+guild_vs5	mapflag	loadevent
+prt_lib_q	mapflag	loadevent
+rwc01	mapflag	loadevent
+bat_b01	mapflag	loadevent
+bat_room	mapflag	loadevent
+prtg_cas03	mapflag	loadevent

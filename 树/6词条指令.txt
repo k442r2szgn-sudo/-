@@ -1,0 +1,58 @@
+//===== rAthena脚本 =======================================
+//= 物品词条命令
+//===== 作者: ==================================================
+//= Keitenai
+//===== 当前版本: =====================================
+//= 1.0
+//===== 兼容版本: =====================================
+//= rAthena项目
+//===== 描述: =========================================
+//= 用于应用所需物品词条的命令
+
+-	script	OptionCmd	-1,{
+	end;
+
+OnInit:
+	// 设置能使用此命令的GM等级
+	set .allowed,99;
+	// 设置命令(默认@itemoption对应下面)
+	bindatcmd("itemoption",strnpcinfo(0)+"::OnOptCmd",99,99);
+	end;
+
+OnOptCmd:
+	disable_items;
+	if(getgmlevel() >= .allowed || #ADMIN > 0){
+		setarray .@eq[1], EQI_HEAD_TOP,EQI_ARMOR,EQI_HAND_L,EQI_HAND_R,EQI_GARMENT,EQI_SHOES,EQI_ACC_L,EQI_ACC_R,EQI_HEAD_MID,EQI_HEAD_LOW,EQI_COSTUME_HEAD_TOP,EQI_COSTUME_HEAD_MID,EQI_COSTUME_HEAD_LOW,EQI_COSTUME_GARMENT,EQI_AMMO,EQI_SHADOW_ARMOR,EQI_SHADOW_WEAPON,EQI_SHADOW_SHIELD,EQI_SHADOW_SHOES,EQI_SHADOW_ACC_R,EQI_SHADOW_ACC_L;
+		for(set .@i,1; .@i<getarraysize(.@eq); set .@i,.@i+1){
+			if(getequipisequiped(.@eq[.@i])){
+				set .@menu$,.@menu$+F_getpositionname(.@eq[.@i])+" ~ [ " + getequipname(.@eq[.@i]) + " ]";
+				set .@equipped,1;
+			} set .@menu$,.@menu$+":";
+		} set .@part,.@eq[select(.@menu$)];
+		mes "[词条属性]";
+		mes "请输入词条ID";
+		input .@opt;
+		mes "您输入的是 : "+.@opt;
+		next; clear;
+		mes "[词条属性]";
+		mes "属性值是多少?";
+		input .@val;
+		next; clear;
+		mes "[词条属性]";
+		mes "要写入第几行?(0-4)";
+		input .@indx;
+		next; clear;	
+		if(.@indx == 5 && (!getequiprandomoption(.@part,4,ROA_ID,getcharid(0)))) set .@indx,4;
+		if(.@indx == 4 && (!getequiprandomoption(.@part,3,ROA_ID,getcharid(0)))) set .@indx,3;
+		if(.@indx == 3 && (!getequiprandomoption(.@part,2,ROA_ID,getcharid(0)))) set .@indx,2;
+		if(.@indx == 2 && (!getequiprandomoption(.@part,1,ROA_ID,getcharid(0)))) set .@indx,1;
+		if(.@indx == 1 && (!getequiprandomoption(.@part,0,ROA_ID,getcharid(0)))) set .@indx,0;
+		mes "[词条属性]";
+		mes "词条ID是^6A01A1"+.@opt+"^000000";
+		mes "属性值是^B91E1E"+.@val+"^000000";
+		mes "写入第^0C9610"+.@indx+"^000000行";
+		close2;
+		setrandomoption(.@part,.@indx,.@opt,.@val,.@indx,getcharid(0));
+	}
+end;
+}

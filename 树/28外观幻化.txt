@@ -1,0 +1,1280 @@
+prt_in,135,111,3	script	世界之树-online#14	640,{
+	// 检测玩家是否携带道具ID 601
+	if(countitem(601) == 0) {
+		mes "[晲尔]";
+		mes "您需要携带服装幻化卡。";
+		mes "才能使用服装幻化卡。";
+		close;
+	}
+	
+	mes "[晲尔]";
+	mes "我可以帮您进行职业外观转换。";
+	mes "我会自动识别您的职业并显示可用外观。";
+	next;
+	
+	// 自动检测玩家职业并显示对应外观菜单
+	callfunc "AutoDetectJobAppearance", Class;
+	close;
+OnInit: 
+	unitaura getnpcid(0),1095; 
+	settitleicon(getnpcid(0),0,"服装幻化-晲尔");
+	while(1){
+		showscript "[ 服 装 幻 化 ]";
+		sleep 1000;
+	}	
+}
+
+// 自动检测职业并显示对应外观菜单
+function	script	AutoDetectJobAppearance	{
+	.@class = getarg(0);
+	.@char_id = getcharid(0);
+	
+	// 根据职业系列显示对应菜单
+	switch(.@class) {
+		case 4008: case 4060:  // 骑士系列
+			callfunc "ShowNormalJobAppearance", .@class, "骑士系列";
+			break;
+		case 4009: case 4063: // 牧师系列
+			callfunc "ShowNormalJobAppearance", .@class, "牧师系列";
+			break;
+		case 4010: case 4061: // 法师系列
+			callfunc "ShowNormalJobAppearance", .@class, "法师系列";
+			break;
+		case 4011: case 4064: // 铁匠系列
+			callfunc "ShowNormalJobAppearance", .@class, "铁匠系列";
+			break;
+		case 4012: case 4062:  // 猎人系列
+			callfunc "ShowNormalJobAppearance", .@class, "猎人系列";
+			break;
+		case 4013: case 4065:// 刺客系列
+			callfunc "ShowNormalJobAppearance", .@class, "刺客系列";
+			break;
+		case 4015: case 4073: // 十字军系列
+			callfunc "ShowNormalJobAppearance", .@class, "十字军系列";
+			break;
+		case 4017: case 4074: // 贤者系列
+			callfunc "ShowNormalJobAppearance", .@class, "贤者系列";
+			break;
+		case 4019: case 4078:  // 炼金系列
+			callfunc "ShowNormalJobAppearance", .@class, "炼金系列";
+			break;
+		case 4016: case 4077: // 武僧系列
+			callfunc "ShowNormalJobAppearance", .@class, "武僧系列";
+			break;
+		case 4018: case 4079: // 流氓系列
+			callfunc "ShowNormalJobAppearance", .@class, "流氓系列";
+			break;
+		case 4020: case 4075: // 诗人系列
+			callfunc "ShowNormalJobAppearance", .@class, "诗人系列";
+			break;
+		case 4021: case 4076:  // 舞娘系列
+			callfunc "ShowNormalJobAppearance", .@class, "舞娘系列";
+			break;
+		case 23: case 4190: case 4307: case 4045: // 超级初学者系列
+			callfunc "ShowSuperNoviceAppearance", .@class;
+			break;
+		case 24: case 4215: case 4306: case 4228: case 4229: // 枪手系列
+			callfunc "ShowGunslingerAppearance", .@class;
+			break;
+		case 25: case 4211: case 4212: case 4304: case 4222: case 4223: case 4224: // 忍者系列
+			callfunc "ShowNinjaAppearance", .@class;
+			break;
+		case 4046: case 4047: case 4239: case 4240: case 4302: case 4225: case 4226: case 4241: // 拳圣系列（增加4046）
+			callfunc "ShowSuraAppearance", .@class;
+			break;
+		case 4049: case 4303: case 4227: case 4242: // 灵媒系列
+			callfunc "ShowSoulLinkerAppearance", .@class;
+			break;
+		default:
+			// 一转职业检测
+			if(.@class >= 0 && .@class <= 6) {
+				callfunc "ShowFirstJobAppearance", .@class;
+			} else {
+				mes "未识别到您的职业系列";
+				mes "请选择通用外观选项：";
+				next;
+				callfunc "ShowGeneralAppearanceMenu";
+			}
+			break;
+	}
+	return;
+}
+
+// ========== 优化后的菜单函数 ==========
+
+// 普通职业外观菜单（统一处理所有普通职业）
+function	script	ShowNormalJobAppearance	{
+	.@class = getarg(0);
+	.@job_name$ = getarg(1);
+	
+	mes "检测到您的职业为" + .@job_name$;
+	mes "请选择外观类型：";
+	next;
+	
+	switch(select("普通外观:宝宝外观")) {
+		case 1:
+			// 普通职业外观子菜单
+			mes "请选择普通职业外观：";
+			next;
+			switch(select("KRO外观:JRO外观:四转外观")) {
+				case 1: callfunc "ChangeKROAppearance", .@class; break;
+				case 2: callfunc "ChangeJROAppearance", .@class; break;
+				case 3: callfunc "ChangeFourthAppearance", .@class; break;
+			}
+			break;
+		case 2:
+			// 宝宝外观子菜单
+			mes "请选择宝宝外观：";
+			next;
+			switch(select("一转外观:二转外观:KRO外观:JRO外观")) {
+				case 1: callfunc "ChangeBaby1stAppearance", .@class; break;
+				case 2: callfunc "ChangeBaby2ndAppearance", .@class; break;
+				case 3: callfunc "ChangeBaby3rdAppearance", .@class; break;
+				case 4: callfunc "ChangeBaby3rdJROAppearance", .@class; break;
+			}
+			break;
+	}
+	return;
+}
+
+// ========== 扩展职业外观菜单（保持不变） ==========
+
+// 超级初学者系列外观
+function	script	ShowSuperNoviceAppearance	{
+	.@class = getarg(0);
+	mes "检测到您的职业为超级初学者系列";
+	mes "可用的外观选项：";
+	next;
+	
+	switch(select("超级初学者:进阶超级初学者:超级初学者宝宝")) {
+		case 1: callfunc "ChangeExtendedAppearance", 23, "超级初学者", .@class; break;
+		case 2: callfunc "ChangeExtendedAppearance", 4190, "进阶超级初学者", .@class; break;
+		case 3: callfunc "ChangeExtendedAppearance", 4045, "超级初学者宝宝", .@class; break;
+	}
+	return;
+}
+
+// 枪手系列外观
+function	script	ShowGunslingerAppearance	{
+	.@class = getarg(0);
+	mes "检测到您的职业为枪手系列";
+	mes "可用的外观选项：";
+	next;
+	
+	switch(select("枪手:反叛者:枪手宝宝:枪手进阶宝宝")) {
+		case 1: callfunc "ChangeExtendedAppearance", 24, "枪手", .@class; break;
+		case 2: callfunc "ChangeExtendedAppearance", 4215, "反叛者", .@class; break;
+		case 3: callfunc "ChangeExtendedAppearance", 4228, "枪手宝宝", .@class; break;
+		case 4: callfunc "ChangeExtendedAppearance", 4229, "枪手进阶宝宝", .@class; break;
+	}
+	return;
+}
+
+// 忍者系列外观
+function	script	ShowNinjaAppearance	{
+	.@class = getarg(0);
+	mes "检测到您的职业为忍者系列";
+	mes "可用的外观选项：";
+	next;
+	
+	switch(select("忍者:忍者宝宝:日影忍者:月影忍者:日影忍者进阶宝宝:月影忍者进阶宝宝")) {
+		case 1: callfunc "ChangeExtendedAppearance", 25, "忍者", .@class; break;
+		case 2: callfunc "ChangeExtendedAppearance", 4222, "忍者宝宝", .@class; break;
+		case 3: 
+			if(sex == 1) {
+				callfunc "ChangeExtendedAppearance", 4211, "日影忍者", .@class;
+			} else {
+				mes "日影忍者仅限男性角色使用";
+				mes "您的角色性别为女性，无法选择日影忍者外观";
+			}
+			break;
+		case 4: 
+			if(sex == 0) {
+				callfunc "ChangeExtendedAppearance", 4212, "月影忍者", .@class;
+			} else {
+				mes "月影忍者仅限女性角色使用";
+				mes "您的角色性别为男性，无法选择月影忍者外观";
+			}
+			break;
+		case 5: 
+			if(sex == 1) {
+				callfunc "ChangeExtendedAppearance", 4223, "日影忍者进阶宝宝", .@class;
+			} else {
+				callfunc "ChangeExtendedAppearance", 4224, "月影忍者进阶宝宝", .@class;
+			}
+			break;
+	}
+	return;
+}
+
+// 拳圣系列外观（增加4046选项）
+function	script	ShowSuraAppearance	{
+	.@class = getarg(0);
+	mes "检测到您的职业为拳圣系列";
+	mes "可用的外观选项：";
+	next;
+	
+	switch(select("拳圣:跆拳少年:星帝:拳圣宝宝:拳圣进阶宝宝")) {
+		case 1: callfunc "ChangeExtendedAppearance", 4047, "拳圣", .@class; break;
+		case 2: callfunc "ChangeExtendedAppearance", 4046, "跆拳少年", .@class; break;
+		case 3: callfunc "ChangeExtendedAppearance", 4239, "星帝", .@class; break;
+		case 4: callfunc "ChangeExtendedAppearance", 4226, "拳圣宝宝", .@class; break;
+		case 5: callfunc "ChangeExtendedAppearance", 4241, "拳圣进阶宝宝", .@class; break;
+	}
+	return;
+}
+
+// 灵媒系列外观
+function	script	ShowSoulLinkerAppearance	{
+	.@class = getarg(0);
+	mes "检测到您的职业为灵媒系列";
+	mes "可用的外观选项：";
+	next;
+	
+	switch(select("灵媒:灵媒宝宝:灵媒进阶宝宝")) {
+		case 1: callfunc "ChangeExtendedAppearance", 4023, "灵媒", .@class; break;
+		case 2: callfunc "ChangeExtendedAppearance", 4227, "灵媒宝宝", .@class; break;
+		case 3: callfunc "ChangeExtendedAppearance", 4242, "灵媒进阶宝宝", .@class; break;
+	}
+	return;
+}
+
+// 一转职业外观
+function	script	ShowFirstJobAppearance	{
+	.@class = getarg(0);
+	mes "检测到您的职业为一转职业";
+	mes "可用的外观选项：";
+	next;
+	
+	switch(select("一转宝宝外观")) {
+		case 1: callfunc "ChangeBaby1stAppearance", .@class; break;
+	}
+	return;
+}
+
+// ========== 外观转换核心函数（修复：保存当前职业ID） ==========
+
+// KRO三转外观转换
+function	script	ChangeKROAppearance	{
+	.@class = getarg(0);
+	.@char_id = getcharid(0);
+	
+	// 首先清除之前储存的外观ID
+	setd "#外观_" + .@char_id, 0;
+	setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+	setd "#JRO外观_" + .@char_id, 0;
+	
+	// 保存当前职业ID，用于登录恢复时验证
+	setd "#外观_职业_" + .@char_id, .@class;
+	
+	// 先重置为原始职业
+	changebase .@class;
+	
+	// 根据职业映射到KRO三转外观
+	switch(.@class) {
+		case 4008: // 骑士领主 → 卢恩骑士
+			changebase 4060;
+			setlook LOOK_BODY2, 0;
+			setd "#外观_" + .@char_id, 4060;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+			mes "已转换为卢恩骑士(KRO)外观";
+			break;
+		case 4009: // 神官 → 大主教
+			changebase 4063;
+			setlook LOOK_BODY2, 0;
+			setd "#外观_" + .@char_id, 4063;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+			mes "已转换为大主教(KRO)外观";
+			break;
+		case 4010: // 超魔导士 → 术士
+			changebase 4061;
+			setlook LOOK_BODY2, 0;
+			setd "#外观_" + .@char_id, 4061;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+			mes "已转换为术士(KRO)外观";
+			break;
+		case 4011: // 神工匠 → 机械师
+			changebase 4064;
+			setlook LOOK_BODY2, 0;
+			setd "#外观_" + .@char_id, 4064;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+			mes "已转换为机械师(KRO)外观";
+			break;
+		case 4012: // 神射手 → 游侠
+			changebase 4062;
+			setlook LOOK_BODY2, 0;
+			setd "#外观_" + .@char_id, 4062;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+			mes "已转换为游侠(KRO)外观";
+			break;
+		case 4013: // 十字刺客 → 十字切割者
+			changebase 4065;
+			setlook LOOK_BODY2, 0;
+			setd "#外观_" + .@char_id, 4065;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+			mes "已转换为十字切割者(KRO)外观";
+			break;
+		case 4015: // 圣殿十字军 → 皇家护卫
+			changebase 4066;
+			setlook LOOK_BODY2, 0;
+			setd "#外观_" + .@char_id, 4066;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+			mes "已转换为皇家护卫(KRO)外观";
+			break;
+		case 4016: // 武术宗师 → 修罗
+			changebase 4070;
+			setlook LOOK_BODY2, 0;
+			setd "#外观_" + .@char_id, 4070;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+			mes "已转换为修罗(KRO)外观";
+			break;
+		case 4017: // 智者 → 召唤士
+			changebase 4067;
+			setlook LOOK_BODY2, 0;
+			setd "#外观_" + .@char_id, 4067;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+			mes "已转换为召唤士(KRO)外观";
+			break;
+		case 4018: // 神行太保 → 暗影追迹者
+			changebase 4079;
+			setlook LOOK_BODY2, 0;
+			setd "#外观_" + .@char_id, 4079;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+			mes "已转换为暗影追迹者(KRO)外观";
+			break;
+		case 4019: // 创造者 → 基因学家
+			changebase 4078;
+			setlook LOOK_BODY2, 0;
+			setd "#外观_" + .@char_id, 4078;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+			mes "已转换为基因学家(KRO)外观";
+			break;
+		case 4020: // 搞笑艺人 → 宫廷乐师
+			changebase 4075;
+			setlook LOOK_BODY2, 0;
+			setd "#外观_" + .@char_id, 4075;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+			mes "已转换为宫廷乐师(KRO)外观";
+			break;
+		case 4021: // 冷艳舞姬 → 漫游舞者
+			changebase 4076;
+			setlook LOOK_BODY2, 0;
+			setd "#外观_" + .@char_id, 4076;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+			mes "已转换为漫游舞者(KRO)外观";
+			break;
+		case 4047: // 拳圣 → 星帝
+			changebase 4239;
+			setlook LOOK_BODY2, 0;
+			setd "#外观_" + .@char_id, 4239;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+			mes "已转换为星帝(KRO)外观";
+			break;
+
+		case 24: // 枪手 → 反叛者
+			changebase 4215;
+			setlook LOOK_BODY2, 0;
+			setd "#外观_" + .@char_id, 4215;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+			mes "已转换为反叛者(KRO)外观";
+			break;
+		case 25: // 忍者 → 日影/月影忍者
+			if(sex == 1) {
+				changebase 4211;
+				setlook LOOK_BODY2, 0;
+				setd "#外观_" + .@char_id, 4211;
+				setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+				mes "已转换为日影忍者(KRO)外观";
+			} else {
+				changebase 4212;
+				setlook LOOK_BODY2, 0;
+				setd "#外观_" + .@char_id, 4212;
+				setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+				mes "已转换为月影忍者(KRO)外观";
+			}
+			break;
+		default:
+		mes "当前职业无对应的KRO三转外观";
+		break;
+	}
+	
+	mes "外观转换完成！";
+	return;
+}
+
+// JRO三转外观转换
+function	script	ChangeJROAppearance	{
+	.@class = getarg(0);
+	.@char_id = getcharid(0);
+	
+	// 首先清除之前储存的外观ID
+	setd "#外观_" + .@char_id, 0;
+	setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+	setd "#JRO外观_" + .@char_id, 0;
+	
+	// 保存当前职业ID，用于登录恢复时验证
+	setd "#外观_职业_" + .@char_id, .@class;
+	
+	// 先重置为原始职业
+	changebase .@class;
+	
+	// 设置JRO外观标记
+	setd "#JRO外观_" + .@char_id, 1;
+	
+	// 根据职业映射到JRO三转外观
+	switch(.@class) {
+		case 4008: // 骑士领主 → 卢恩骑士(JRO)
+			changebase 4060;
+			setlook LOOK_BODY2, 1;
+			if(checkriding()) setoption 0x00080000;
+			setd "#外观_" + .@char_id, 4060;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 1;
+			mes "已转换为卢恩骑士(JRO)外观";
+			break;
+		case 4009: // 神官 → 大主教(JRO)
+			changebase 4063;
+			setlook LOOK_BODY2, 1;
+			setd "#外观_" + .@char_id, 4063;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 1;
+			mes "已转换为大主教(JRO)外观";
+			break;
+		case 4010: // 超魔导士 → 术士(JRO)
+			changebase 4061;
+			setlook LOOK_BODY2, 1;
+			setd "#外观_" + .@char_id, 4061;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 1;
+			mes "已转换为术士(JRO)外观";
+			break;
+		case 4011: // 神工匠 → 机械师(JRO)
+			changebase 4064;
+			setlook LOOK_BODY2, 1;
+			setd "#外观_" + .@char_id, 4064;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 1;
+			mes "已转换为机械师(JRO)外观";
+			break;
+		case 4012: // 神射手 → 游侠(JRO)
+			changebase 4062;
+			setlook LOOK_BODY2, 1;
+			setd "#外观_" + .@char_id, 4062;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 1;
+			mes "已转换为游侠(JRO)外观";
+			break;
+		case 4013: // 十字刺客 → 十字切割者(JRO)
+			changebase 4065;
+			setlook LOOK_BODY2, 1;
+			setd "#外观_" + .@char_id, 4065;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 1;
+			mes "已转换为十字切割者(JRO)外观";
+			break;
+		case 4015: // 圣殿十字军 → 皇家护卫(JRO)
+			changebase 4066;
+			setlook LOOK_BODY2, 1;
+			setd "#外观_" + .@char_id, 4066;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 1;
+			mes "已转换为皇家护卫(JRO)外观";
+			break;
+		case 4016: // 武术宗师 → 修罗(JRO)
+			changebase 4070;
+			setlook LOOK_BODY2, 1;
+			setd "#外观_" + .@char_id, 4070;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 1;
+			mes "已转换为修罗(JRO)外观";
+			break;
+		case 4017: // 智者 → 召唤士(JRO)
+			changebase 4067;
+			setlook LOOK_BODY2, 1;
+			setd "#外观_" + .@char_id, 4067;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 1;
+			mes "已转换为召唤士(JRO)外观";
+			break;
+		case 4018: // 神行太保 → 暗影追迹者(JRO)
+			changebase 4079;
+			setlook LOOK_BODY2, 1;
+			setd "#外观_" + .@char_id, 4079;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 1;
+			mes "已转换为暗影追迹者(JRO)外观";
+			break;
+		case 4019: // 创造者 → 基因学家(JRO)
+			changebase 4078;
+			setlook LOOK_BODY2, 1;
+			setd "#外观_" + .@char_id, 4078;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 1;
+			mes "已转换为基因学家(JRO)外观";
+			break;
+		case 4020: // 搞笑艺人 → 宫廷乐师(JRO)
+			changebase 4075;
+			setlook LOOK_BODY2, 1;
+			setd "#外观_" + .@char_id, 4075;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 1;
+			mes "已转换为宫廷乐师(JRO)外观";
+			break;
+		case 4021: // 冷艳舞姬 → 漫游舞者(JRO)
+			changebase 4076;
+			setlook LOOK_BODY2, 1;
+			setd "#外观_" + .@char_id, 4076;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 1;
+			mes "已转换为漫游舞者(JRO)外观";
+			break;
+		case 4047: // 拳圣 → 星帝(JRO)
+			changebase 4239;
+			setlook LOOK_BODY2, 1;
+			setd "#外观_" + .@char_id, 4239;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 1;
+			mes "已转换为星帝(JRO)外观";
+			break;
+
+		case 24: // 枪手 → 反叛者(JRO)
+			changebase 4215;
+			setlook LOOK_BODY2, 1;
+			setd "#外观_" + .@char_id, 4215;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 1;
+			mes "已转换为反叛者(JRO)外观";
+			break;
+		case 25: // 忍者 → 日影/月影忍者(JRO)
+			if(sex == 1) {
+				changebase 4211;
+				setlook LOOK_BODY2, 1;
+				setd "#外观_" + .@char_id, 4211;
+				setd "#外观_LOOK_BODY2_" + .@char_id, 1;
+				mes "已转换为日影忍者(JRO)外观";
+			} else {
+				changebase 4212;
+				setlook LOOK_BODY2, 1;
+				setd "#外观_" + .@char_id, 4212;
+				setd "#外观_LOOK_BODY2_" + .@char_id, 1;
+				mes "已转换为月影忍者(JRO)外观";
+			}
+			break;
+		default:
+		mes "当前职业无对应的JRO外观";
+		break;
+	}
+	
+	mes "外观转换完成！";
+	return;
+}
+
+// 四转外观转换
+function	script	ChangeFourthAppearance	{
+	.@class = getarg(0);
+	.@char_id = getcharid(0);
+	
+	// 首先清除之前储存的外观ID
+	setd "#外观_" + .@char_id, 0;
+	setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+	setd "#JRO外观_" + .@char_id, 0;
+	
+	// 保存当前职业ID，用于登录恢复时验证
+	setd "#外观_职业_" + .@char_id, .@class;
+	
+	// 先重置为原始职业
+	changebase .@class;
+	
+	// 四转外观转换逻辑
+	switch(.@class) {
+		case 4008: // 骑士领主 → 卢恩龙爵
+			changebase 4060;
+			setlook LOOK_BODY2, 4;
+			setd "#外观_" + .@char_id, 4060;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 4;
+			if(checkriding()) setoption 0x00080000;
+			mes "已转换为卢恩龙爵外观";
+			break;
+		case 4009: // 神官 → 枢机主教
+			changebase 4063;
+			setlook LOOK_BODY2, 4;
+			setd "#外观_" + .@char_id, 4063;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 4;
+			mes "已转换为枢机主教外观";
+			break;
+		case 4010: // 超魔导士 → 禁咒魔导士
+			changebase 4061;
+			setlook LOOK_BODY2, 4;
+			setd "#外观_" + .@char_id, 4061;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 4;
+			mes "已转换为禁咒魔导士外观";
+			break;
+		case 4011: // 神工匠 → 机甲神匠
+			changebase 4064;
+			setlook LOOK_BODY2, 4;
+			setd "#外观_" + .@char_id, 4064;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 4;
+			mes "已转换为机甲神匠外观";
+			break;
+		case 4012: // 神射手 → 风應狩猎者
+			changebase 4062;
+			setlook LOOK_BODY2, 4;
+			setd "#外观_" + .@char_id, 4062;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 4;
+			mes "已转换为风應狩猎者外观";
+			break;
+		case 4013: // 十字刺客 → 十字暗影
+			changebase 4065;
+			setlook LOOK_BODY2, 4;
+			setd "#外观_" + .@char_id, 4065;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 4;
+			mes "已转换为十字暗影外观";
+			break;
+		case 4015: // 圣殿十字军 → 帝国圣卫军
+			changebase 4066;
+			setlook LOOK_BODY2, 4;
+			setd "#外观_" + .@char_id, 4066;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 4;
+			mes "已转换为帝国圣卫军外观";
+			break;
+		case 4017: // 智者 → 元素支配者
+			changebase 4068;
+			setlook LOOK_BODY2, 4;
+			setd "#外观_" + .@char_id, 4068;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 4;
+			mes "已转换为元素支配者外观";
+			break;
+		case 4019: // 创造者 → 生命缔造者
+			changebase 4078;
+			setlook LOOK_BODY2, 4;
+			setd "#外观_" + .@char_id, 4078;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 4;
+			mes "已转换为生命缔造者外观";
+			break;
+		case 4016: // 武术宗师 → 圣裁者
+			changebase 4070;
+			setlook LOOK_BODY2, 4;
+			setd "#外观_" + .@char_id, 4070;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 4;
+			mes "已转换为圣裁者外观";
+			break;
+		case 4018: // 神行太保 → 深渊追迹者
+			changebase 4079;
+			setlook LOOK_BODY2, 4;
+			setd "#外观_" + .@char_id, 4079;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 4;
+			mes "已转换为深渊追迹者外观";
+			break;
+		case 4020: // 搞笑艺人 → 天籁颂者
+			changebase 4075;
+			setlook LOOK_BODY2, 4;
+			setd "#外观_" + .@char_id, 4075;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 4;
+			mes "已转换为天籁颂者外观";
+			break;
+		case 4021: // 冷艳舞姬 → 乐之舞灵
+			changebase 4076;
+			setlook LOOK_BODY2, 4;
+			setd "#外观_" + .@char_id, 4076;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 4;
+			mes "已转换为乐之舞灵外观";
+			break;
+		default:
+		mes "当前职业无对应的四转外观";
+		break;
+	}
+	
+	mes "外观转换完成！";
+	return;
+}
+
+// 二转宝宝外观转换
+function	script	ChangeBaby2ndAppearance	{
+	.@class = getarg(0);
+	.@char_id = getcharid(0);
+	
+	// 首先清除之前储存的外观ID
+	setd "#外观_" + .@char_id, 0;
+	setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+	setd "#JRO外观_" + .@char_id, 0;
+	
+	// 保存当前职业ID，用于登录恢复时验证
+	setd "#外观_职业_" + .@char_id, .@class;
+	
+	// 先重置为原始职业
+	changebase .@class;
+	
+	// 二转宝宝外观转换
+	switch(.@class) {
+		case 4008: // 骑士领主 → 骑士宝宝
+			changebase 4030;
+			setlook LOOK_BODY2, 0;
+			setd "#外观_" + .@char_id, 4030;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+			mes "已转换为骑士宝宝外观";
+			break;
+		case 4009: // 神官 → 牧师宝宝
+			changebase 4031;
+			setlook LOOK_BODY2, 0;
+			setd "#外观_" + .@char_id, 4031;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+			mes "已转换为牧师宝宝外观";
+			break;
+		case 4010: // 超魔导士 → 巫师宝宝
+			changebase 4032;
+			setlook LOOK_BODY2, 0;
+			setd "#外观_" + .@char_id, 4032;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+			mes "已转换为巫师宝宝外观";
+			break;
+		case 4011: // 神工匠 → 铁匠宝宝
+			changebase 4033;
+			setlook LOOK_BODY2, 0;
+			setd "#外观_" + .@char_id, 4033;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+			mes "已转换为铁匠宝宝外观";
+			break;
+		case 4012: // 神射手 → 猎人宝宝
+			changebase 4034;
+			setlook LOOK_BODY2, 0;
+			setd "#外观_" + .@char_id, 4034;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+			mes "已转换为猎人宝宝外观";
+			break;
+		case 4013: // 十字刺客 → 刺客宝宝
+			changebase 4035;
+			setlook LOOK_BODY2, 0;
+			setd "#外观_" + .@char_id, 4035;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+			mes "已转换为刺客宝宝外观";
+			break;
+		case 4015: // 圣殿十字军 → 十字军宝宝
+			changebase 4037;
+			setlook LOOK_BODY2, 0;
+			setd "#外观_" + .@char_id, 4037;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+			mes "已转换为十字军宝宝外观";
+			break;
+		case 4017: // 智者 → 贤者宝宝
+			changebase 4039;
+			setlook LOOK_BODY2, 0;
+			setd "#外观_" + .@char_id, 4039;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+			mes "已转换为贤者宝宝外观";
+			break;
+		case 4019: // 创造者 → 炼金术师宝宝
+			changebase 4041;
+			setlook LOOK_BODY2, 0;
+			setd "#外观_" + .@char_id, 4041;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+			mes "已转换为炼金术师宝宝外观";
+			break;
+		case 4016: // 武术宗师 → 武僧宝宝
+			changebase 4038;
+			setlook LOOK_BODY2, 0;
+			setd "#外观_" + .@char_id, 4038;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+			mes "已转换为武僧宝宝外观";
+			break;
+		case 4018: // 神行太保 → 流氓宝宝
+			changebase 4040;
+			setlook LOOK_BODY2, 0;
+			setd "#外观_" + .@char_id, 4040;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+			mes "已转换为流氓宝宝外观";
+			break;
+		case 4020: // 搞笑艺人 → 诗人宝宝
+			changebase 4042;
+			setlook LOOK_BODY2, 0;
+			setd "#外观_" + .@char_id, 4042;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+			mes "已转换为诗人宝宝外观";
+			break;
+		case 4021: // 冷艳舞姬 → 舞娘宝宝
+			changebase 4043;
+			setlook LOOK_BODY2, 0;
+			setd "#外观_" + .@char_id, 4043;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+			mes "已转换为舞娘宝宝外观";
+			break;
+		default:
+		mes "当前职业无对应的二转宝宝外观";
+		break;
+	}
+	
+	mes "外观转换完成！";
+	return;
+}
+
+// 三转宝宝外观转换
+function	script	ChangeBaby3rdAppearance	{
+	.@class = getarg(0);
+	.@char_id = getcharid(0);
+	
+	// 首先清除之前储存的外观ID
+	setd "#外观_" + .@char_id, 0;
+	setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+	setd "#JRO外观_" + .@char_id, 0;
+	
+	// 保存当前职业ID，用于登录恢复时验证
+	setd "#外观_职业_" + .@char_id, .@class;
+	
+	// 先重置为原始职业
+	changebase .@class;
+	
+	// 三转宝宝外观转换
+	switch(.@class) {
+		case 4008: // 骑士领主 → 卢恩骑士宝宝
+			changebase 4096;
+			setlook LOOK_BODY2, 0;
+			setd "#外观_" + .@char_id, 4096;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+			mes "已转换为卢恩骑士宝宝外观";
+			break;
+		case 4009: // 神官 → 大主教宝宝
+			changebase 4099;
+			setlook LOOK_BODY2, 0;
+			setd "#外观_" + .@char_id, 4099;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+			mes "已转换为大主教宝宝外观";
+			break;
+		case 4010: // 超魔导士 → 大法师宝宝
+			changebase 4097;
+			setlook LOOK_BODY2, 0;
+			setd "#外观_" + .@char_id, 4097;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+			mes "已转换为大法师宝宝外观";
+			break;
+		case 4011: // 神工匠 → 机匠宝宝
+			changebase 4100;
+			setlook LOOK_BODY2, 0;
+			setd "#外观_" + .@char_id, 4100;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+			mes "已转换为机匠宝宝外观";
+			break;
+		case 4012: // 神射手 → 游侠宝宝
+			changebase 4098;
+			setlook LOOK_BODY2, 0;
+			setd "#外观_" + .@char_id, 4098;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+			mes "已转换为游侠宝宝外观";
+			break;
+		case 4013: // 十字刺客 → 十字斩首者宝宝
+			changebase 4101;
+			setlook LOOK_BODY2, 0;
+			setd "#外观_" + .@char_id, 4101;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+			mes "已转换为十字斩首者宝宝外观";
+			break;
+		case 4015: // 圣殿十字军 → 皇家卫士宝宝
+			changebase 4102;
+			setlook LOOK_BODY2, 0;
+			setd "#外观_" + .@char_id, 4102;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+			mes "已转换为皇家卫士宝宝外观";
+			break;
+		case 4017: // 智者 → 元素使宝宝
+			changebase 4103;
+			setlook LOOK_BODY2, 0;
+			setd "#外观_" + .@char_id, 4103;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+			mes "已转换为元素使宝宝外观";
+			break;
+		case 4019: // 创造者 → 基因学者宝宝
+			changebase 4107;
+			setlook LOOK_BODY2, 0;
+			setd "#外观_" + .@char_id, 4107;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+			mes "已转换为基因学者宝宝外观";
+			break;
+		case 4016: // 武术宗师 → 修罗宝宝
+			changebase 4106;
+			setlook LOOK_BODY2, 0;
+			setd "#外观_" + .@char_id, 4106;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+			mes "已转换为修罗宝宝外观";
+			break;
+		case 4018: // 神行太保 → 魅影追踪者宝宝
+			changebase 4108;
+			setlook LOOK_BODY2, 0;
+			setd "#外观_" + .@char_id, 4108;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+			mes "已转换为魅影追踪者宝宝外观";
+			break;
+		case 4020: // 搞笑艺人 → 宫廷乐师宝宝
+			changebase 4104;
+			setlook LOOK_BODY2, 0;
+			setd "#外观_" + .@char_id, 4104;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+			mes "已转换为宫廷乐师宝宝外观";
+			break;
+		case 4021: // 冷艳舞姬 → 浪姬舞者宝宝
+			changebase 4105;
+			setlook LOOK_BODY2, 0;
+			setd "#外观_" + .@char_id, 4105;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+			mes "已转换为浪姬舞者宝宝外观";
+			break;
+		default:
+		mes "当前职业无对应的三转宝宝外观";
+		break;
+	}
+	
+	mes "外观转换完成！";
+	return;
+}
+
+// 三转JRO宝宝外观转换
+function	script	ChangeBaby3rdJROAppearance	{
+	.@class = getarg(0);
+	.@char_id = getcharid(0);
+	
+	// 首先清除之前储存的外观ID
+	setd "#外观_" + .@char_id, 0;
+	setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+	setd "#JRO外观_" + .@char_id, 0;
+	
+	// 保存当前职业ID，用于登录恢复时验证
+	setd "#外观_职业_" + .@char_id, .@class;
+	
+	// 先重置为原始职业
+	changebase .@class;
+	
+	// 设置JRO外观标记
+	setd "#JRO外观_" + .@char_id, 1;
+	
+	// 三转JRO宝宝外观转换
+	switch(.@class) {
+		case 4008: // 骑士领主 → 卢恩骑士宝宝(JRO)
+			changebase 4096;
+			setlook LOOK_BODY2, 1;
+			setd "#外观_" + .@char_id, 4096;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 1;
+			mes "已转换为卢恩骑士宝宝(JRO)外观";
+			break;
+		case 4009: // 神官 → 大主教宝宝(JRO)
+			changebase 4099;
+			setlook LOOK_BODY2, 1;
+			setd "#外观_" + .@char_id, 4099;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 1;
+			mes "已转换为大主教宝宝(JRO)外观";
+			break;
+		case 4010: // 超魔导士 → 大法师宝宝(JRO)
+			changebase 4097;
+			setlook LOOK_BODY2, 1;
+			setd "#外观_" + .@char_id, 4097;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 1;
+			mes "已转换为大法师宝宝(JRO)外观";
+			break;
+		case 4011: // 神工匠 → 机匠宝宝(JRO)
+			changebase 4100;
+			setlook LOOK_BODY2, 1;
+			setd "#外观_" + .@char_id, 4100;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 1;
+			mes "已转换为机匠宝宝(JRO)外观";
+			break;
+		case 4012: // 神射手 → 游侠宝宝(JRO)
+			changebase 4098;
+			setlook LOOK_BODY2, 1;
+			setd "#外观_" + .@char_id, 4098;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 1;
+			mes "已转换为游侠宝宝(JRO)外观";
+			break;
+		case 4013: // 十字刺客 → 十字斩首者宝宝(JRO)
+			changebase 4101;
+			setlook LOOK_BODY2, 1;
+			setd "#外观_" + .@char_id, 4101;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 1;
+			mes "已转换为十字斩首者宝宝(JRO)外观";
+			break;
+		case 4015: // 圣殿十字军 → 皇家卫士宝宝(JRO)
+			changebase 4102;
+			setlook LOOK_BODY2, 1;
+			setd "#外观_" + .@char_id, 4102;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 1;
+			mes "已转换为皇家卫士宝宝(JRO)外观";
+			break;
+		case 4017: // 智者 → 元素使宝宝(JRO)
+			changebase 4103;
+			setlook LOOK_BODY2, 1;
+			setd "#外观_" + .@char_id, 4103;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 1;
+			mes "已转换为元素使宝宝(JRO)外观";
+			break;
+		case 4019: // 创造者 → 基因学者宝宝(JRO)
+			changebase 4107;
+			setlook LOOK_BODY2, 1;
+			setd "#外观_" + .@char_id, 4107;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 1;
+			mes "已转换为基因学者宝宝(JRO)外观";
+			break;
+		case 4016: // 武术宗师 → 修罗宝宝(JRO)
+			changebase 4106;
+			setlook LOOK_BODY2, 1;
+			setd "#外观_" + .@char_id, 4106;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 1;
+			mes "已转换为修罗宝宝(JRO)外观";
+			break;
+		case 4018: // 神行太保 → 魅影追踪者宝宝(JRO)
+			changebase 4108;
+			setlook LOOK_BODY2, 1;
+			setd "#外观_" + .@char_id, 4108;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 1;
+			mes "已转换为魅影追踪者宝宝(JRO)外观";
+			break;
+		case 4020: // 搞笑艺人 → 宫廷乐师宝宝(JRO)
+			changebase 4104;
+			setlook LOOK_BODY2, 1;
+			setd "#外观_" + .@char_id, 4104;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 1;
+			mes "已转换为宫廷乐师宝宝(JRO)外观";
+			break;
+		case 4021: // 冷艳舞姬 → 浪姬舞者宝宝(JRO)
+			changebase 4105;
+			setlook LOOK_BODY2, 1;
+			setd "#外观_" + .@char_id, 4105;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 1;
+			mes "已转换为浪姬舞者宝宝(JRO)外观";
+			break;
+		default:
+		mes "当前职业无对应的三转JRO宝宝外观";
+		break;
+	}
+	
+	mes "外观转换完成！";
+	return;
+}
+
+// 一转宝宝外观转换（针对一转职业）
+function	script	ChangeBaby1stAppearance	{
+	.@class = getarg(0);
+	.@char_id = getcharid(0);
+	
+	// 检测玩家是否为一转职业
+	switch(.@class) {
+		case 4008: case 4009: case 4010: case 4011: case 4012: case 4013: // 进阶一转职业
+		case 4015: case 4016: case 4017: case 4018: case 4019: case 4020: case 4021: // 其他一转职业
+			break;
+		default:
+			mes "只有一转职业才能使用一转宝宝外观功能。";
+			return;
+	}
+	
+	// 首先清除之前储存的外观ID
+	setd "#外观_" + .@char_id, 0;
+	setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+	setd "#JRO外观_" + .@char_id, 0;
+	
+	// 保存当前职业ID，用于登录恢复时验证
+	setd "#外观_职业_" + .@char_id, .@class;
+	
+	// 先重置为原始职业
+	changebase .@class;
+	
+	// 一转宝宝外观转换
+	switch(.@class) {
+
+		case 4008: case 4015: // 剑士系列 → 剑士宝宝
+			changebase 4024;
+			setlook LOOK_BODY2, 0;
+			setd "#外观_" + .@char_id, 4024;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+			mes "已转换为剑士宝宝外观";
+			break;
+		case 4009: case 4016: // 魔法师系列 → 魔法师宝宝
+			changebase 4027;
+			setlook LOOK_BODY2, 0;
+			setd "#外观_" + .@char_id, 4027;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+			mes "已转换为魔法师宝宝外观";
+			break;
+		case 4010: case 4017: // 弓箭手系列 → 弓箭手宝宝
+			changebase 4025;
+			setlook LOOK_BODY2, 0;
+			setd "#外观_" + .@char_id, 4025;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+			mes "已转换为弓箭手宝宝外观";
+			break;
+		case 4011: case 4019: // 服事系列 → 服事宝宝
+			changebase 4028;
+			setlook LOOK_BODY2, 0;
+			setd "#外观_" + .@char_id, 4028;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+			mes "已转换为服事宝宝外观";
+			break;
+		case 4012: case 4020: case 4021: // 商人系列 → 商人宝宝
+			changebase 4026;
+			setlook LOOK_BODY2, 0;
+			setd "#外观_" + .@char_id, 4026;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+			mes "已转换为商人宝宝外观";
+			break;
+		case 4013: case 4018: // 盗贼系列 → 盗贼宝宝
+			changebase 4029;
+			setlook LOOK_BODY2, 0;
+			setd "#外观_" + .@char_id, 4029;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+			mes "已转换为盗贼宝宝外观";
+			break;
+	}
+	
+	mes "外观转换完成！";
+	return;
+}
+
+// 扩展职业外观转换
+function	script	ChangeExtendedAppearance	{
+	.@job_id = getarg(0);
+	.@job_name$ = getarg(1);
+	.@class = getarg(2); // 添加原始职业ID参数
+	.@char_id = getcharid(0);
+	
+	// 首先清除之前储存的外观ID
+	setd "#外观_" + .@char_id, 0;
+	setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+	setd "#JRO外观_" + .@char_id, 0;
+	
+	// 保存当前职业ID，用于登录恢复时验证
+	setd "#外观_职业_" + .@char_id, .@class;
+	
+	// 先重置为原始职业
+	changebase .@class;
+	
+	setlook LOOK_BODY2, 0;
+	changebase .@job_id;
+	setd "#外观_" + .@char_id, .@job_id;
+	setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+	
+	mes "已转换为" + .@job_name$ + "外观";
+	mes "外观转换完成！";
+	return;
+}
+
+// 恢复原始外观
+function	script	RestoreOriginalAppearance	{
+	.@char_id = getcharid(0);
+	.@original_class = Class;
+	
+	// 清除保存的外观ID和LOOK_BODY2
+	setd "#外观_" + .@char_id, 0;
+	setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+	setd "#JRO外观_" + .@char_id, 0;
+	setd "#外观_职业_" + .@char_id, 0;
+	
+	// 恢复原始外观
+	changebase .@original_class;
+	setlook LOOK_BODY2, 0;
+	
+	mes "已恢复为原始职业外观";
+	mes "职业ID：" + .@original_class;
+	return;
+}
+
+// 通用外观菜单（用于未识别职业）
+function	script	ShowGeneralAppearanceMenu	{
+	mes "请选择外观类型：";
+	next;
+	
+	switch(select("KRO三转外观:JRO三转外观:四转外观:宝宝外观:扩展职业外观:恢复原始外观")) {
+		case 1:
+			callfunc "ChangeKROAppearance", Class;
+			break;
+		case 2:
+			callfunc "ChangeJROAppearance", Class;
+			break;
+		case 3:
+			callfunc "ChangeFourthAppearance", Class;
+			break;
+		case 4:
+			mes "请选择宝宝外观类型：";
+			next;
+			switch(select("一转宝宝外观:二转宝宝外观:三转宝宝外观:三转JRO宝宝外观")) {
+				case 1: callfunc "ChangeBaby1stAppearance", Class; break;
+				case 2: callfunc "ChangeBaby2ndAppearance", Class; break;
+				case 3: callfunc "ChangeBaby3rdAppearance", Class; break;
+				case 4: callfunc "ChangeBaby3rdJROAppearance", Class; break;
+			}
+			break;
+		case 5:
+			callfunc "ShowExtendedJobAppearance", Class;
+			break;
+		case 6:
+			callfunc "RestoreOriginalAppearance";
+			break;
+	}
+	return;
+}
+
+// 扩展职业外观选择
+function	script	ShowExtendedJobAppearance	{
+	.@class = getarg(0);
+	mes "请选择扩展职业外观：";
+	next;
+	
+	switch(select("超级初学者:进阶超级初学者:超级初学者宝宝:枪手:反叛者:枪手宝宝:枪手进阶宝宝:忍者:日影忍者:月影忍者:忍者宝宝:日影忍者进阶宝宝:月影忍者进阶宝宝:拳圣:跆拳少年:星帝:拳圣宝宝:拳圣进阶宝宝:灵媒:灵媒宝宝:灵媒进阶宝宝")) {
+		case 1: callfunc "ChangeExtendedAppearance", 23, "超级初学者", .@class; break;
+		case 2: callfunc "ChangeExtendedAppearance", 4190, "进阶超级初学者", .@class; break;
+		case 3: callfunc "ChangeExtendedAppearance", 4045, "超级初学者宝宝", .@class; break;
+		case 4: callfunc "ChangeExtendedAppearance", 24, "枪手", .@class; break;
+		case 5: callfunc "ChangeExtendedAppearance", 4215, "反叛者", .@class; break;
+		case 6: callfunc "ChangeExtendedAppearance", 4228, "枪手宝宝", .@class; break;
+		case 7: callfunc "ChangeExtendedAppearance", 4229, "枪手进阶宝宝", .@class; break;
+		case 8: callfunc "ChangeExtendedAppearance", 25, "忍者", .@class; break;
+		case 9: callfunc "ChangeExtendedAppearance", 4211, "日影忍者", .@class; break;
+		case 10: callfunc "ChangeExtendedAppearance", 4212, "月影忍者", .@class; break;
+		case 11: callfunc "ChangeExtendedAppearance", 4222, "忍者宝宝", .@class; break;
+		case 12: 
+			if(sex == 1) {
+				callfunc "ChangeExtendedAppearance", 4223, "日影忍者进阶宝宝", .@class;
+			} else {
+				callfunc "ChangeExtendedAppearance", 4224, "月影忍者进阶宝宝", .@class;
+			}
+			break;
+		case 13: callfunc "ChangeExtendedAppearance", 4047, "拳圣", .@class; break;
+		case 14: callfunc "ChangeExtendedAppearance", 4046, "跆拳少年", .@class; break;
+		case 15: callfunc "ChangeExtendedAppearance", 4239, "星帝", .@class; break;
+		case 16: callfunc "ChangeExtendedAppearance", 4226, "拳圣宝宝", .@class; break;
+		case 17: callfunc "ChangeExtendedAppearance", 4241, "拳圣进阶宝宝", .@class; break;
+		case 18: callfunc "ChangeExtendedAppearance", 4023, "灵媒", .@class; break;
+		case 19: callfunc "ChangeExtendedAppearance", 4227, "灵媒宝宝", .@class; break;
+		case 20: callfunc "ChangeExtendedAppearance", 4242, "灵媒进阶宝宝", .@class; break;
+	}
+	return;
+}
+
+// ========== 修复后的登录恢复系统 ==========
+
+-	script	外观恢复系统	-1,{
+OnPCLoginEvent:
+	// 获取角色ID
+	.@char_id = getcharid(0);
+	.@saved_appearance = getd("#外观_" + .@char_id);
+	.@saved_look_body2 = getd("#外观_LOOK_BODY2_" + .@char_id);
+	.@is_jro = getd("#JRO外观_" + .@char_id);
+	.@saved_job = getd("#外观_职业_" + .@char_id);
+	
+	// 如果保存了外观ID，则检查当前职业是否与保存的职业一致
+	if(.@saved_appearance != 0) {
+		if(Class == .@saved_job) {
+			// 职业一致，恢复外观
+			if(.@is_jro == 1) {
+				changebase .@saved_appearance;
+				setlook LOOK_BODY2, .@saved_look_body2;
+				debugmes "JRO外观恢复: 角色ID=" + .@char_id + " 外观ID=" + .@saved_appearance + " LOOK_BODY2=" + .@saved_look_body2;
+			} else {
+				// 非JRO外观正常恢复
+				changebase .@saved_appearance;
+				setlook LOOK_BODY2, .@saved_look_body2;
+				debugmes "外观恢复: 角色ID=" + .@char_id + " 外观ID=" + .@saved_appearance + " LOOK_BODY2=" + .@saved_look_body2;
+			}
+		} else {
+			// 职业不一致，清除保存的外观数据
+			setd "#外观_" + .@char_id, 0;
+			setd "#外观_LOOK_BODY2_" + .@char_id, 0;
+			setd "#JRO外观_" + .@char_id, 0;
+			setd "#外观_职业_" + .@char_id, 0;
+			debugmes "清除外观数据: 角色ID=" + .@char_id + "，原因：职业变更（保存的职业=" + .@saved_job + "，当前职业=" + Class + "）";
+		}
+	}
+	end;
+
+// 添加一个在角色选择界面时调用的函数，用于临时禁用JRO外观
+OnPCLogoutEvent:
+	.@char_id = getcharid(0);
+	.@is_jro = getd("#JRO外观_" + .@char_id);
+	
+	if(.@is_jro == 1) {
+		// 在角色选择界面临时恢复为默认外观
+		.@original_class = getd("#外观_" + .@char_id);
+		if(.@original_class != 0) {
+			changebase .@original_class;
+			setlook LOOK_BODY2, 0; // 重置为默认外观
+		}
+	}
+	end;
+}

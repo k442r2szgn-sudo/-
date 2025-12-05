@@ -1,0 +1,714 @@
+//===== rAthena Script =======================================
+//= 高级代码兑换NPC - 带SQL和管理面板
+//===== Author =======================================
+//= Resu-Mi / Discord: designbyabe
+//===== Description: =========================================
+//= 功能完整的代码兑换系统，带SQL记录功能
+//= 包含管理面板用于管理兑换码和奖励
+//= 支持多兑换码、过期日期、使用次数限制
+//= 新增批量随机生成兑换码功能
+//===== Additional Comments: =================================
+//= 需要SQL数据库设置兑换记录和兑换码表
+/*
+脚本使用 3个数据库表 来存储数据：
+
+1. redemption_codes - 兑换码主表
+   - code_id - 主键ID
+   - code_name - 兑换码名称（唯一）
+   - max_uses - 最大使用次数（0=无限制）
+   - expiry_date - 过期时间
+   - active - 是否激活
+   - created_date - 创建时间
+2. code_rewards - 奖励配置表
+   - reward_id - 奖励ID
+   - code_id - 关联兑换码ID
+   - item_id - 物品ID
+   - quantity - 数量
+3. code_redemptions - 兑换记录表
+   - redemption_id - 记录ID
+   - account_id - 账号ID
+   - character_name - 角色名
+   - code_id - 兑换码ID
+   - status - 兑换状态（成功/失败原因）
+*/
+//=============================================================
+
+prontera,146,103,6	script	世界之树-online#19	878,{
+
+	// ================= 数据库表自动创建 =================
+
+
+	// ================= 数据库表自动创建 =================
+	// 修复：使用NULL作为默认值替代'0000-00-00 00:00:00'
+	// 检查并创建兑换码表
+	query_sql("CREATE TABLE IF NOT EXISTS `redemption_codes` (`code_id` int(11) NOT NULL AUTO_INCREMENT, `code_name` varchar(50) NOT NULL, `max_uses` int(11) NOT NULL DEFAULT '0', `expiry_date` datetime DEFAULT NULL, `active` tinyint(1) NOT NULL DEFAULT '1', `created_date` datetime NOT NULL, PRIMARY KEY (`code_id`), UNIQUE KEY `code_name` (`code_name`)) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4");
+	
+	// 检查并创建兑换奖励表
+	query_sql("CREATE TABLE IF NOT EXISTS `code_rewards` (`reward_id` int(11) NOT NULL AUTO_INCREMENT, `code_id` int(11) NOT NULL, `item_id` int(11) NOT NULL, `quantity` int(11) NOT NULL, PRIMARY KEY (`reward_id`), KEY `code_id` (`code_id`)) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4");
+	
+	// 检查并创建兑换记录表
+	query_sql("CREATE TABLE IF NOT EXISTS `code_redemptions` (`redemption_id` int(11) NOT NULL AUTO_INCREMENT, `account_id` int(11) NOT NULL, `character_name` varchar(24) NOT NULL, `code_id` int(11) DEFAULT NULL, `code_name` varchar(50) NOT NULL, `code_attempted` varchar(50) DEFAULT NULL, `status` enum('SUCCESS','FAILED_INVALID','FAILED_EXPIRED','FAILED_USED','FAILED_LIMIT') NOT NULL, `redeem_date` datetime NOT NULL, PRIMARY KEY (`redemption_id`), KEY `account_id` (`account_id`), KEY `code_id` (`code_id`)) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4");
+	
+	// 记录数据库初始化日志
+	logmes("代码兑换系统 - 数据库表检查完成");
+
+	.@gm_level = getgmlevel();
+	
+	mes "[代码兑换员]";
+	mes "欢迎使用奖励兑换系统！";
+	mes "请输入您的兑换码领取专属奖励。";
+	next;
+	
+	// ================= GM / 管理面板 =================
+	if (.@gm_level >= 99) {
+		mes "[代码兑换员]";
+		mes "^FF0000[GM 模式]^000000 检测到管理员面板。";
+		mes "您想要做什么？";
+		next;
+		
+		.@admin_choice = select(
+			"兑换代码（普通模式）",
+			"管理面板 - 管理兑换码",
+			"管理面板 - 查看兑换记录",
+			"管理面板 - 添加新兑换码",
+			"管理面板 - 删除兑换码",
+			"管理面板 - 查看统计信息",
+			"管理面板 - 批量生成兑换码"  // 新增选项
+		);
+		
+		switch (.@admin_choice) {
+			case 1:
+				// 继续普通兑换流程
+				break;
+				
+			case 2: // 管理兑换码
+				callfunc("AdminManageCodes");
+				end;
+				
+			case 3: // 查看兑换记录
+				callfunc("AdminViewRedemptions");
+				end;
+				
+			case 4: // 添加新兑换码
+				callfunc("AdminAddCode");
+				end;
+				
+			case 5: // 删除兑换码
+				callfunc("AdminDeleteCode");
+				end;
+				
+			case 6: // 查看统计信息
+				callfunc("AdminViewStats");
+				end;
+				
+			case 7: // 批量生成兑换码 - 新增功能
+				callfunc("AdminGenerateCodes");
+				end;
+		}
+	}
+	
+	// ================= 普通代码兑换流程 =================
+	mes "[代码兑换员]";
+	mes "请输入您的兑换码：";
+	mes "^777777（兑换码区分大小写）^000000";
+	input .@input_code$;
+	
+	if (.@input_code$ == "") {
+		mes "[代码兑换员]";
+		mes "请输入有效的兑换码。";
+		close;
+	}
+	
+	.@account_id = getcharid(3);
+	.@char_name$ = strcharinfo(0);
+	
+	// 检查兑换码是否存在且有效
+	.@sql_result = query_sql("SELECT code_id, code_name, max_uses, expiry_date, active FROM `redemption_codes` WHERE code_name = '" + escape_sql(.@input_code$) + "' AND active = 1", .@code_id, .@code_name$, .@max_uses, .@expiry_date$, .@active);
+	
+	if (.@sql_result == 0) {
+		mes "[代码兑换员]";
+		mes "^FF0000兑换码无效或已过期！^000000";
+		mes "请检查您的兑换码后重试。";
+		
+		// 记录失败尝试
+		query_sql("INSERT INTO `code_redemptions` (account_id, character_name, code_attempted, status, redeem_date) VALUES (" + .@account_id + ", '" + escape_sql(.@char_name$) + "', '" + escape_sql(.@input_code$) + "', 'FAILED_INVALID', NOW())");
+		close;
+	}
+	
+	// 修复：检查兑换码是否过期（处理NULL值）
+	if (.@expiry_date$ != "" && .@expiry_date$ != "0000-00-00 00:00:00") {
+		.@sql_result = query_sql("SELECT 1 WHERE NOW() > '" + .@expiry_date$ + "'", .@expired);
+		if (.@sql_result > 0) {
+			mes "[代码兑换员]";
+			mes "^FF0000此兑换码已过期！^000000";
+			mes "过期时间：^777777" + .@expiry_date$ + "^000000";
+			close;
+		}
+	}
+	
+	// 检查玩家是否已兑换过此码
+	.@sql_result = query_sql("SELECT redemption_id FROM `code_redemptions` WHERE account_id = " + .@account_id + " AND code_id = " + .@code_id + " AND status = 'SUCCESS'", .@redemption_check);
+	
+	if (.@sql_result > 0) {
+		mes "[代码兑换员]";
+		mes "^FF0000您已经兑换过此兑换码！^000000";
+		mes "每个兑换码每个账号只能使用一次。";
+		close;
+	}
+	
+	// 检查使用限制（若非无限次）
+	if (.@max_uses > 0) {
+		.@sql_result = query_sql("SELECT COUNT(*) FROM `code_redemptions` WHERE code_id = " + .@code_id + " AND status = 'SUCCESS'", .@current_uses);
+		
+		if (.@current_uses >= .@max_uses) {
+			mes "[代码兑换员]";
+			mes "^FF0000此兑换码已达到使用次数限制！^000000";
+			mes "使用情况：^777777" + .@current_uses + "/" + .@max_uses + "^000000";
+			close;
+		}
+	}
+	
+	// 获取此兑换码的奖励
+	.@sql_result = query_sql("SELECT item_id, quantity FROM `code_rewards` WHERE code_id = " + .@code_id, .@item_ids, .@quantities);
+	
+	if (.@sql_result == 0) {
+		mes "[代码兑换员]";
+		mes "^FF0000错误：此兑换码未配置奖励！^000000";
+		mes "请联系管理员。";
+		close;
+	}
+	
+	// 检查背包空间和重量
+	if (!callfunc("CheckInventorySpace", .@item_ids, .@quantities, .@sql_result)) {
+		mes "[代码兑换员]";
+		mes "^FF0000背包空间或负重不足！^000000";
+		mes "请清理一些空间后重试。";
+		close;
+	}
+	
+	// 显示奖励预览
+	mes "[代码兑换员]";
+	mes "^00FF00兑换码 '" + .@input_code$ + "' 有效！^000000";
+	mes " ";
+	mes "您将获得：";
+	
+	for (.@i = 0; .@i < .@sql_result; .@i++) {
+		mes "^0066FF• " + getitemname(.@item_ids[.@i]) + " x" + .@quantities[.@i] + "^000000";
+	}
+	
+	mes " ";
+	mes "您确定要兑换此代码吗？";
+	next;
+	
+	if (select("是的，兑换代码：取消兑换") == 2) {
+		mes "[代码兑换员]";
+		mes "兑换码兑换已取消。";
+		close;
+	}
+	
+	// 发放奖励
+	for (.@i = 0; .@i < .@sql_result; .@i++) {
+		getitembound .@item_ids[.@i], .@quantities[.@i], BOUND_ACCOUNT;
+	}
+	
+	// 记录成功兑换
+	query_sql("INSERT INTO `code_redemptions` (account_id, character_name, code_id, code_name, status, redeem_date) VALUES (" + .@account_id + ", '" + escape_sql(.@char_name$) + "', " + .@code_id + ", '" + escape_sql(.@input_code$) + "', 'SUCCESS', NOW())");
+	
+	mes "[代码兑换员]";
+	mes "^00FF00兑换码兑换成功！^000000";
+	mes "您的奖励已添加到背包中。";
+	mes "感谢您的游玩！";
+	
+	// 管理员日志
+	logmes("代码兑换 - 账号: " + .@account_id + " (" + .@char_name$ + "), 兑换码: " + .@input_code$ + ", 物品数量: " + .@sql_result);
+	
+	close;
+OnInit:
+	// 设置标题图标
+	settitleicon(getnpcid(0),0,"高飞");
+	
+	// 循环显示脚本标题
+	while(1){
+		showscript "[ 奖 励 兑 换 ]";
+		sleep 1000;
+	}
+	end;	
+}
+
+// ================= 管理功能 =================
+function	script	AdminManageCodes	{
+	mes "[管理面板 - 管理兑换码]";
+	mes "当前活跃兑换码：";
+	
+	.@sql_result = query_sql("SELECT code_id, code_name, max_uses, expiry_date, (SELECT COUNT(*) FROM code_redemptions WHERE code_id = rc.code_id AND status = 'SUCCESS') as used_count FROM `redemption_codes` rc WHERE active = 1 ORDER BY code_id ASC", .@code_ids, .@code_names$, .@max_uses, .@expiry_dates$, .@used_counts);
+	
+	if (.@sql_result == 0) {
+		mes "未找到活跃兑换码。";
+		close;
+	}
+	
+	for (.@i = 0; .@i < .@sql_result; .@i++) {
+		.@usage_text$ = (.@max_uses[.@i] > 0) ? (.@used_counts[.@i] + "/" + .@max_uses[.@i]) : (.@used_counts[.@i] + "/∞");
+		// 修复：处理NULL值
+		.@expiry_text$ = (.@expiry_dates$[.@i] == "" || .@expiry_dates$[.@i] == "0000-00-00 00:00:00") ? "永不过期" : .@expiry_dates$[.@i];
+		
+		mes "^0066FF" + .@code_names$[.@i] + "^000000 - 使用次数: " + .@usage_text$ + " - 过期时间: " + .@expiry_text$;
+	}
+	
+	close;
+}
+
+function	script	AdminViewRedemptions	{
+	mes "[管理面板 - 最近兑换记录]";
+	mes "最近10条兑换记录：";
+	
+	.@sql_result = query_sql("SELECT character_name, code_name, status, redeem_date FROM `code_redemptions` ORDER BY redeem_date DESC LIMIT 10", .@char_names$, .@code_names$, .@statuses$, .@dates$);
+	
+	if (.@sql_result == 0) {
+		mes "未找到兑换记录。";
+		close;
+	}
+	
+	for (.@i = 0; .@i < .@sql_result; .@i++) {
+		.@status_color$ = (.@statuses$[.@i] == "SUCCESS") ? "^00FF00" : "^FF0000";
+		mes .@status_color$ + .@char_names$[.@i] + "^000000 - " + .@code_names$[.@i] + " - " + .@statuses$[.@i] + " - " + .@dates$[.@i];
+	}
+	
+	close;
+}
+
+function	script	AdminAddCode	{
+	mes "[管理面板 - 添加新兑换码]";
+	mes "请输入新的兑换码名称：";
+	input .@new_code$;
+	
+	if (.@new_code$ == "") {
+		mes "无效的兑换码名称。";
+		close;
+	}
+	
+	// 检查兑换码是否已存在
+	.@sql_result = query_sql("SELECT 1 FROM `redemption_codes` WHERE code_name = '" + escape_sql(.@new_code$) + "'", .@exists);
+	
+	if (.@sql_result > 0) {
+		mes "兑换码已存在！";
+		close;
+	}
+	
+	mes "请输入最大使用次数（0为无限制）：";
+	input .@max_uses;
+	
+	mes "设置过期日期？（0 = 永不过期）";
+	.@set_expiry = select("永不过期：设置过期日期") - 1;
+	
+	// 修复：使用NULL替代'0000-00-00 00:00:00'
+	.@expiry_date$ = "";
+	if (.@set_expiry) {
+		mes "请输入过期日期（YYYY-MM-DD HH:MM:SS）：";
+		input .@expiry_date$;
+	}
+	
+	// 插入新兑换码（处理NULL值）
+	if (.@expiry_date$ == "") {
+		query_sql("INSERT INTO `redemption_codes` (code_name, max_uses, expiry_date, active, created_date) VALUES ('" + escape_sql(.@new_code$) + "', " + .@max_uses + ", NULL, 1, NOW())");
+	} else {
+		query_sql("INSERT INTO `redemption_codes` (code_name, max_uses, expiry_date, active, created_date) VALUES ('" + escape_sql(.@new_code$) + "', " + .@max_uses + ", '" + .@expiry_date$ + "', 1, NOW())");
+	}
+	
+	.@sql_result = query_sql("SELECT LAST_INSERT_ID()", .@new_code_id);
+	
+	mes "兑换码创建成功！ID: " + .@new_code_id;
+	mes "现在为此兑换码添加奖励：";
+	next;
+	
+	while (true) {
+		mes "[添加奖励]";
+		mes "请输入物品ID（输入0结束）：";
+		input .@item_id;
+		
+		if (.@item_id == 0) break;
+		
+		if (getitemname(.@item_id) == "null") {
+			mes "无效的物品ID！";
+			next;
+			continue;
+		}
+		
+		mes "请输入数量：";
+		input .@quantity;
+		
+		if (.@quantity <= 0) {
+			mes "无效的数量！";
+			next;
+			continue;
+		}
+		
+		query_sql("INSERT INTO `code_rewards` (code_id, item_id, quantity) VALUES (" + .@new_code_id + ", " + .@item_id + ", " + .@quantity + ")");
+		
+		mes "已添加: " + getitemname(.@item_id) + " x" + .@quantity;
+		next;
+	}
+	
+	mes "兑换码设置完成！";
+	close;
+}
+
+function	script	AdminDeleteCode	{
+	mes "[管理面板 - 删除兑换码]";
+	mes "^FF0000警告：这将停用该兑换码！^000000";
+	mes "请输入要删除的兑换码名称：";
+	input .@delete_code$;
+	
+	if (.@delete_code$ == "") {
+		mes "无效的兑换码名称。";
+		close;
+	}
+	
+	.@sql_result = query_sql("SELECT code_id FROM `redemption_codes` WHERE code_name = '" + escape_sql(.@delete_code$) + "' AND active = 1", .@code_id);
+	
+	if (.@sql_result == 0) {
+		mes "未找到兑换码或已停用。";
+		close;
+	}
+	
+	mes "您确定要停用 '" + .@delete_code$ + "' 吗？";
+	
+	if (select("是的，停用：取消操作") == 2) {
+		mes "操作已取消。";
+		close;
+	}
+	
+	query_sql("UPDATE `redemption_codes` SET active = 0 WHERE code_id = " + .@code_id);
+	
+	mes "兑换码停用成功！";
+	close;
+}
+
+function	script	AdminViewStats	{
+	mes "[兑换码统计信息]";
+	
+	.@sql_result = query_sql("SELECT COUNT(*) FROM `redemption_codes` WHERE active = 1", .@active_codes);
+	.@sql_result = query_sql("SELECT COUNT(*) FROM `code_redemptions` WHERE status = 'SUCCESS'", .@total_redemptions);
+	.@sql_result = query_sql("SELECT COUNT(*) FROM `code_redemptions` WHERE status LIKE 'FAILED%'", .@failed_attempts);
+	.@sql_result = query_sql("SELECT COUNT(DISTINCT account_id) FROM `code_redemptions` WHERE status = 'SUCCESS'", .@unique_users);
+	
+	mes "^00FF00活跃兑换码:^000000 " + .@active_codes;
+	mes "^00FF00总兑换次数:^000000 " + .@total_redemptions;
+	mes "^FF0000失败尝试:^000000 " + .@failed_attempts;
+	mes "^0066FF独立用户:^000000 " + .@unique_users;
+	
+	close;
+}
+
+// ================= 新增：批量生成兑换码功能（安全版本） =================
+function	script	AdminGenerateCodes	{
+	mes "[批量生成兑换码 - 安全模式]";
+	mes "此功能将分批生成随机兑换码，避免脚本超时。";
+	mes "请输入生成参数：";
+	next;
+	
+	mes "生成数量（1-100）：";
+	input .@count;
+	
+	if (.@count <= 0 || .@count > 100) {  // 进一步降低限制
+		mes "数量必须在1-100之间！";
+		close;
+	}
+	
+	mes "兑换码格式：";
+	.@format_choice = select("8位数字+字母：12位数字+字母：16位纯数字");
+	
+	switch(.@format_choice) {
+		case 1: .@length = 8; .@charset$ = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"; break;
+		case 2: .@length = 12; .@charset$ = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"; break;
+		case 3: .@length = 16; .@charset$ = "0123456789"; break;
+	}
+	
+	mes "前缀（可选，留空跳过）：";
+	input .@prefix$;
+	
+	mes "后缀（可选，留空跳过）：";
+	input .@suffix$;
+	
+	mes "最大使用次数（0为无限制）：";
+	input .@max_uses;
+	
+	mes "设置过期日期？";
+	.@set_expiry = select("永不过期：设置过期日期") - 1;
+	
+	// 修复：使用空字符串表示永不过期
+	.@expiry_date$ = "";
+	if (.@set_expiry) {
+		mes "请输入过期日期（YYYY-MM-DD HH:MM:SS）：";
+		input .@expiry_date$;
+	}
+	
+	// 使用预定义的奖励组，避免长时间输入
+	mes "选择奖励模板：";
+	.@reward_template = select(
+		"基础奖励：1000Zeny",
+		"中级奖励：5000Zeny + 红色药水10个",
+		"高级奖励：10000Zeny + 红色药水20个 + 觉醒药水5个",
+		"自定义奖励"
+	);
+	
+	// 预定义奖励
+	switch(.@reward_template) {
+		case 1:
+			.@reward_items[0] = 7539; // Zeny
+			.@reward_quantities[0] = 1000;
+			.@reward_count = 1;
+			break;
+		case 2:
+			.@reward_items[0] = 7539; // Zeny
+			.@reward_quantities[0] = 5000;
+			.@reward_items[1] = 569; // 红色药水
+			.@reward_quantities[1] = 10;
+			.@reward_count = 2;
+			break;
+		case 3:
+			.@reward_items[0] = 7539; // Zeny
+			.@reward_quantities[0] = 10000;
+			.@reward_items[1] = 569; // 红色药水
+			.@reward_quantities[1] = 20;
+			.@reward_items[2] = 1210; // 觉醒药水
+			.@reward_quantities[2] = 5;
+			.@reward_count = 3;
+			break;
+		case 4:
+			// 自定义奖励
+			mes "自定义奖励设置：";
+			next;
+			.@reward_count = 0;
+			while (.@reward_count < 3) {  // 最多3个奖励
+				mes "[添加奖励 - 第 " + (.@reward_count + 1) + " 个]";
+				mes "请输入物品ID（输入0结束）：";
+				input .@item_id;
+				
+				if (.@item_id == 0) break;
+				
+				if (getitemname(.@item_id) == "null") {
+					mes "无效的物品ID！";
+					next;
+					continue;
+				}
+				
+				mes "请输入数量：";
+				input .@quantity;
+				
+				if (.@quantity <= 0) {
+					mes "无效的数量！";
+					next;
+					continue;
+				}
+				
+				.@reward_items[.@reward_count] = .@item_id;
+				.@reward_quantities[.@reward_count] = .@quantity;
+				.@reward_count++;
+				
+				mes "已添加: " + getitemname(.@item_id) + " x" + .@quantity;
+				
+				if (.@reward_count >= 3) {
+					mes "已达到最大奖励数量（3个）。";
+					break;
+				}
+				
+				next;
+			}
+			break;
+	}
+	
+	if (.@reward_count == 0) {
+		mes "错误：未设置任何奖励！";
+		close;
+	}
+	
+	mes "确认生成参数：";
+	mes "数量: " + .@count;
+	mes "长度: " + .@length;
+	mes "前缀: " + ((.@prefix$ == "") ? "无" : .@prefix$);
+	mes "后缀: " + ((.@suffix$ == "") ? "无" : .@suffix$);
+	mes "最大使用次数: " + ((.@max_uses == 0) ? "无限制" : .@max_uses);
+	// 修复：显示永不过期
+	mes "过期时间: " + ((.@expiry_date$ == "") ? "永不过期" : .@expiry_date$);
+	mes "奖励数量: " + .@reward_count;
+	mes " ";
+	mes "确定要生成吗？";
+	next;
+	
+	if (select("确认生成：取消") == 2) {
+		mes "操作已取消。";
+		close;
+	}
+	
+	// 极小的批次处理 - 每批10个
+	.@batch_size = 10;
+	.@total_batches = (.@count + .@batch_size - 1) / .@batch_size;
+	.@generated = 0;
+	.@failed = 0;
+	
+	for (.@batch = 0; .@batch < .@total_batches; .@batch++) {
+		.@current_batch_size = (.@batch == .@total_batches - 1) ? (.@count - (.@batch * .@batch_size)) : .@batch_size;
+		
+		mes "[批量生成中...]";
+		mes "正在处理第 " + (.@batch + 1) + "/" + .@total_batches + " 批";
+		mes "本批生成: " + .@current_batch_size + " 个兑换码";
+		mes "已生成: " + .@generated + " 个";
+		mes "失败: " + .@failed + " 个";
+		mes " ";
+		mes "请稍候...";
+		
+		// 生成当前批次的兑换码
+		for (.@i = 0; .@i < .@current_batch_size; .@i++) {
+			// 生成随机码（简化逻辑，不检查重复）
+			.@code$ = "";
+			if (.@prefix$ != "") {
+				.@code$ = .@prefix$;
+			}
+			
+			// 生成随机部分
+			for (.@j = 0; .@j < .@length; .@j++) {
+				.@rand = rand(getstrlen(.@charset$));
+				.@code$ = .@code$ + charat(.@charset$, .@rand);
+			}
+			
+			if (.@suffix$ != "") {
+				.@code$ = .@code$ + .@suffix$;
+			}
+			
+			// 使用INSERT IGNORE避免重复错误，处理NULL值
+			if (.@expiry_date$ == "") {
+				query_sql("INSERT IGNORE INTO `redemption_codes` (code_name, max_uses, expiry_date, active, created_date) VALUES ('" + escape_sql(.@code$) + "', " + .@max_uses + ", NULL, 1, NOW())");
+			} else {
+				query_sql("INSERT IGNORE INTO `redemption_codes` (code_name, max_uses, expiry_date, active, created_date) VALUES ('" + escape_sql(.@code$) + "', " + .@max_uses + ", '" + .@expiry_date$ + "', 1, NOW())");
+			}
+			
+			// 检查是否插入成功
+			.@sql_result = query_sql("SELECT ROW_COUNT()", .@affected_rows);
+			
+			if (.@affected_rows > 0) {
+				// 获取新插入的code_id
+				.@sql_result = query_sql("SELECT code_id FROM `redemption_codes` WHERE code_name = '" + escape_sql(.@code$) + "'", .@new_code_id);
+				
+				// 插入奖励
+				for (.@k = 0; .@k < .@reward_count; .@k++) {
+					query_sql("INSERT INTO `code_rewards` (code_id, item_id, quantity) VALUES (" + .@new_code_id + ", " + .@reward_items[.@k] + ", " + .@reward_quantities[.@k] + ")");
+				}
+				
+				.@generated_codes$[.@generated] = .@code$;
+				.@generated++;
+			} else {
+				.@failed++;
+			}
+		}
+		
+		// 每批结束后都要求用户确认继续
+		if (.@batch < .@total_batches - 1) {
+			mes " ";
+			mes "第 " + (.@batch + 1) + " 批完成";
+			mes "已生成: " + .@generated + " 个兑换码";
+			mes "按下一步继续生成下一批...";
+			next;
+		}
+	}
+	
+	// 显示最终结果
+	mes "[批量生成完成]";
+	mes "成功生成: ^00FF00" + .@generated + "^000000 个兑换码";
+	mes "生成失败: ^FF0000" + .@failed + "^000000 个（因重复）";
+	mes " ";
+	
+	if (.@generated > 0) {
+		mes "前5个生成的兑换码：";
+		.@display_count = (.@generated < 5) ? .@generated : 5;
+		
+		for (.@i = 0; .@i < .@display_count; .@i++) {
+			mes "^0066FF" + (.@i + 1) + ". " + .@generated_codes$[.@i] + "^000000";
+		}
+		
+		if (.@generated > 5) {
+			mes "... 还有 " + (.@generated - 5) + " 个";
+		}
+	}
+	
+	// 记录日志
+	logmes("批量生成兑换码 - 生成: " + .@generated + ", 失败: " + .@failed + ", 长度: " + .@length);
+	
+	close;
+}
+
+// ================= 辅助功能 =================
+function	script	CheckInventorySpace	{
+	.@item_array = getarg(0);
+	.@qty_array = getarg(1);
+	.@array_size = getarg(2);
+	
+	// 检查重量
+	.@total_weight = 0;
+	for (.@i = 0; .@i < .@array_size; .@i++) {
+		.@item_weight = getiteminfo(.@item_array[.@i], 6);
+		.@total_weight += (.@item_weight * .@qty_array[.@i]);
+	}
+	
+	if ((Weight + .@total_weight) > MaxWeight) {
+		return 0;
+	}
+	
+	// 检查背包空间（简化版）
+	getinventorylist;
+	.@free_slots = 100 - @inventorylist_count;
+	
+	if (.@array_size > .@free_slots) {
+		return 0;
+	}
+	
+	return 1;
+}
+
+//===== SQL数据库设置 ===================================
+/*
+-- 兑换码表（修复版本）
+CREATE TABLE IF NOT EXISTS `redemption_codes` (
+  `code_id` int(11) NOT NULL AUTO_INCREMENT,
+  `code_name` varchar(50) NOT NULL,
+  `max_uses` int(11) NOT NULL DEFAULT '0',
+  `expiry_date` datetime DEFAULT NULL,
+  `active` tinyint(1) NOT NULL DEFAULT '1',
+  `created_date` datetime NOT NULL,
+  PRIMARY KEY (`code_id`),
+  UNIQUE KEY `code_name` (`code_name`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;
+
+-- 兑换奖励表
+CREATE TABLE IF NOT EXISTS `code_rewards` (
+  `reward_id` int(11) NOT NULL AUTO_INCREMENT,
+  `code_id` int(11) NOT NULL,
+  `item_id` int(11) NOT NULL,
+  `quantity` int(11) NOT NULL,
+  PRIMARY KEY (`reward_id`),
+  KEY `code_id` (`code_id`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;
+
+-- 兑换记录表
+CREATE TABLE IF NOT EXISTS `code_redemptions` (
+  `redemption_id` int(11) NOT NULL AUTO_INCREMENT,
+  `account_id` int(11) NOT NULL,
+  `character_name` varchar(24) NOT NULL,
+  `code_id` int(11) DEFAULT NULL,
+  `code_name` varchar(50) NOT NULL,
+  `code_attempted` varchar(50) DEFAULT NULL,
+  `status` enum('SUCCESS','FAILED_INVALID','FAILED_EXPIRED','FAILED_USED','FAILED_LIMIT') NOT NULL,
+  `redeem_date` datetime NOT NULL,
+  PRIMARY KEY (`redemption_id`),
+  KEY `account_id` (`account_id`),
+  KEY `code_id` (`code_id`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;
+
+-- 示例数据
+INSERT INTO `redemption_codes` (code_name, max_uses, expiry_date, active, created_date) 
+VALUES ('WELCOME2024', 0, NULL, 1, NOW());
+
+INSERT INTO `code_rewards` (code_id, item_id, quantity) VALUES 
+(1, 1000, 100),
+(1, 1001, 50);
+*/

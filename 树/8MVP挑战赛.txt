@@ -1,0 +1,1473 @@
+//=================================================================================================
+// 脚本：轮回巅峰大秘境
+// 版本：Ver 2.1.3
+// 适用：BetterRa 2022.04.20
+// 作者：likn
+// 付费：付费 1000RMB
+// 联系：272504137
+// 其他脚本: https://ro.betterra.cn/t/script-function
+// 脚本演示: https://space.bilibili.com/295409206/video
+// 其他需求: 您的RO服务器如需脚本技术支持可联系我此项服务按月付费
+//=================================================================================================
+// 更新信息:
+// V2.1.3 取消玩家镜像功能，添加赛季前5名奖励系统，赛季重置后所有玩家从第一层开始
+// V2.1.2 修复SQL语法错误和NPC创建问题
+// V2.1.1 添加3天赛季系统，自动重置榜单，历史排行榜查看功能
+// V2.1.0 添加赛季系统，7天自动重置榜单，榜一镜像NPC功能
+// V2.0.0 这是一个全新的初始版本,重构所有代码和逻辑.
+//=================================================================================================
+// 其他设置:
+// 在服务端db/pre|re/instance_db.yml中添加以下内容
+//  - Id: 100
+//    Name: MVP挑战赛
+//    TimeLimit: 1800
+//    Enter:
+//      Map: 1@soul
+//      X: 78
+//      Y: 90
+//================================================================================================
+
+//=================================================================================================
+/*                                      玩家登录事件处理                                          */
+//=================================================================================================
+prontera,0,0,0	script	D3_LoginHandler	-1,{
+OnPCLoginEvent:
+    // 检查赛季更新并重置玩家层数
+    callfunc "F_CheckSeasonResetForPlayer", getcharid(0);
+    
+    // 检查是否有待发放的赛季奖励
+    callfunc "F_CheckPendingRewards", getcharid(0);
+    
+    end;
+}
+
+//=================================================================================================
+/*                                      副本报名NPC                                               */
+//=================================================================================================
+prontera,175,113,4	script	世界之树-online#11	123,{
+function	D3_Enter;
+function	D3_Rank;
+function	D3_Check;
+function	D3_Infos;
+function	D3_Ranking;  // 新增排行榜功能
+function	D3_SeasonInfo; // 新增赛季信息功能
+D3_Infos;
+
+//=================================================================================================
+OnInit: /*                              基础参数设置                                              */
+//=================================================================================================
+	// Npc对话名称,副本名称(需对应YML)
+	setarray .D3_Name$,"[MVP挑战赛]","MVP挑战赛";
+
+	// 初始化时创建排行榜表格
+	callfunc "F_CreateRankingTable";
+	
+	// 初始化赛季系统
+	callfunc "F_InitSeasonSystem";
+
+    // 相关参数设置
+    setarray .D3_Mode$[1],"^20B2AA参加MVP挑战赛^000000",//副本三挡模式名称
+                    	  "99,90,99",//每个模式最低需求等级
+						  "1,1,1",//每个模式队伍最高成员数
+						  "500000";//每个模式报名费用
+
+	// 副本冷却CD(秒)
+	.D3_CD = 1200;
+
+	// 是否开启返回副本功能
+	// 0 = 关闭
+	// 1 = 开启
+	.D3_record = 1;
+
+	// 副本随机地图配置,格式:地图名称,玩家进入X坐标,玩家进入Y坐标,怪物刷新X坐标,怪物刷新Y坐标
+	setarray .D3_MapConfig$, "job4_bio,53,29,28,29",
+					   "job3_guil02,30,43,44,44",
+					   "ba_chess,23,41,23,23",
+					   "ba_go,54,62,54,49";
+
+    // 设置副本地图属性
+    // 设置副本地图属性数组，以下属性将依次应用于副本地图
+    setarray .Mf, mf_nowarp,          // 禁止使用传送命令
+                  mf_nosave,          // 禁止保存位置
+                  mf_nomemo,          // 禁止使用备忘录
+                  mf_nobranch,        // 禁止使用分支任务
+                  mf_monster_noteleport, // 禁止怪物传送
+                  mf_nopenalty,       // 禁止死亡惩罚
+                  mf_nowarpto,        // 禁止传送到此地图
+                  mf_nopet,           // 禁止召唤宠物
+                  mf_nohomunculus,    // 禁止召唤魔宠
+                  mf_nomail,          // 禁止使用邮件
+                  mf_noloot,          // 禁止拾取物品
+                  mf_noslave;         // 禁止召唤奴隶
+
+	// NPC图标
+	settitleicon(getnpcid(0),42,"奥尔尔");
+
+	// 初始化时创建排行榜表格
+	callfunc "F_CreateRankingTable";
+	
+	while(1){
+		showscript "「无 限 挑 战」";
+		sleep 1000;
+	}
+	end;
+
+//=================================================================================================
+/*                                        准备进入副本                                            */
+//=================================================================================================
+    function	D3_Enter  {
+        mes "";
+        clear;
+		mes .D3_Name$[0];
+		mes $ColourMes$;
+        mes "你现在要进入"+.D3_Name$[1]+"吗?";
+        mes $ColourMes$;
+        if(select("现在进入","稍后进入") == 2) close;
+        
+        // 检查队伍成员CID是否和创建副本时一致
+        if(inarray('Cid,getcharid(0)) == -1) {
+            D3_Check(9);
+        }
+        
+        switch(instance_enter(.D3_Name$[1])){
+            case IE_OTHER: 
+                D3_Check(0);
+            case IE_NOINSTANCE: 
+                D3_Check(0);
+            case IE_NOMEMBER: 
+                D3_Check(0);
+            case IE_OK:
+                // 成功进入副本，直接传送到副本内部并开始刷怪流程
+                instance_warpall 'Map$,'PlayerX,'PlayerY;
+                // 直接启动副本刷怪流程，跳过阿尔NPC对话
+                if (instance_id()) {
+                    donpcevent instance_npcname("#D3_Sub")+"::OnDiabloStart";
+                }
+                close;
+        }
+        end;
+    }
+
+//=================================================================================================
+/*                                        副本初始报名                                            */
+//=================================================================================================
+	function	D3_Infos	{
+		// 检查赛季更新并重置玩家层数
+		callfunc "F_CheckSeasonResetForPlayer", getcharid(0);
+		
+		// 使用角色变量存储层数
+		if(#D3_Floor == 0) {
+			#D3_Floor = 0; // 初始化变量
+		}
+		.@ceng = #D3_Floor; // 获取当前层数
+
+		// 传送回副本记录的最后离开位置
+		if(instance_record() && instance_name(instance_id()) == .D3_Name$[1]){
+            mes .D3_Name$[0];
+            mes $ColourMes$;
+            mes "^008B45GM已开启了副本返回功能.^000000";
+            mes "^008B45每次返回将收取20万金币.^000000";
+            mes $ColourMes$;
+            if(select("交钱返回副本","我看还是算了") == 2){
+                close2;
+                cutin "",255;
+                end;
+            }
+            if(zeny < 200000){
+				mes .D3_Name$[0];
+				mes $ColourMes$;
+				mes "你没有足够的金钱.";
+				mes $ColourMes$;
+			}
+            close2;
+            zeny -= 200000;
+            instance_enter_left;
+            end;
+        }
+
+        // 如果已经创建了副本
+        if(instance_name(instance_id()) == .D3_Name$[1])
+            D3_Enter;
+		// 报名对话
+		mes .D3_Name$[0];
+		mes $ColourMes$;
+        mes "通关后可以快速获取巅峰经验.";
+        mes "根据轮回层数巅峰经验将递增.";
+        mes "魔物属性会根据轮回层数递增.";
+ 		mes $ColourMes$;
+		.@select = select("[1]创建MVP挑战赛","[2]查看我的层数","[3]全服MVP排行榜","[4]赛季信息");
+        if(.@select == 2)
+			D3_Rank;
+        if(.@select == 3)
+            D3_Ranking;
+        if(.@select == 4)
+            D3_SeasonInfo;
+        // 获取各个模式条件数值
+        explode(.@T$[1],.D3_Mode$[1],",");
+        explode(.@L$[1],.D3_Mode$[2],",");
+        explode(.@P$[1],.D3_Mode$[3],",");
+        explode(.@Z$[1],.D3_Mode$[4],",");
+        for(.@i = 1; .@i < getarraysize(.@T$); .@i++)
+        .@Type$ = .@Type$ +(.@T$[.@i])+":";
+        .@Mode = select(.@Type$);
+		clear;
+		mes .D3_Name$[0];
+		mes $ColourMes$;
+		mes "当前层数: ^458B00第"+.@ceng+"层.^000000";
+		mes "最低等级: ^458B00Lv"+.@L$[.@Mode]+".^000000";
+		mes "限制人数: ^458B00"+.@P$[.@Mode]+"人.^000000";
+		mes "报名费用: ^458B00"+.@Z$[.@Mode]+"Z.^000000";
+		mes "冷却时间: ^0000FF"+.D3_Quest[2]/60+"分钟.^000000";
+		mes $ColourMes$;
+		.@xceng = select("挑战下一层");
+		if(.@xceng == 1)
+			.@NextCeng = .@ceng + 1;
+		if(.@xceng == 2)
+		input(.@NextCeng,1,999999);
+		if(.@NextCeng == 0) .@NextCeng = 1;
+		clear;
+		mes .D3_Name$[0];
+		mes $ColourMes$;
+		mes "即将挑战: ^458B00第"+.@NextCeng+"层.^000000";
+		mes $ColourMes$;
+		next;
+		// 取得队伍成员信息
+		getpartymember(getcharid(1),1); //CID
+		getpartymember(getcharid(1),2); //AID
+		// 检查人物等级
+		if(!instance_check_party(getcharid(1),1,atoi(.@L$[.@Mode])))
+            D3_Check(3);
+		// 只有队长才能创建副本
+		if(!getcharid(1) || !is_party_leader())
+            D3_Check(4);
+        // 检查金钱
+        if(zeny < atoi(.@Z$[.@Mode]))
+            D3_Check(11);
+		// 检查队伍人数是否超限
+		if($@partymembercount > atoi(.@P$[.@Mode]))
+            D3_Check(5);
+		for(.@i = 0; .@i < $@partymembercount; .@i++){
+            // 记录队伍在线成员数
+		    if(isloggedin($@partymemberaid[.@i], $@partymembercid[.@i])){
+                .@count_online++;
+                // 如果有队员处于挂机状态
+                if(is_bot($@partymembercid[.@i]) == 2)
+                    D3_Check(6);
+            }
+        }
+		// 如果有队员没在线
+		if(.@count_online != $@partymembercount)
+            D3_Check(7);
+		// 开始创建副本
+	switch(instance_create(.D3_Name$[1])){
+		case -1: 
+			D3_Check(8);
+		case -2: 
+			D3_Check(8);
+		case -3: 
+			D3_Check(13);
+		case -4: 
+			D3_Check(8);
+	}
+        // 扣除金钱
+        set zeny, zeny - atoi(.@Z$[.@Mode]);
+        // 记录队伍ID
+        'Pid = getcharid(1);
+		// 记录队伍名称
+		'Party$ = getpartyname('Pid);
+		// 记录队长名称
+		'leader$ = strcharinfo(0,getpartyleader(getcharid(1),2));
+		// 记录当前通关层数
+		'LCid = .@NextCeng;
+        // 记录挑战模式
+        'Mode = .@Mode;
+		// 记录CID
+		copyarray 'Cid, $@partymembercid, $@partymembercount;
+        // 复制地图
+		.@idx = rand(getarraysize(.D3_MapConfig$));
+        // 解析地图配置: 地图名称,玩家进入X坐标,玩家进入Y坐标,怪物刷新X坐标,怪物刷新Y坐标
+        explode(.@mapConfig$, .D3_MapConfig$[.@idx], ",");
+        instance_addmap(.@mapConfig$[0],0);
+        // 记录地图
+        'Map$ = instance_mapname(.@mapConfig$[0]);
+        // 记录玩家进入坐标
+        'PlayerX = atoi(.@mapConfig$[1]);
+        'PlayerY = atoi(.@mapConfig$[2]);
+        // 记录怪物刷新坐标
+        'MonsterX = atoi(.@mapConfig$[3]);
+        'MonsterY = atoi(.@mapConfig$[4]);
+        // 记录队伍实际报名人数
+        'Party = $@partymembercount;
+        // 设置地图属性
+        setmapflag 'Map$,mf_partylock2,31;
+        for(.@i = 0; .@i < getarraysize(.Mf); .@i++){
+            setmapflag 'Map$,.Mf[.@i];
+            setmapflag instance_mapname(instance_info(.D3_Name$[1],IIT_ENTER_MAP)),.Mf[.@i];
+        }
+		setmapflag 'Map$,mf_mobdmgrate,""+(10000 - 'LCid * 10)+","+(10000 - 'LCid * 10)+"";
+		setmapflag 'Map$,mf_mobspawnbase,""+(100 + 'LCid * 3)+","+(100 + 'LCid * 2)+","+(100 + 'LCid * 2)+","+(100 + 'LCid * 2)+"";
+        // 清除数组
+		deletearray $@partymembercount;
+		deletearray $@partymemberaid;
+		deletearray $@partymembercid;
+        // 跳转到进入副本部分
+        D3_Enter;
+		end;
+	}
+
+//=================================================================================================
+/*                                        副本条件检查                                            */
+//=================================================================================================
+    function	D3_Check  {
+        mes ""; clear;
+        mes .D3_Name$[0];
+		mes $ColourMes$;
+        if(getarg(0) ==  0) mes "发生未知错误,请确认问题后重试.";
+        if(getarg(0) ==  1) mes "副本任务标记冷却中,请稍后再试.";
+        if(getarg(0) ==  1){
+            // 获取任务到期时间
+            .@Unix = getquesttime(.D3_Quest[1],getcharid(0));
+            .@H = .@Unix / 3600;
+            .@M = (.@Unix - (.@H * 3600)) / 60;
+            .@S = .@Unix - ((.@H * 3600) + (.@M * 60));
+            mes "任务冷却CD剩余:^0000FF"+.@H+"^000000小时^0000FF"+.@M+"^000000分钟^0000FF"+.@S+"^000000秒.";
+			mes $ColourMes$;
+			if(select("使用^A52A2A"+getitemname(.D3_Quest[3])+"^000000重置冷却时间","继续等待..") == 2){
+				close2;
+				cutin "",255;
+				end;
+			}
+			// 检测道具
+			if(!countitem(.D3_Quest[3]))
+				D3_Check(14);
+			// 再次检测任务是否到期
+			if(!.@Unix)
+				D3_Check(15);
+			delitem .D3_Quest[3],1;
+			erasequest .D3_Quest[1];
+			clear;
+			mes .D3_Name$[0];
+			mes $ColourMes$;
+			mes "任务冷却CD重置完成.";
+			mes $ColourMes$;
+			close2;
+			cutin "",255;
+			end;
+        }
+        if(getarg(0) ==  2) mes "副本冷却标记已解除,请重新对话.";
+        if(getarg(0) ==  3) mes "你不是队长或者你没有加入任何队伍.";
+        if(getarg(0) ==  4) mes "你不是队长或者你没有加入任何队伍.";
+        if(getarg(0) ==  5) mes "队伍成员数超过副本进入要求.";
+        if(getarg(0) ==  6) mes "有队员处于挂机状态,无法创建副本.";
+        if(getarg(0) ==  7) mes "有队员没有在线,无法创建副本.";
+        if(getarg(0) ==  8) mes ""+.D3_Name$[1]+"创建失败,请检查.";
+        if(getarg(0) ==  9) mes "创建副本时,你并没有在此队伍中.";
+        if(getarg(0) == 10) mes "你没有完成副本,现在进入副本冷却CD.";
+        if(getarg(0) == 11) mes "你没有足够的金钱进入副本.";
+        if(getarg(0) == 12) mes "队伍中有队员副本冷却CD尚未结束.";
+        if(getarg(0) == 13) mes "你已经有存在的副本了,无法继续创建.";
+        if(getarg(0) == 14) mes "我身上没有副本冷却CD卡.";
+		if(getarg(0) == 15) mes "冷却CD已经结束,无需消耗道具.";
+		mes $ColourMes$;
+        close;
+    }
+
+//=================================================================================================
+/*                                        副本排行信息                                            */
+//=================================================================================================
+	function	D3_Rank	{
+		// 检查赛季更新并重置玩家层数
+		callfunc "F_CheckSeasonResetForPlayer", getcharid(0);
+		
+		clear;
+		mes .D3_Name$[0];
+		mes $ColourMes$;
+		mes "你的MVP挑战赛最高层数: ^FF0000第" + #D3_Floor + "层^000000";
+		mes $ColourMes$;
+		close;
+	}
+
+//=================================================================================================
+/*                                        巅峰排行榜                                              */
+//=================================================================================================
+	function	D3_Ranking	{
+		// 检查赛季更新并重置玩家层数
+		callfunc "F_CheckSeasonResetForPlayer", getcharid(0);
+		
+		clear;
+		mes .D3_Name$[0];
+		mes $ColourMes$;
+		mes "========= MVP挑战赛排行榜 =========";
+		mes "层数   排名   玩家名称";
+		mes "-----------------------------------";
+		
+		// 确保排行榜数据库表存在
+		callfunc "F_CreateRankingTable";
+		
+		// 查询排行榜前10名
+		query_sql "SELECT `char_name`, `max_floor` FROM `d3_ranking` ORDER BY `max_floor` DESC, `update_time` ASC LIMIT 10", .@name$, .@floor;
+		
+		if (getarraysize(.@name$) == 0) {
+			mes "暂无排行榜数据";
+			mes $ColourMes$;
+			close;
+		}
+		
+		for (.@i = 0; .@i < getarraysize(.@name$); .@i++) {
+			.@rank = .@i + 1;
+			.@color$ = (.@rank == 1) ? "^FFD700" : (.@rank == 2) ? "^C0C0C0" : (.@rank == 3) ? "^CD7F32" : "^000000";
+			
+			// 格式化层数显示，个位数显示为两位数
+			.@floor_display$ = (.@floor[.@i] < 10) ? "0" + .@floor[.@i] : "" + .@floor[.@i];
+			
+			if (.@rank == 1) 
+				mes .@color$ + "第" + .@floor_display$ + "层    第" + .@rank + "名   " + .@name$[.@i] + "^000000";
+			else if (.@rank == 2)
+				mes .@color$ + "第" + .@floor_display$ + "层    第" + .@rank + "名   " + .@name$[.@i] + "^000000";
+			else if (.@rank == 3)
+				mes .@color$ + "第" + .@floor_display$ + "层    第" + .@rank + "名   " + .@name$[.@i] + "^000000";
+			else
+				mes "第" + .@floor_display$ + "层   第" + .@rank + "名   " + .@name$[.@i];
+		}
+		
+		mes "-----------------------------------";
+		// 格式化层数显示，个位数显示为两位数
+		.@my_floor_display$ = (#D3_Floor < 10) ? "0" + #D3_Floor : "" + #D3_Floor;
+		mes "我的排名: ^FF0000第" + .@my_floor_display$ + "层^000000";
+		mes $ColourMes$;
+		next;
+		
+		// 查看详细排名
+		mes .D3_Name$[0];
+		mes $ColourMes$;
+		mes "你想要查看更详细的排名信息吗?";
+		mes $ColourMes$;
+		if (select("查看我的详细排名", "返回") == 1) {
+			// 查询玩家在总排行榜中的具体排名
+			query_sql "SELECT `max_floor` FROM `d3_ranking` WHERE `char_id` = " + getcharid(0), .@my_max_floor;
+			if (getarraysize(.@my_max_floor) == 0) {
+				.@my_max_floor = 0;
+			} else {
+				.@my_max_floor = .@my_max_floor[0];
+			}
+			query_sql "SELECT COUNT(*) + 1 FROM `d3_ranking` WHERE `max_floor` > " + .@my_max_floor, .@my_rank;
+			query_sql "SELECT COUNT(*) FROM `d3_ranking`", .@total_players;
+			
+			clear;
+			mes .D3_Name$[0];
+			mes $ColourMes$;
+			mes "========== 我的排名详情 ==========";
+			mes "玩家名称: ^0000FF" + strcharinfo(0) + "^000000";
+			// 格式化层数显示，个位数显示为两位数
+			.@my_max_floor_display$ = (.@my_max_floor < 10) ? "0" + .@my_max_floor : "" + .@my_max_floor;
+			mes "最高层数: ^FF0000第" + .@my_max_floor_display$ + "层^000000";
+			mes "全服排名: ^FF0000第" + .@my_rank + "名^000000";
+			mes "总参与人数: ^0000FF" + .@total_players + "人^000000";
+			
+			if (.@my_rank <= 10) {
+				mes "恭喜你进入全服前十!";
+			} else if (.@my_rank <= 50) {
+				mes "表现不错，继续加油!";
+			} else {
+				mes "还有很大的提升空间哦!";
+			}
+			
+			mes $ColourMes$;
+		}
+		close;
+	}
+
+//=================================================================================================
+/*                                        赛季信息功能                                            */
+//=================================================================================================
+	function	D3_SeasonInfo	{
+		// 检查赛季更新并重置玩家层数
+		callfunc "F_CheckSeasonResetForPlayer", getcharid(0);
+		
+		clear;
+		mes .D3_Name$[0];
+		mes $ColourMes$;
+		mes "========== 赛季信息 ==========";
+		
+		// 简化的数据库查询
+		.@row_count = query_sql("SELECT current_season, season_start_time, next_reset_time FROM d3_season_info", 
+				  .@current_season, .@start_time$, .@reset_time$);
+		
+		if (.@row_count == 0) {
+			mes "赛季系统正在初始化...";
+			mes "请稍后再试。";
+			mes $ColourMes$;
+			close;
+		}
+		
+		query_sql("SELECT DATEDIFF(next_reset_time, NOW()) FROM d3_season_info", .@days_left);
+		query_sql("SELECT TIMESTAMPDIFF(HOUR, NOW(), next_reset_time) FROM d3_season_info", .@hours_left);
+		
+		mes "当前赛季：^0000FF第"+.@current_season+"赛季^000000";
+		mes "赛季开始：^0000FF"+.@start_time$+"^000000";
+		mes "赛季结束：^0000FF"+.@reset_time$+"^000000";
+		mes "剩余时间：^FF0000"+.@days_left+"天 ("+.@hours_left+"小时)^000000";
+		mes "";
+		mes "========== 赛季操作 ==========";
+		.@menu$ = "查看当前赛季排行榜:查看历史赛季排行榜";
+		
+		// 如果是GM，添加调试选项
+		if (getgmlevel() >= 60) {
+			.@menu$ = .@menu$ + ":GM调试选项";
+		}
+		.@menu$ = .@menu$ + ":返回";
+		
+		.@select = select(.@menu$);
+		
+		if (.@select == 1) {
+			// 查看当前赛季排行榜
+			callfunc "F_ShowCurrentSeasonRanking", .@current_season;
+		} else if (.@select == 2) {
+			// 查看历史赛季排行榜
+			callfunc "F_ShowHistorySeasonRanking";
+		} else if (.@select == 3) {
+			if (getgmlevel() >= 60) {
+				// GM调试选项
+				callfunc "F_GMSeasonDebug";
+			} else {
+				// 返回
+				close;
+			}
+		}
+		close;
+	}
+
+//================================================================================================= 
+/*                                        副本销毁事件                                            */
+//=================================================================================================
+OnInstanceDestroyEvent:
+	// 检查副本名称是否为当前副本
+	if($@instance_name$ == .D3_Name$[1])
+	// 销毁副本后对所有队员进行任务标记设置
+	script4each strnpcinfo(0)+"::OnDestroy",SFE_PARTY,$@instance_owner;
+	end;
+
+OnDestroy:
+    // 副本销毁事件处理
+    if (getcharid(0)) {
+        dispbottom .D3_Name$[1]+"已结束,副本销毁完成.";
+    }
+	end;
+
+//=================================================================================================
+/*                                        队伍变更事件                                            */
+//=================================================================================================
+OnPCPartyLeaveFilter:
+	if(instance_id() && instance_name() == .D3_Name$[1]){
+		dispbottom "在副本进行期间,你无法离开队伍或剔除队员.";
+		processhalt;
+	}
+	end;
+
+//=================================================================================================
+/*                                        队伍变更事件                                            */
+//=================================================================================================
+OnPCLoadMapFilter:
+	if(instance_id() && instance_name() == .D3_Name$[1] && @loadmap_name$ == "1@soul"){
+		processhalt;
+		warp 'Map$,0,0;
+	}
+	end;
+
+//=================================================================================================
+/*                                        Boss滚动血条                                            */
+//=================================================================================================
+OnPCAttackFilter:
+	if(instance_name(instance_id()) == .D3_Name$[1] && dmg_mobid == 'BMobId){
+		getunitdata dmg_targetgid, .@mob_data;
+		.@max_hp = .@mob_data[UMOB_MAXHP];
+		.@hp = .@mob_data[UMOB_HP];
+		.@per = .@hp * 100 / .@max_hp;
+		.pic$ = "hpt";
+		.png$ = ".bmp";
+		mapcutin instance_mapname(strcharinfo(3)), .pic$ + .@per + .png$, 2;
+	}
+	end;
+}
+
+//=================================================================================================
+/*                                        进入副本                                                */
+//=================================================================================================
+// 副本地图前置对话NPC
+1@soul,86,90,4	script	世界之树-online#TRE	415,{
+function	DiabloIII_Start;
+// 跳转到主面板
+DiabloIII_Start;
+end;
+
+//=================================================================================================
+/*                                        副本设置                                                */
+//=================================================================================================
+// 副本内部相关参数设置
+OnInstanceInit:
+
+	// NPC称号和图标
+	settitleicon(getnpcid(0),3,"[阿尔]");
+
+	// 祭坛、杂物和尸体创建逻辑已删除
+
+	// 精英怪ID和几率
+	//setarray 'MobJYId[0],   1038,1785,1039,1272,1418,1583,1312,1885,1492,1159,1046,1086,1112,1115,1252,1734,1251,1688,1147,1059,1150,1087,1190,1157,1623,1583,1312,1685,1373,1768;
+	//setarray 'MobJYRate[0],  100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100;
+	
+	// 随机刷新几只精英魔物?
+	// 注意: 如果精英魔物刷新数量较多会影响副本进度,因为你必须要击杀完所有精英魔物才会触发最终BOSS标签.
+	//'MobJYZL = 40;
+
+	// 小怪魔物ID和刷新几率 1645, 1646, 1647, 1648, 1649, 
+	//setarray 'MobYBId[0], 1643, 1644,1652,1653,1654,1655,1656,1657,1704,1705,1706,1707,1735,1736,1737,1769,1770,1771,1772,1773,1774,3487,3488,3489,3490,3478,3479,3480,3452,3016,3017,
+						  //2994,2987,2916,2917,2918,2920,2621,2887,2468,2469,2470,2471,2472,3481,3482,3483,1957,1958,1959,1960,1961;
+	//setarray 'MobYBJl[0],  100,  100,  100,  100,  100,  100,  100,  100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,
+						   //100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100;
+
+	// 小怪初始刷新数量
+	// 设定初始刷新数量,每提升1层所增加的数量按此基数递增
+	//'MobYBSl = 100;
+
+	// 每推进一层小怪刷新数量递增百分比
+	// 公式: 初始数量 + ((初始数量 * 递增数列 / 初始数量) * 层数)
+	//'MobYBDz = 10;
+
+	// 最终BOSS最多能同时掉落几种奖励物品和几率
+	//setarray 'DorpSL[0],   3,   4,   5,   6,   7,  8;
+	//setarray 'DorpJL[0], 400, 350, 300, 200, 150, 100;
+
+	// NPC特效
+	while(1){
+		unitspecialeffect(getnpcid(0),513);
+		sleep 4550;
+	}
+	end;
+
+//=================================================================================================
+/*                                      副本开始前置                                              */
+//=================================================================================================
+	// 启动副本前置对话
+	function	DiabloIII_Start	{
+		// 只有队长才能开启副本
+		if(!is_party_leader()){
+			mes "[阿尔]";
+			mes $ColourMes$;	
+			mes "只有队长才有资格和我交谈.";
+			mes $ColourMes$;
+			close;
+		}
+		// 检查队伍人数
+		if(instance_users() < 'Mode){
+			mes "[阿尔]";
+			mes $ColourMes$;
+			mes "请检查队伍所有成员是否都在我面前?";
+			mes $ColourMes$;
+			close;
+		}
+		// 防止重复对话
+	if(.TRETalk) end;
+	.TGid = getnpcid(0);
+
+	// 副本内部NPC对话 - 仅提供信息，不启动流程
+	mes "[阿尔]";
+	mes $ColourMes$;
+	mes "欢迎来到MVP挑战赛副本.";
+	mes "副本已经开始，请尽情挑战！";
+	mes "当前层数: 第"+'LCid+"层";
+	mes $ColourMes$;
+	close;
+	}
+}
+
+
+//=================================================================================================
+/*                                      副本核心代码                                              */
+//=================================================================================================
+
+// 副本核心函数
+1@soul,0,0,0	script	#D3_Sub	-1,{
+
+// 副本开始标签
+OnDiabloStart:
+	// NPC开始计时
+	initnpctimer;
+	end;
+// 1秒后
+OnTimer1000:
+	// 地图广播
+	mapannounce 'Map$, "[MVP挑战赛] - 由米德加兹王国举办的MVP挑战赛即将开始,请选手做好准备.", bc_map,"0xFFCE00";
+	end;
+// 2秒后
+OnTimer2000:
+	// 地图广播
+	mapannounce 'Map$, "[MVP挑战赛] - 专用MVP挑战魔物即将诞生....", bc_map,"0xFFCE00";
+	sleep 1000;
+
+	// 直接跳转到最终BOSS刷新标签
+	donpcevent instance_npcname("#D3_BossEvent")+"::OnBossEvent";
+	
+	// 结束NPC计时
+	stopnpctimer;
+	end;
+}
+
+1@soul,0,0,0	script	#D3_BossEvent	-1,{
+// 最终魔物标签
+OnBossEvent:
+	// 进入NPC计时器
+	initnpctimer;
+	// 清掉副本所有剩余魔物
+	killmonsterall 'Map$;
+	end;
+
+	// 3秒后
+	OnTimer3000:
+	// 地图广播
+	mapannounce 'Map$, "[MVP挑战赛] - 全新的MVP魔物即将降临......", bc_map,"0xFFCE00";
+
+	// 死亡标签
+	'Boss_Dead$ = instance_npcname("#D3_BossDead")+"::OnBossDead";
+
+	// 最终BOSS魔物ID和几率 1832 1874 1956
+	setarray 'BossId[0],1871,1873,1719,1492,1147,1688,1583,2068,1623,1389,
+						1046,1272,1150,1115,1059,1039,1785,1418,1157,2202,
+						1685,1734,1658,1630,1038,1511,1885,1751,1086,1768,
+						1832,1112,1312,1251,1087,1252,1190,1159,1917;
+
+	setarray 'BossRate[0],100,100,100,100,100,100,100,100,100,100,
+						  100,100,100,100,100,100,100,100,100,100,
+						  100,100,100,100,100,100,100,100,100,100,
+						  100,100,100,100,100,100,100,100,100;
+
+	// 抽取最终魔物ID
+	'BMobId = 'BossId[getrateidx('BossRate[0])];
+
+	// 刷新最终魔物
+	'BGid = monster('Map$, 'MonsterX, 'MonsterY,"[MVP]实验体Ⅱ", 'BMobId, 1, 'Boss_Dead$, 2);
+
+	// 应用怪物属性加成（每层增加5%）
+	callfunc "F_D3Mob_Statu_Bonus", 'BGid, 'LCid, 0, 100, 100, 100, 100;
+
+	// 获取最终BOSS的魔物信息
+	getunitdata 'BGid, .@mob_data;
+
+	// 获取最终BOSS的XY坐标
+	'x = .@mob_data[UMOB_X];
+	'y = .@mob_data[UMOB_Y];
+
+	// 遍历成员,在右上角小地图闪烁显示最终魔物所刷新的位置坐标,显示震动特效
+	if (getcharid(1)) {
+		script4each "{ viewpoint 1,'x,'y,1,0x00CED1; unitspecialeffect $@gid,488; }",SFE_PARTY,getcharid(1);
+	}
+	end;
+
+	// 结束NPC计时
+	stopnpctimer;
+	end;
+}
+
+1@soul,0,0,0	script	#D3_BossDead	-1,{
+// 最终魔物被击杀后触发标签
+OnBossDead:
+	// 更新角色变量（修复脚本未关联玩家错误）
+	if ('LCid > getd("#D3_Floor")) {
+		setd "#D3_Floor", 'LCid;
+		// 更新排行榜数据库
+		callfunc "F_UpdateRanking", getcharid(0), strcharinfo(0), getd("#D3_Floor");
+	}
+	
+	// 保存当前挑战成功的层数到角色变量
+	// 注意：这里不递增'LCid，因为'LCid表示当前挑战的层数
+	// 递增操作将在自动进入下一层时进行
+
+	// 获取最终BOSS的魔物信息
+	getunitdata 'BGid, .@mob_data;
+
+	// 获取最终BOSS的XY坐标
+	'D3BDX = .@mob_data[UMOB_X];
+	'D3BDY = .@mob_data[UMOB_Y];
+
+	// 进入NPC计时器
+	initnpctimer;
+	end;
+
+	OnTimer3000:
+	// 自动传送玩家进入下一关，不使用天使NPC开启下一关
+	mapannounce 'Map$, "[MVP挑战赛] - 勇士们，你们已经成功挑战了第"+'LCid+"层，即将自动进入第"+('LCid+1)+"层！", bc_map,"0xFFCE00";
+	// 递增层数，为下一层挑战做准备
+	'LCid++;
+	// 重置副本循环标记，允许玩家再次挑战更高层数
+	'CharLoopNum = 0;
+	// 停止当前计时器
+	stopnpctimer;
+	// 直接跳转到副本开始标签，开始下一层挑战
+	donpcevent instance_npcname("#D3_Sub")+"::OnDiabloStart";
+	end;
+
+	OnTimer120000:
+	// 结束NPC计时
+	stopnpctimer;
+	// 重置副本循环标记，允许玩家再次挑战更高层数
+	'CharLoopNum = 0;
+	// 销毁副本
+	instance_warpall "prontera",155,120;
+	instance_destroy();
+	end;
+}
+
+//=================================================================================================
+/*                                      数据库连接检查函数                                        */
+//=================================================================================================
+	function	script	F_CheckDatabaseConnection	{
+		// 更简单的数据库连接检查
+		.@result = query_sql("SELECT 1", .@dummy);
+		if (.@result == 0) {
+			return 1;
+		} else {
+			return 0;
+		}
+	}
+
+//=================================================================================================
+/*                                      排行榜表格创建函数                                        */
+//=================================================================================================
+	function	script	F_CreateRankingTable	{
+		query_sql(
+			"CREATE TABLE IF NOT EXISTS d3_ranking ("+
+			"char_id INT UNSIGNED NOT NULL,"+
+			"char_name VARCHAR(30) NOT NULL,"+
+			"max_floor INT UNSIGNED NOT NULL DEFAULT 0,"+
+			"update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"+
+			"PRIMARY KEY (char_id), KEY idx_floor (max_floor), KEY idx_time (update_time)"+
+			") ENGINE=InnoDB DEFAULT CHARSET=utf8;"
+		);
+		
+		// 创建玩家赛季状态表
+		query_sql(
+			"CREATE TABLE IF NOT EXISTS d3_player_season ("+
+			"char_id INT UNSIGNED NOT NULL,"+
+			"last_season INT UNSIGNED NOT NULL DEFAULT 0,"+
+			"last_reset_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"+
+			"PRIMARY KEY (char_id)"+
+			") ENGINE=InnoDB DEFAULT CHARSET=utf8;"
+		);
+		
+		return;
+	}
+
+//=================================================================================================
+/*                                      排行榜更新函数                                            */
+//=================================================================================================
+	function	script	F_UpdateRanking	{
+		.@char_id = getarg(0);
+		.@char_name$ = getarg(1);
+		.@max_floor = getarg(2);
+		
+		query_sql(
+			"INSERT INTO d3_ranking (char_id, char_name, max_floor) VALUES ("+.@char_id+", '"+.@char_name$+"', "+.@max_floor+") "+
+			"ON DUPLICATE KEY UPDATE max_floor = GREATEST(max_floor, "+.@max_floor+"), char_name = '"+.@char_name$+"'"
+		);
+		return;
+	}
+
+//=================================================================================================
+/*                                      赛季系统初始化函数                                        */
+//=================================================================================================
+	function	script	F_InitSeasonSystem	{
+		// 创建必要的表格
+		query_sql(
+			"CREATE TABLE IF NOT EXISTS d3_season_history ("+
+			"season_id INT UNSIGNED NOT NULL,"+
+			"char_id INT UNSIGNED NOT NULL,"+
+			"char_name VARCHAR(30) NOT NULL,"+
+			"max_floor INT UNSIGNED NOT NULL,"+
+			"season_start TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,"+
+			"season_end TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,"+
+			"PRIMARY KEY (season_id, char_id)"+
+			") ENGINE=InnoDB DEFAULT CHARSET=utf8;"
+		);
+		
+		query_sql(
+			"CREATE TABLE IF NOT EXISTS d3_season_info ("+
+			"current_season INT UNSIGNED NOT NULL DEFAULT 1,"+
+			"season_start_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"+
+			"next_reset_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,"+
+			"PRIMARY KEY (current_season)"+
+			") ENGINE=InnoDB DEFAULT CHARSET=utf8;"
+		);
+		
+		// 初始化赛季信息 - 先检查表是否存在
+		.@table_exists = query_sql("SHOW TABLES LIKE 'd3_season_info'", .@table_name$);
+		if (.@table_exists == 0) {
+			// 表不存在，插入初始数据（7天赛季）
+			query_sql("INSERT INTO d3_season_info (current_season, season_start_time, next_reset_time) VALUES (1, NOW(), DATE_ADD(NOW(), INTERVAL 7 DAY))");
+		} else {
+			// 检查表中是否有数据
+			.@row_count = query_sql("SELECT COUNT(*) FROM d3_season_info", .@count);
+			if (.@row_count == 0 || .@count[0] == 0) {
+				query_sql("INSERT INTO d3_season_info (current_season, season_start_time, next_reset_time) VALUES (1, NOW(), DATE_ADD(NOW(), INTERVAL 7 DAY))");
+			}
+		}
+		
+		// 检查是否需要重置赛季
+		.@row_count = query_sql("SELECT current_season, UNIX_TIMESTAMP(next_reset_time) FROM d3_season_info", .@current_season, .@next_reset_time);
+		
+		if (.@row_count == 0 || getarraysize(.@current_season) == 0) {
+			return;
+		}
+		
+		.@now = gettimetick(0);
+		
+		if (.@now >= .@next_reset_time[0]) {
+			// 执行赛季重置
+			callfunc "F_ResetSeason", .@current_season[0];
+		}
+		
+		return;
+	}
+
+//=================================================================================================
+/*                                      赛季重置函数                                              */
+//=================================================================================================
+	function	script	F_ResetSeason	{
+		.@old_season = getarg(0);
+		
+		// 确保赛季ID有效
+		if (.@old_season <= 0) {
+			.@old_season = 1;
+		}
+		
+		.@new_season = .@old_season + 1;
+		
+		// 保存当前赛季排行榜前20名到历史记录
+		.@result = query_sql(
+			"INSERT INTO d3_season_history (season_id, char_id, char_name, max_floor, season_start, season_end) "+
+			"SELECT "+.@old_season+", char_id, char_name, max_floor, "+
+			"(SELECT season_start_time FROM d3_season_info WHERE current_season = "+.@old_season+"), NOW() "+
+			"FROM d3_ranking WHERE max_floor > 0 ORDER BY max_floor DESC, update_time ASC LIMIT 20"
+		);
+		
+		// 为前5名玩家发放奖励
+		.@row_count = query_sql("SELECT char_id, char_name, max_floor FROM d3_ranking ORDER BY max_floor DESC, update_time ASC LIMIT 5", .@char_id, .@char_name$, .@max_floor);
+		
+		if (.@row_count > 0) {
+			for (.@i = 0; .@i < getarraysize(.@char_id); .@i++) {
+				if (.@char_id[.@i] != 0) {
+					// 根据排名发放不同数量的奖励
+					.@reward_count_601 = 6 - (.@i + 1); // 第1名5个，第2名4个，以此类推
+					.@reward_count_602 = 3; // 每人固定3个602道具
+					
+					if (.@reward_count_601 < 1) .@reward_count_601 = 1; // 确保至少1个
+					
+					// 记录奖励信息到数据库
+			query_sql("INSERT INTO d3_season_rewards (season_id, char_id, char_name, rank, item_601, item_602, reward_time, delivery_status) VALUES ("+.@old_season+", "+.@char_id[.@i]+", '"+.@char_name$[.@i]+"', "+(.@i+1)+", "+.@reward_count_601+", "+.@reward_count_602+", NOW(), 'pending')");
+					
+					// 调用邮件发放奖励函数
+					callfunc "F_SendSeasonRewardByMail", .@char_id[.@i], .@char_name$[.@i], .@old_season, (.@i+1), .@reward_count_601, .@reward_count_602;
+				}
+			}
+		}
+		
+		// 清空当前排行榜
+		query_sql("TRUNCATE TABLE d3_ranking");
+		
+		// 更新赛季信息
+		.@result = query_sql(
+			"UPDATE d3_season_info SET current_season = "+.@new_season+", season_start_time = NOW(), next_reset_time = DATE_ADD(NOW(), INTERVAL 7 DAY) "+
+			"WHERE current_season = "+.@old_season
+		);
+		
+		// 如果更新失败，则插入新记录
+		if (.@result == 0) {
+			query_sql(
+				"INSERT INTO d3_season_info (current_season, season_start_time, next_reset_time) "+
+				"VALUES ("+.@new_season+", NOW(), DATE_ADD(NOW(), INTERVAL 7 DAY))"
+			);
+		}
+		
+		// 全服公告
+		announce "MVP挑战赛第"+.@old_season+"赛季已经结束！新的第"+.@new_season+"赛季开始！", bc_all;
+		if (.@row_count > 0) {
+			announce "第"+.@old_season+"赛季前5名玩家奖励已通过邮件发放，请查收邮件！", bc_all;
+		}
+		
+		return;
+	}
+
+//=================================================================================================
+/*                                      玩家赛季重置检查函数                                      */
+//=================================================================================================
+	function	script	F_CheckSeasonResetForPlayer	{
+		.@char_id = getarg(0);
+		
+		// 获取当前赛季信息
+		query_sql("SELECT current_season, season_start_time FROM d3_season_info", .@current_season, .@season_start_time);
+		
+		if (getarraysize(.@current_season) == 0) {
+			return;
+		}
+		
+		// 检查玩家上次重置的赛季
+		query_sql("SELECT last_season FROM d3_player_season WHERE char_id = " + .@char_id, .@last_season);
+		
+		if (getarraysize(.@last_season) == 0) {
+			// 玩家第一次参与，记录当前赛季
+			query_sql("INSERT INTO d3_player_season (char_id, last_season) VALUES (" + .@char_id + ", " + .@current_season[0] + ")");
+			// 重置玩家层数为0
+			setd "#D3_Floor", 0;
+		} else if (.@last_season[0] < .@current_season[0]) {
+			// 赛季已更新，重置玩家层数为0
+			setd "#D3_Floor", 0;
+			// 更新玩家赛季记录
+			query_sql("UPDATE d3_player_season SET last_season = " + .@current_season[0] + " WHERE char_id = " + .@char_id);
+			
+			// 给玩家发送提示信息
+			if (getcharid(0) == .@char_id) {
+				dispbottom "新赛季已开始！你的挑战层数已重置，请从第一层重新开始挑战。";
+			}
+		}
+		
+		return;
+	}
+
+//=================================================================================================
+/*                                      创建赛季奖励记录表                                        */
+//=================================================================================================
+	function	script	F_CreateRewardTable	{
+		query_sql(
+			"CREATE TABLE IF NOT EXISTS d3_season_rewards ("+
+			"id INT UNSIGNED NOT NULL AUTO_INCREMENT,"+
+			"season_id INT UNSIGNED NOT NULL,"+
+			"char_id INT UNSIGNED NOT NULL,"+
+			"char_name VARCHAR(30) NOT NULL,"+
+			"rank INT UNSIGNED NOT NULL,"+
+			"item_601 INT UNSIGNED NOT NULL DEFAULT 0,"+
+			"item_602 INT UNSIGNED NOT NULL DEFAULT 0,"+
+			"reward_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"+
+			"delivery_status ENUM('pending', 'direct', 'mail', 'pending_reward') DEFAULT 'pending',"+
+			"delivery_time TIMESTAMP NULL,"+
+			"PRIMARY KEY (id), KEY idx_season (season_id), KEY idx_char (char_id), KEY idx_status (delivery_status)"+
+			") ENGINE=InnoDB DEFAULT CHARSET=utf8;"
+		);
+		
+		// 创建待发放奖励表
+		callfunc "F_CreatePendingRewardTable";
+		
+		return;
+	}
+
+//=================================================================================================
+/*                                      当前赛季排行榜显示函数                                    */
+//=================================================================================================
+	function	script	F_ShowCurrentSeasonRanking	{
+		.@season_id = getarg(0);
+		
+		clear;
+		mes .D3_Name$[0];
+		mes $ColourMes$;
+		mes "===== 第"+.@season_id+"赛季排行榜 =====";
+		mes "排名   玩家名称          层数";
+		mes "------------------------------";
+		
+		// 查询当前赛季排行榜前20名
+		query_sql "SELECT `char_name`, `max_floor` FROM `d3_ranking` ORDER BY `max_floor` DESC, `update_time` ASC LIMIT 20", .@name$, .@floor;
+		
+		if (getarraysize(.@name$) == 0) {
+			mes "暂无排行榜数据";
+			mes $ColourMes$;
+			close;
+		}
+		
+		for (.@i = 0; .@i < getarraysize(.@name$); .@i++) {
+			.@rank = .@i + 1;
+			.@color$ = (.@rank == 1) ? "^FFD700" : (.@rank == 2) ? "^C0C0C0" : (.@rank == 3) ? "^CD7F32" : "^000000";
+			
+			// 格式化显示
+			.@rank_str$ = (.@rank < 10) ? " "+.@rank : ""+.@rank;
+			.@floor_str$ = (.@floor[.@i] < 10) ? "0"+.@floor[.@i] : ""+.@floor[.@i];
+			
+			if (.@rank <= 3) {
+				mes .@color$ + .@rank_str$ + "      " + .@name$[.@i] + "          第" + .@floor_str$ + "层^000000";
+			} else {
+				mes .@rank_str$ + "      " + .@name$[.@i] + "          第" + .@floor_str$ + "层";
+			}
+		}
+		
+		mes "------------------------------";
+		// 显示玩家自己的排名
+		query_sql "SELECT `max_floor` FROM `d3_ranking` WHERE `char_id` = " + getcharid(0), .@my_max_floor;
+		if (getarraysize(.@my_max_floor) == 0) {
+			.@my_max_floor = 0;
+		} else {
+			.@my_max_floor = .@my_max_floor[0];
+		}
+		query_sql "SELECT COUNT(*) + 1 FROM `d3_ranking` WHERE `max_floor` > " + .@my_max_floor, .@my_rank;
+		
+		mes "我的排名: ^FF0000第" + .@my_rank + "名^000000";
+		mes "我的层数: ^FF0000第" + .@my_max_floor + "层^000000";
+		mes $ColourMes$;
+		close;
+	}
+
+//=================================================================================================
+/*                                      历史赛季排行榜查看函数                                    */
+//=================================================================================================
+	function	script	F_ShowHistorySeasonRanking	{
+		// 查询所有历史赛季
+		query_sql("SELECT DISTINCT season_id FROM d3_season_history ORDER BY season_id DESC LIMIT 10", .@season_ids);
+		
+		if (getarraysize(.@season_ids) == 0) {
+			clear;
+			mes .D3_Name$[0];
+			mes $ColourMes$;
+			mes "暂无历史赛季记录";
+			mes $ColourMes$;
+			close;
+		}
+		
+		// 让玩家选择要查看的赛季
+		clear;
+		mes .D3_Name$[0];
+		mes $ColourMes$;
+		mes "请选择要查看的历史赛季：";
+		
+		.@menu$ = "";
+		for (.@i = 0; .@i < getarraysize(.@season_ids); .@i++) {
+			.@menu$ = .@menu$ + "第" + .@season_ids[.@i] + "赛季";
+			if (.@i < getarraysize(.@season_ids) - 1) .@menu$ = .@menu$ + ":";
+		}
+		
+		.@selection = select(.@menu$) - 1;
+		.@selected_season = .@season_ids[.@selection];
+		
+		// 显示该赛季的排行榜
+		clear;
+		mes .D3_Name$[0];
+		mes $ColourMes$;
+		mes "===== 第"+.@selected_season+"赛季历史排行榜 =====";
+		mes "排名   玩家名称          层数";
+		mes "------------------------------";
+		
+		// 查询历史赛季排行榜
+		query_sql "SELECT `char_name`, `max_floor` FROM `d3_season_history` WHERE `season_id` = "+.@selected_season+" ORDER BY `max_floor` DESC, `season_end` ASC LIMIT 20", .@name$, .@floor;
+		
+		if (getarraysize(.@name$) == 0) {
+			mes "该赛季暂无排行榜数据";
+			mes $ColourMes$;
+			close;
+		}
+		
+		for (.@i = 0; .@i < getarraysize(.@name$); .@i++) {
+			.@rank = .@i + 1;
+			.@color$ = (.@rank == 1) ? "^FFD700" : (.@rank == 2) ? "^C0C0C0" : (.@rank == 3) ? "^CD7F32" : "^000000";
+			
+			// 格式化显示
+			.@rank_str$ = (.@rank < 10) ? " "+.@rank : ""+.@rank;
+			.@floor_str$ = (.@floor[.@i] < 10) ? "0"+.@floor[.@i] : ""+.@floor[.@i];
+			
+			if (.@rank <= 3) {
+				mes .@color$ + .@rank_str$ + "      " + .@name$[.@i] + "          第" + .@floor_str$ + "层^000000";
+			} else {
+				mes .@rank_str$ + "      " + .@name$[.@i] + "          第" + .@floor_str$ + "层";
+			}
+		}
+		
+		mes "------------------------------";
+		mes "历史赛季数据仅供查看";
+		mes $ColourMes$;
+		close;
+	}
+
+//=================================================================================================
+/*                                      赛季定时检查NPC                                           */
+//=================================================================================================
+-	script	D3_SeasonChecker	-1,{
+OnInit:
+	// 创建奖励记录表
+	callfunc "F_CreateRewardTable";
+	// 每30分钟检查一次赛季重置
+	while(1) {
+		sleep 1800000; // 30分钟
+		callfunc "F_CheckSeasonReset";
+	}
+	end;
+}
+
+//=================================================================================================
+/*                                      赛季重置检查函数                                          */
+//=================================================================================================
+	function	script	F_CheckSeasonReset	{
+		query_sql("SELECT current_season, UNIX_TIMESTAMP(next_reset_time) FROM d3_season_info", .@current_season, .@next_reset_time);
+		.@now = gettimetick(0);
+		
+		if (.@now >= .@next_reset_time[0]) {
+			// 执行赛季重置
+			callfunc "F_ResetSeason", .@current_season[0];
+		}
+		
+		return;
+	}
+
+//=================================================================================================
+/*                                      GM赛季调试菜单                                            */
+//=================================================================================================
+	function	script	F_GMSeasonDebug	{
+		if (!getcharid(0)) {
+			return;
+		}
+		
+		clear;
+		mes .D3_Name$[0];
+		mes $ColourMes$;
+		mes "========== GM赛季调试 ==========";
+		mes "欢迎，GM " + strcharinfo(0);
+		mes "请选择调试操作：";
+		mes $ColourMes$;
+		
+		.@select = select("立即重置赛季", 
+		                  "设置赛季剩余时间", 
+		                  "查看详细赛季信息", 
+		                  "手动创建表格",
+		                  "返回");
+		
+		switch(.@select) {
+			case 1:
+				query_sql("SELECT current_season FROM d3_season_info", .@current_season);
+				mes "当前赛季: 第" + .@current_season[0] + "赛季";
+				mes "确定要立即重置赛季吗？";
+				next;
+				if (select("确定重置", "取消") == 1) {
+					callfunc "F_ResetSeason", .@current_season[0];
+					mes "赛季重置完成！";
+					mes "新的赛季已开始。";
+					announce "GM " + strcharinfo(0) + " 已手动重置MVP挑战赛赛季！", bc_all;
+				} else {
+					mes "操作已取消。";
+				}
+				break;
+			case 2:
+				mes "请输入赛季剩余小时数：";
+				mes "（当前赛季将在指定小时后结束）";
+				input .@hours, 1, 720;
+				if (.@hours <= 0) {
+					mes "错误：小时数必须大于0";
+					close;
+				}
+				query_sql("UPDATE d3_season_info SET next_reset_time = DATE_ADD(NOW(), INTERVAL " + .@hours + " HOUR)");
+				mes "已将赛季结束时间设置为 " + .@hours + " 小时后。";
+				break;
+			case 3:
+				query_sql("SELECT current_season, season_start_time, next_reset_time FROM d3_season_info", .@current_season, .@start_time$, .@reset_time$);
+				query_sql("SELECT TIMESTAMPDIFF(HOUR, NOW(), next_reset_time) FROM d3_season_info", .@hours_left);
+				query_sql("SELECT COUNT(*) FROM d3_ranking", .@ranking_count);
+				query_sql("SELECT COUNT(*) FROM d3_season_history", .@history_count);
+				query_sql("SELECT COUNT(*) FROM d3_season_rewards", .@reward_count);
+				
+				mes "[赛季调试信息]";
+				mes "=================================";
+				mes "当前赛季: 第" + .@current_season[0] + "赛季";
+				mes "赛季开始: " + .@start_time$;
+				mes "赛季结束: " + .@reset_time$;
+				mes "剩余时间: " + .@hours_left + "小时";
+				mes "当前排行榜记录数: " + .@ranking_count;
+				mes "历史赛季记录数: " + .@history_count;
+				mes "奖励发放记录数: " + .@reward_count;
+				mes "=================================";
+				break;
+			case 4:
+				callfunc "F_CreateRankingTable";
+				callfunc "F_CreateRewardTable";
+				mes "表格创建完成！";
+				break;
+			case 5:
+				close;
+		}
+		close;
+	}
+
+//=================================================================================================
+/*                                      属性计算公式（每层增加2%）                                */
+//=================================================================================================
+	function	script	F_D3Mob_Statu_Bonus	{
+		.@Gid = getarg(0);
+		.@Lid = getarg(1);
+		.@Yid = getarg(2);
+		.@MobStatXL = getarg(3);
+		.@MobStatSX = getarg(4);
+		.@MobStatGJ = getarg(5);
+		.@MobStatFY = getarg(6);
+		
+		// 计算每层2%的加成倍率
+		.@level_multiplier = 1 + (.@Lid * 2 / 100); // 每层增加2%
+		
+		// 血量计算：基础血量 + (基础血量 * 血量系数/100 * 层数倍率)
+		.@base_hp = 'Mode * getmonsterinfo(.@Yid, MOB_MAXHP);
+		.@bonus_hp = .@base_hp * .@MobStatXL / 100 * .@level_multiplier;
+		setunitdata .@Gid, UMOB_MAXHP, .@base_hp + .@bonus_hp;
+		setunitdata .@Gid, UMOB_HP, .@base_hp + .@bonus_hp;
+		
+		// 基础属性计算：基础属性 + (基础属性 * 属性系数/100 * 层数倍率)
+		.@base_str = 'Mode * getmonsterinfo(.@Yid, MOB_STR);
+		.@bonus_str = .@base_str * .@MobStatSX / 100 * .@level_multiplier;
+		setunitdata .@Gid, UMOB_STR, .@base_str + .@bonus_str;
+		
+		.@base_agi = 'Mode * getmonsterinfo(.@Yid, MOB_AGI);
+		.@bonus_agi = .@base_agi * .@MobStatSX / 100 * .@level_multiplier;
+		setunitdata .@Gid, UMOB_AGI, .@base_agi + .@bonus_agi;
+		
+		.@base_vit = 'Mode * getmonsterinfo(.@Yid, MOB_VIT);
+		.@bonus_vit = .@base_vit * .@MobStatSX / 100 * .@level_multiplier;
+		setunitdata .@Gid, UMOB_VIT, .@base_vit + .@bonus_vit;
+		
+		.@base_int = 'Mode * getmonsterinfo(.@Yid, MOB_INT);
+		.@bonus_int = .@base_int * .@MobStatSX / 100 * .@level_multiplier;
+		setunitdata .@Gid, UMOB_INT, .@base_int + .@bonus_int;
+		
+		.@base_dex = 'Mode * getmonsterinfo(.@Yid, MOB_DEX);
+		.@bonus_dex = .@base_dex * .@MobStatSX / 100 * .@level_multiplier;
+		setunitdata .@Gid, UMOB_DEX, .@base_dex + .@bonus_dex;
+		
+		.@base_luk = 'Mode * getmonsterinfo(.@Yid, MOB_LUK);
+		.@bonus_luk = .@base_luk * .@MobStatSX / 100 * .@level_multiplier;
+		setunitdata .@Gid, UMOB_LUK, .@base_luk + .@bonus_luk;
+		
+		// 攻击力计算：基础攻击 + (基础攻击 * 攻击系数/100 * 层数倍率)
+		.@base_atk1 = 'Mode * getmonsterinfo(.@Yid, MOB_ATK1);
+		.@bonus_atk1 = .@base_atk1 * .@MobStatGJ / 100 * .@level_multiplier;
+		setunitdata .@Gid, UMOB_ATKMIN, .@base_atk1 + .@bonus_atk1;
+		
+		.@base_atk2 = 'Mode * getmonsterinfo(.@Yid, MOB_ATK2);
+		.@bonus_atk2 = .@base_atk2 * .@MobStatGJ / 100 * .@level_multiplier;
+		setunitdata .@Gid, UMOB_ATKMAX, .@base_atk2 + .@bonus_atk2;
+		
+		// 防御力计算：基础防御 + (基础防御 * 防御系数/100 * 层数倍率)
+		.@base_def = 'Mode * getmonsterinfo(.@Yid, MOB_DEF);
+		.@bonus_def = .@base_def * .@MobStatFY / 100 * .@level_multiplier;
+		setunitdata .@Gid, UMOB_DEF, .@base_def + .@bonus_def;
+		
+		.@base_mdef = 'Mode * getmonsterinfo(.@Yid, MOB_MDEF);
+		.@bonus_mdef = .@base_mdef * .@MobStatFY / 100 * .@level_multiplier;
+		setunitdata .@Gid, UMOB_MDEF, .@base_mdef + .@bonus_mdef;
+		
+		return;
+	}
+
+//=================================================================================================
+/*                                      邮件发放赛季奖励函数                                      */
+//=================================================================================================
+	function	script	F_SendSeasonRewardByMail	{
+		.@char_id = getarg(0);
+		.@char_name$ = getarg(1);
+		.@season_id = getarg(2);
+		.@rank = getarg(3);
+		.@item_601_count = getarg(4);
+		.@item_602_count = getarg(5);
+		
+		// 检查玩家是否在线
+		.@player_online = isloggedin(.@char_id);
+		
+		if (.@player_online) {
+			// 玩家在线，直接发放到背包
+			getitem 601, .@item_601_count, .@char_id;
+			getitem 602, .@item_602_count, .@char_id;
+			
+			// 给玩家发送系统消息
+			if (isloggedin(.@char_id)) {
+				attachrid(.@char_id);
+				dispbottom "恭喜你在第"+.@season_id+"赛季中获得第"+.@rank+"名！奖励已发放到背包。";
+				detachrid;
+			}
+		} else {
+			// 玩家不在线，通过邮件系统发放奖励
+			// 创建邮件标题和内容
+			.@mail_title$ = "MVP挑战赛第" + .@season_id + "赛季奖励";
+			.@mail_message$ = "亲爱的" + .@char_name$ + "：\n\n" +
+				"恭喜你在MVP挑战赛第" + .@season_id + "赛季中获得第" + .@rank + "名！\n" +
+				"这是你的赛季奖励，请查收。\n\n" +
+				"奖励物品：\n" +
+				"- 道具601 x " + .@item_601_count + "\n" +
+				"- 道具602 x " + .@item_602_count + "\n\n" +
+				"感谢你的参与，期待你在新赛季中的精彩表现！\n" +
+				"—— MVP挑战赛组委会";
+			
+			// 使用邮件系统发送奖励
+			// 注意：邮件系统需要服务器支持，这里使用通用的邮件发送方式
+			.@mail_result = query_sql(
+				"INSERT INTO `mail` (`send_name`, `send_id`, `dest_id`, `title`, `message`, `time`, `zeny`, `item_id1`, `amount1`, `item_id2`, `amount2`) " +
+				"VALUES ('MVP挑战赛组委会', 0, " + .@char_id + ", '" + .@mail_title$ + "', '" + .@mail_message$ + "', UNIX_TIMESTAMP(NOW()), 0, 601, " + .@item_601_count + ", 602, " + .@item_602_count + ")"
+			);
+			
+			// 如果邮件系统不可用，使用备用方案：记录到数据库，玩家下次登录时发放
+			if (.@mail_result == 0) {
+				// 邮件发送失败，使用备用方案
+				query_sql(
+					"INSERT INTO d3_pending_rewards (char_id, char_name, season_id, rank, item_601, item_602, reward_time, status) " +
+					"VALUES (" + .@char_id + ", '" + .@char_name$ + "', " + .@season_id + ", " + .@rank + ", " + .@item_601_count + ", " + .@item_602_count + ", NOW(), 'pending')"
+				);
+			}
+		}
+		
+		// 记录奖励发放状态
+		query_sql(
+			"UPDATE d3_season_rewards SET delivery_status = '" + (.@player_online ? "direct" : "mail") + "', delivery_time = NOW() " +
+			"WHERE season_id = " + .@season_id + " AND char_id = " + .@char_id
+		);
+		
+		return;
+	}
+
+//=================================================================================================
+/*                                      创建待发放奖励表                                          */
+//=================================================================================================
+	function	script	F_CreatePendingRewardTable	{
+		query_sql(
+			"CREATE TABLE IF NOT EXISTS d3_pending_rewards ("+
+			"id INT UNSIGNED NOT NULL AUTO_INCREMENT,"+
+			"char_id INT UNSIGNED NOT NULL,"+
+			"char_name VARCHAR(30) NOT NULL,"+
+			"season_id INT UNSIGNED NOT NULL,"+
+			"rank INT UNSIGNED NOT NULL,"+
+			"item_601 INT UNSIGNED NOT NULL DEFAULT 0,"+
+			"item_602 INT UNSIGNED NOT NULL DEFAULT 0,"+
+			"reward_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"+
+			"status ENUM('pending', 'delivered') DEFAULT 'pending',"+
+			"delivery_time TIMESTAMP NULL,"+
+			"PRIMARY KEY (id), KEY idx_char (char_id), KEY idx_status (status)"+
+			") ENGINE=InnoDB DEFAULT CHARSET=utf8;"
+		);
+		return;
+	}
+
+//=================================================================================================
+/*                                      玩家登录时检查待发放奖励                                  */
+//=================================================================================================
+	function	script	F_CheckPendingRewards	{
+		.@char_id = getarg(0);
+		
+		// 检查是否有待发放的奖励
+		.@row_count = query_sql(
+			"SELECT id, season_id, rank, item_601, item_602 FROM d3_pending_rewards " +
+			"WHERE char_id = " + .@char_id + " AND status = 'pending'",
+			.@reward_ids, .@season_ids, .@ranks, .@item_601_counts, .@item_602_counts
+		);
+		
+		if (.@row_count > 0) {
+			for (.@i = 0; .@i < getarraysize(.@reward_ids); .@i++) {
+				// 发放奖励到背包
+				getitem 601, .@item_601_counts[.@i];
+				getitem 602, .@item_602_counts[.@i];
+				
+				// 更新奖励状态
+				query_sql(
+					"UPDATE d3_pending_rewards SET status = 'delivered', delivery_time = NOW() " +
+					"WHERE id = " + .@reward_ids[.@i]
+				);
+				
+				// 通知玩家
+				dispbottom "你收到了MVP挑战赛第" + .@season_ids[.@i] + "赛季第" + .@ranks[.@i] + "名的奖励！";
+			}
+		}
+		
+		return;
+	}

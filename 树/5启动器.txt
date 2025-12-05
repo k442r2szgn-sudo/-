@@ -1,0 +1,766 @@
+moc_para01,21,20,4	script	世界之树-online#Tower	419,{
+function    F_Enter;
+function    F_Infos;
+function    F_Check;
+function    F_Quest;
+function    F_Reward;
+function    F_Record;
+F_Infos;
+end;
+
+//=================================================================================================
+OnInit: /*                              基础参数设置                                              */
+//=================================================================================================
+    // Npc对话名称
+    .n$ = "「瑞斯拜」";
+
+	// 副本名称 (删除魔神殿)
+	setarray .iname$[1], "无尽之塔","极速之塔","星界之塔","恐怖医院","乌龟洞讨伐","尼德霍格的巢穴";
+
+	// 副本冷却时间(秒)|清除冷却道具 (删除魔神殿配置)
+	setarray .Quest$[1], 
+		"7200,602",  // 无尽之塔 (2小时冷却)
+		"7200,602",  // 极速之塔 (2小时冷却)
+		"3600,603",  // 星界之塔 (1小时冷却)
+		"3600,602",  // 恐怖医院 (1小时冷却)
+		"3600,602",  // 乌龟洞讨伐 (1小时冷却)
+		"86400,602";  // 尼德霍格的巢穴 (24小时冷却)
+
+    // 相关参数设置 (删除魔神殿配置)
+    setarray .Modes$[1], 
+        "[1]无尽之塔,[2]极速之塔,[3]星界之塔,[4]恐怖医院,[5]乌龟洞讨伐,[6]尼德霍格的巢穴",  // 副本名称
+        "创建副本",  // 难度模式（取消单人模式，仅团队）
+        "99,99,60,60,99,99",  // 最低等级
+        "1,1,1,1,1,1",    // 队伍人数限制（最少1人）
+        "100,100,50,150,100,150", // 报名费用(万)
+        "1,1,1,0,0,1",     // 开启副本返回
+        "2,2,2,2,2,2",     // 返回次数
+        "0,0,1,1,0,1",     // BOSS大范围技能
+        "0,0,1,1,0,1",     // 大范围陷阱
+        "1,1,1,1,1,1",     // 开放副本
+        "0,0,1,1,1,1";     // 自制副本
+
+   // 新增：每日副本开启次数限制（独立于返回次数）
+   setarray .DailyAttempts[1], 4,4,4,4,4,4;  // 无尽之塔、极速之塔、星界之塔、恐怖医院、乌龟洞讨伐、尼德霍格的巢穴每日可进入次数
+
+    // 魔物属性设置 (删除魔神殿配置)
+    setarray .Stats$[1], 
+		"20,750,20,30,20,30",   // 魔物血量提升百分比
+		"20,750,20,30,20,30",   // 物理攻击提升百分比
+		"20,750,20,30,20,30",   // 魔法攻击提升百分比
+		"20,700,20,30,20,30",   // 命中几率提升百分比
+		"20,0,20,25,20,30";     // 魔物减免伤害百分比
+
+    // 计算数组值(勿动)
+    .ModeSize = getarraysize(.Modes$);
+
+    // Npc头顶招牌
+    unitaura getnpcid(0),1089;
+    //unitaura getnpcid(0),702;  
+    //unitaura getnpcid(0),883;  
+    settitleicon(getnpcid(0),0,"瑞斯拜");
+	while(1){
+		showscript "「副 本 管 理 员」";
+        sleep 3000;
+    }
+    end;
+
+//=================================================================================================
+/*                                       创建完成准备进入副本                                      */
+//=================================================================================================
+    function	F_Enter  {
+        if('list != 0 && instance_name(instance_id(IM_PARTY)) == .iname$['list]){
+            mes "";
+            clear;
+            mes .n$;
+            mes $ColourMes$;
+            mes "你现在要进入"+.iname$['list]+"吗?";
+            mes $ColourMes$;
+            if(select("现在进入","稍后进入") == 2)
+                F_Check(16);
+            // 检查队伍成员CID是否和创建副本时一致
+            if(inarray('Cid,getcharid(0)) == -1)
+                F_Check(9);
+            
+            // 特殊副本进入处理
+            if('list == 4) { // 恐怖医院
+                if(NM_INSTANCE_ID > 0) {
+                    if(instance_enter("噩梦医院2楼副本") == 0) {
+                        instance_announce NM_INSTANCE_ID, strcharinfo(0)+" 进入了噩梦医院2楼副本。", bc_map, "0x00FF99";
+                        end;
+                    }
+                } else {
+                    mes "恐怖医院副本未创建或已结束。";
+                    close;
+                }
+            } else if('list == 5) { // 乌龟洞讨伐
+                if(instance_id(IM_PARTY) > 0) {
+                    warp instance_mapname("1@tur01"), 146, 264;
+                    end;
+                } else {
+                    mes "乌龟洞讨伐副本未创建或已结束。";
+                    close;
+                }
+            } else if('list == 6) { // 尼德霍格的巢穴
+                if(instance_id(IM_PARTY) > 0) {
+                    warp instance_mapname("1@nyd"), 33, 37;
+                    end;
+                } else {
+                    mes "尼德霍格的巢穴副本未创建或已结束。";
+                    close;
+                }
+            }
+            
+            // 进入副本
+            switch(instance_enter(.iname$['list])){
+                case IE_OTHER:
+                    F_Check(0);
+                case IE_NOINSTANCE:
+                    F_Check(0);
+                case IE_NOMEMBER:
+                    F_Check(0);
+                case IE_OK:
+                    // 记录进入副本时间
+            if(is_party_leader())
+                'JoinTime = gettimetick(2);
+            // 记录玩家今日进入次数（使用独立副本计数器）
+            setd("$@Tower_Count_"+'list+"["+getcharid(0)+"]"), getd("$@Tower_Count_"+'list+"["+getcharid(0)+"]") + 1;
+            // 设置副本进行中标记
+            set 'Active, 1;
+            end;
+            }
+        }
+    }
+
+//=================================================================================================
+/*                                       创建副本前初始对话                                        */
+//=================================================================================================
+    function    F_Infos    {
+        //cutin "OSCAR01",2;
+        // 每日重置检查
+        if($@Tower_ResetDay != gettime(DT_YYYYMMDD)){
+            deletearray $@Tower_Count;
+            deletearray $@Tower_Count_1; // 无尽之塔
+            deletearray $@Tower_Count_2; // 极速之塔
+            deletearray $@Tower_Count_3; // 星界之塔
+            deletearray $@Tower_Count_4; // 恐怖医院
+            deletearray $@Tower_Count_5; // 乌龟洞讨伐
+            deletearray $@Tower_Count_6; // 尼德霍格的巢穴
+            $@Tower_ResetDay = gettime(DT_YYYYMMDD);
+        }
+        // 检查是否能返回副本或进入副本
+        if('Mode != 0){
+            F_Record;
+            F_Enter;
+        }
+        // 报名对话
+        mes .n$;
+        mes $ColourMes$;
+        mes "^B8860B世界之树系列副本.^000000";
+       mes "^B8860B限制次数: 每个副本每日可进入"+.DailyAttempts[1]+"次.^000000";
+        mes $ColourMes$;
+        if(select("创建副本","查看副本产出信息") == 2)
+            F_Reward;
+        // 调取模式信息
+        for(.@i = 1; .@i < .ModeSize; .@i++)
+            explode(getd(".@ModeInfo"+.@i+"$[1]"),.Modes$[.@i],",");
+        for(.@i = 1; .@i < getarraysize(.@ModeInfo1$); .@i++){
+            explode(.@CheckCD$[.@i],.Quest$[.@i],",");
+            .@Type$ = .@Type$ + sprintf("%-21s%s%s%s", .@ModeInfo1$[.@i], atoi(.@ModeInfo11$[.@i]) != 1? "^2E8B57[官方]^000000":"^B8860B[重制]^000000", atoi(.@ModeInfo10$[.@i]) != 1? "^8B4726[关闭]^000000":"^2E8B57[开放]^000000",""+(checkquest(atoi(.@CheckCD$[.@i]) + 1,PLAYTIME) == 0? "^8B4726[CD中]^000000":"^2E8B57[未CD]^000000")+"")+":";
+        }
+        .@Instance_List = select(.@Type$);
+        if(!atoi(.@ModeInfo10$[.@Instance_List]))
+            F_Check(20);
+        // 检查冷却信息
+        F_Quest(.@Instance_List);
+        // 获取副本配置信息
+        explode(.@Q$[1],.Quest$[.@Instance_List],",");
+        .@Type$ = "";
+        for(.@i = 1; .@i < getarraysize(.@ModeInfo2$); .@i++)
+            .@Type$ = .@Type$ +(.@ModeInfo2$[.@i])+":";
+        clear;
+		mes .n$;
+		mes $ColourMes$;
+        mes "副本魔物的属性血量攻击防御,";
+        mes "会根据不同模式依次递增调整.";
+        mes "请在下方选择想要挑战的模式.";
+ 		mes $ColourMes$;
+        .@Mode = select(.@Type$);
+		// 取得队伍成员信息
+		getpartymember(getcharid(1),1); //CID
+		getpartymember(getcharid(1),2); //AID
+		for(.@i = 0; .@i < $@partymembercount; .@i++){
+            // 记录队伍在线成员数
+		    if(isloggedin($@partymemberaid[.@i], $@partymembercid[.@i])){
+                .@count_online++;
+                // 检查队员今日进入次数（使用独立副本计数器）
+                .@cid = $@partymembercid[.@i];
+                .@count = getd("$@Tower_Count_"+.@Instance_List+"["+.@cid+"]");
+                if(.@count >= .DailyAttempts[.@Instance_List]){
+                    dispbottom ""+strcharinfo(0,.@cid)+"已超过今日进入"+.iname$[.@Instance_List]+"次数上限.";
+                    F_Check(21);
+                }
+            }
+        }
+		clear;
+		mes .n$;
+		mes $ColourMes$;
+		mes "挑战模式: ^CD5C5C"+.@ModeInfo2$[.@Mode]+".^000000";
+		mes "最低等级: ^D02090Lv "+.@ModeInfo3$[.@Mode]+".^000000";
+		mes "限制人数: ^EE63631-12人.^000000";
+		mes "报名费用: ^FF4500"+atoi(.@ModeInfo5$[.@Mode])+"万.^000000";
+ 		mes "开启返回: ^FF4500"+(atoi(.@ModeInfo6$[.@Mode]) == 1? "是":"否")+".^000000";
+ 		if(atoi(.@ModeInfo6$[.@Mode]) == 1)
+            mes "返回次数: ^FF4500"+atoi(.@ModeInfo7$[.@Mode])+"次.^000000";
+       mes "今日剩余: ^0000FF"+(.DailyAttempts[.@Instance_List] - $@Tower_Count[getcharid(0)])+"次.^000000";
+        if(atoi(.@Q$[1])/60 > 60)
+		    mes "冷却时间: ^0000FF"+atoi(.@Q$[1])/60/60+"小时.^000000";
+        else
+		    mes "冷却时间: ^0000FF"+atoi(.@Q$[1])/60+"分钟.^000000";
+		mes $ColourMes$;
+		if(select("即刻开始挑战","我怕怕再想想") == 2)
+            F_Check(16);
+		// 只有队长才能创建副本
+		if(!getcharid(1) || !is_party_leader())
+            F_Check(4);
+		// 检查人物等级
+		if(!instance_check_party(getcharid(1),1,atoi(.@ModeInfo3$[.@Mode])))
+            F_Check(3);
+        // 检查金钱
+        if(zeny < atoi(.@ModeInfo5$[.@Mode]) * 10000)
+            F_Check(11);
+        // 扣除金钱
+        set zeny, zeny - atoi(.@ModeInfo5$[.@Mode]);
+		// 检查队伍人数是否超限
+		if($@partymembercount < atoi(.@ModeInfo4$[.@Mode]))
+            F_Check(5);
+		// 如果有队员没在线
+		if(.@count_online != $@partymembercount)
+            F_Check(7);
+		
+		// 特殊副本创建处理
+		if(.@Instance_List == 4) { // 恐怖医院
+			callfunc "F_CreateNightmareHospital", .@Instance_List, .@Mode;
+			end;
+		} else if(.@Instance_List == 5) { // 乌龟洞讨伐
+			callfunc "F_CreateTurtleDungeon", .@Instance_List, .@Mode;
+			end;
+		} else if(.@Instance_List == 6) { // 尼德霍格的巢穴
+			callfunc "F_CreateShadowDragon", .@Instance_List, .@Mode;
+			end;
+		}
+		
+		// 开始创建副本
+		switch(instance_create(.iname$[.@Instance_List])){
+			case -1: F_Check(8);
+			case -2: F_Check(8);
+			case -3: F_Check(13);
+			case -4: F_Check(8);
+		}
+        // 副本开启公告
+        setarray .@modenamep$[1],"[Solo]模式","[Team]模式";
+		announce "[副本系统]: "+strcharinfo(0)+"开启了"+.iname$[.@Instance_List]+"副本"+.@modenamep$[.@Mode]+".",bc_all;
+
+//=================================================================================================
+/*                                        记录相关数据                                            */
+//=================================================================================================
+        deletearray .@S1$;
+        deletearray .@S2$;
+        deletearray .@S3$;
+        deletearray .@S4$;
+        deletearray .@S5$;
+        // 记录魔物属性
+        explode(.@S1$,.Stats$[1],",");
+        explode(.@S2$,.Stats$[2],",");
+        explode(.@S3$,.Stats$[3],",");
+        explode(.@S4$,.Stats$[4],",");
+        explode(.@S5$,.Stats$[5],",");
+        'S1 = atoi(.@S1$[.@Mode-1]);
+        'S2 = atoi(.@S2$[.@Mode-1]);
+        'S3 = atoi(.@S3$[.@Mode-1]);
+        'S4 = atoi(.@S4$[.@Mode-1]);
+        'S5 = atoi(.@S5$[.@Mode-1]);
+		// 记录奖励信息
+		copyarray 'Reward_Items_ID,getd(".Item_DJ_ID"+.@Mode+""),getarraysize(getd(".Item_DJ_ID"+.@Mode+""));
+		copyarray 'Reward_Items_JL,getd(".Item_DJ_JL"+.@Mode+""),getarraysize(getd(".Item_DJ_JL"+.@Mode+""));
+		copyarray 'Reward_Equip_ID,getd(".Item_EQ_ID"+.@Mode+""),getarraysize(getd(".Item_EQ_ID"+.@Mode+""));
+		copyarray 'Reward_Equip_JL,getd(".Item_EQ_JL"+.@Mode+""),getarraysize(getd(".Item_EQ_JL"+.@Mode+""));
+		// Npc对话名称
+		'n$ = strnpcinfo(1);
+        // 记录队长AID
+        'PLAid = getpartyleader(getcharid(1),1);
+        // 记录队长CID
+        'PLCid = getpartyleader(getcharid(1),2);
+        // 记录队伍编号
+        'Pid = getcharid(1);
+        // 记录队伍人数
+        'Party = $@partymembercount;
+        // 记录难度模式
+        'Mode = .@Mode;
+        // 记录副本序列
+        'list = .@Instance_List;
+        // 记录冷却信息
+        copyarray 'Quest$,.@Q$,getarraysize(.@Q$);
+		// 记录CID
+		copyarray 'Cid, $@partymembercid, $@partymembercount;
+		// 记录AID
+		copyarray 'Aid, $@partymemberaid, $@partymembercount;
+        // 设置地图属性
+        if(instance_name(instance_id(IM_PARTY)) == "无尽之塔"){
+            setmapflag instance_mapname("e_tower"),mf_mobdmgrate,""+(10000 - 'S5 * 100)+","+(10000 - 'S5 * 100)+"";
+            setmapflag instance_mapname("1@tower"),mf_mobdmgrate,""+(10000 - 'S5 * 100)+","+(10000 - 'S5 * 100)+"";
+            setmapflag instance_mapname("2@tower"),mf_mobdmgrate,""+(10000 - 'S5 * 100)+","+(10000 - 'S5 * 100)+"";
+            setmapflag instance_mapname("3@tower"),mf_mobdmgrate,""+(10000 - 'S5 * 100)+","+(10000 - 'S5 * 100)+"";
+            setmapflag instance_mapname("4@tower"),mf_mobdmgrate,""+(10000 - 'S5 * 100)+","+(10000 - 'S5 * 100)+"";
+            setmapflag instance_mapname("5@tower"),mf_mobdmgrate,""+(10000 - 'S5 * 100)+","+(10000 - 'S5 * 100)+"";
+            setmapflag instance_mapname("6@tower"),mf_mobdmgrate,""+(10000 - 'S5 * 100)+","+(10000 - 'S5 * 100)+"";
+            setmapflag instance_mapname("e_tower"),mf_mobspawnbase,""+(100 + 'S1)+","+(100 + 'S2)+","+(100 + 'S3)+","+(100 + 'S4)+"";
+            setmapflag instance_mapname("1@tower"),mf_mobspawnbase,""+(100 + 'S1)+","+(100 + 'S2)+","+(100 + 'S3)+","+(100 + 'S4)+"";
+            setmapflag instance_mapname("2@tower"),mf_mobspawnbase,""+(100 + 'S1)+","+(100 + 'S2)+","+(100 + 'S3)+","+(100 + 'S4)+"";
+            setmapflag instance_mapname("3@tower"),mf_mobspawnbase,""+(100 + 'S1)+","+(100 + 'S2)+","+(100 + 'S3)+","+(100 + 'S4)+"";
+            setmapflag instance_mapname("4@tower"),mf_mobspawnbase,""+(100 + 'S1)+","+(100 + 'S2)+","+(100 + 'S3)+","+(100 + 'S4)+"";
+            setmapflag instance_mapname("5@tower"),mf_mobspawnbase,""+(100 + 'S1)+","+(100 + 'S2)+","+(100 + 'S3)+","+(100 + 'S4)+"";
+            setmapflag instance_mapname("6@tower"),mf_mobspawnbase,""+(100 + 'S1)+","+(100 + 'S2)+","+(100 + 'S3)+","+(100 + 'S4)+"";
+        }
+        if(instance_name(instance_id(IM_PARTY)) == "极速之塔"){
+            // 极速之塔使用炼狱脚本中的地图设置，此处无需额外设置
+            // 地图属性已在炼狱脚本中配置：1@ntower, 5@tower, 6@tower
+        }
+        // 清除过期数组
+		deletearray $@partymembercount;
+		deletearray $@partymemberaid;
+		deletearray $@partymembercid;
+        // 准备进入副本
+        F_Enter;
+		end;
+    }
+
+//=================================================================================================
+/*                                       创建完成准备进入副本                                      */
+//=================================================================================================
+    function	F_Record  {
+        explode(.@array1$[1],.Modes$[6],",");
+        explode(.@array2$[1],.Modes$[7],",");
+        .@Record1 = atoi(.@array1$['Mode]);
+        .@Record2 = atoi(.@array2$['Mode]);
+        .@Idx = inarray('Cid,getcharid(0));
+        // 如果没有开启副本返回功能
+        if(!.@Record1 && instance_record())
+            F_Check(14);
+        if(getd("'Record_"+.@Idx+"") == .@Record2){
+            // 如果是队长
+            if(is_party_leader()){
+                mes .n$;
+                mes $ColourMes$;
+                mes "副本返回次数已经用尽了.";
+                mes "是否销毁副本?";
+                mes $ColourMes$;
+                if(select("销毁副本","在等一会") == 2)
+                    F_Check(14);
+                // 检查副本地图玩家数量
+                .@User = instance_users(instance_id(IM_PARTY));
+                if(.@User != 0)
+                    F_Check(18);
+                // 销毁副本
+                close2;
+                //cutin "",255;
+                instance_destroy();
+                end;
+            }else
+                F_Check(17);
+        }
+        // 传送回副本记录的最后离开位置
+        if(instance_record() && instance_name(instance_id()) == .iname$['list]){
+            mes .n$;
+            mes $ColourMes$;
+            mes "^008B45此副本已开启副本返回功能.^000000";
+            mes "^008B45副本返回次数剩余: "+(.@Record2 - getd("'Record_"+.@Idx+""))+"次.^000000";
+            mes "^008B45点击关闭按钮即可返回副本.^000000";
+            mes $ColourMes$;
+            close2;
+            // 传送回副本
+            instance_enter_left;
+            // 记录人物返回次数
+            setd("'Record_"+.@Idx+""),getd("'Record_"+.@Idx+"") + 1;
+            end;
+        }
+    }
+
+//=================================================================================================
+/*                                        检查冷却信息                                         */
+//=================================================================================================
+    function	F_Quest  {
+        .@Mode = getarg(0);
+        explode(.@Q$[1],.Quest$[.@Mode],",");
+        // 检查冷却状态
+        .@CDTime = atoi(.@Q$[1]);
+        .@ItemID = atoi(.@Q$[2]);
+        .@CDEnd = getd("#Tower_CD_"+getcharid(0)+"_"+.@Mode);
+        
+        // 如果冷却未结束
+        if(.@CDEnd > gettimetick(2)){
+            .@left = .@CDEnd - gettimetick(2);
+            .@H = .@left / 3600;
+            .@M = (.@left - (.@H * 3600)) / 60;
+            .@S = .@left - ((.@H * 3600) + (.@M * 60));
+            clear;
+            mes .n$;
+            mes $ColourMes$;
+            mes "副本冷却中,请稍后再试.";
+            mes "冷却剩余:^0000FF"+.@H+"^000000小时^0000FF"+.@M+"^000000分钟^0000FF"+.@S+"^000000秒.";
+            mes $ColourMes$;
+            if(select("使用^A52A2A"+getitemname(.@ItemID)+"^000000重置冷却时间","继续等待") == 2)
+                F_Check(16);
+            // 检测道具
+            if(!countitem(.@ItemID))
+                F_Check(1);
+            // 再次检测冷却是否到期
+            if(.@CDEnd <= gettimetick(2))
+                F_Check(15);
+            // 清除冷却
+            setd "#Tower_CD_"+getcharid(0)+"_"+.@Mode, 0;
+            delitem .@ItemID,1;
+            clear;
+            mes .n$;
+            mes $ColourMes$;
+            mes "副本冷却已重置.";
+            mes $ColourMes$;
+            close2;
+            //cutin "",255;
+            end;
+        }
+        // 如果副本进行中
+        if(getd("#Tower_Active_"+getcharid(0)+"_"+.@Mode)){
+            // 设置冷却
+            setd "#Tower_CD_"+getcharid(0)+"_"+.@Mode, gettimetick(2) + .@CDTime;
+            // 清除进行中标记
+            setd "#Tower_Active_"+getcharid(0)+"_"+.@Mode, 0;
+            F_Check(10);
+        }
+    }
+
+//=================================================================================================
+/*                                        查询奖励信息                                            */
+//=================================================================================================
+    function    F_Reward {
+        clear;
+        mes .n$;
+        mes $ColourMes$;
+        mes "你想查看哪个副本的详细产出信息?";
+        mes $ColourMes$;
+        explode(.@ModeInfo1$[1],.Modes$[1],",");
+        for(.@i = 1; .@i < getarraysize(.@ModeInfo1$); .@i++)
+        .@Type$ = .@Type$ +(.@ModeInfo1$[.@i])+":";
+        .@Mode = select(.@Type$);
+        clear;
+        mes .n$;
+        mes $ColourMes$;
+        mes "产出信息将会发送到您的对话框中.";
+        mes "鼠标点击对话框中物品可查看详情.";
+        mes $ColourMes$;
+        close2;
+        //cutin "",255;
+        if(.@Mode == 1){
+            // 产出信息
+            //setarray .@rwitem,25260,6000,1000405,42150,42151,42152,42153,6420,6421,6422,1000322,41115,41107,41111,41106,6635;
+            for(.@i = 0; .@i < getarraysize(.@rwitem); .@i++)
+                dispbottom "[无尽之塔产出信息]: "+itemlink(.@rwitem[.@i],0,0,0,0,0,0);
+        }
+        if(.@Mode == 2){
+            //setarray .@rwitem,44001,44002,44003,44004,44005,44006,44007,44008,44009,44010,44011,44012,453000,453001,453002,6635,25865,25866,41115,1000372;
+            for(.@i = 0; .@i < getarraysize(.@rwitem); .@i++)
+                dispbottom "[极速之塔产出信息]: "+itemlink(.@rwitem[.@i],0,0,0,0,0,0);
+            close;
+        }
+        if(.@Mode == 3){
+            // 星界之塔产出物品
+            //setarray .@rwitem,40001,61000,61001,62000,62005,62009,62006,70049,70050,70051;
+            for(.@i = 0; .@i < getarraysize(.@rwitem); .@i++)
+                dispbottom "[星界之塔产出信息]: "+itemlink(.@rwitem[.@i],0,0,0,0,0,0);
+        }
+        if(.@Mode == 4){
+            // 恐怖医院产出物品
+            //setarray .@rwitem,675,630,635,637,601; // 银币,其他奖励物品,恐怖医院出入凭证碎片
+            for(.@i = 0; .@i < getarraysize(.@rwitem); .@i++)
+                dispbottom "[恐怖医院产出信息]: "+itemlink(.@rwitem[.@i],0,0,0,0,0,0);
+        }
+        if(.@Mode == 5){
+            // 乌龟洞讨伐产出物品
+            //setarray .@rwitem,601,603; // 入场道具,固定奖励物品
+            for(.@i = 0; .@i < getarraysize(.@rwitem); .@i++)
+                dispbottom "[乌龟洞讨伐产出信息]: "+itemlink(.@rwitem[.@i],0,0,0,0,0,0);
+        }
+        end;
+    }
+
+//=================================================================================================
+/*                                        副本条件检查                                            */
+//=================================================================================================
+    function	F_Check  {
+        mes ""; clear;
+        mes .n$;
+		mes $ColourMes$;
+        if(getarg(0) ==  0) mes "发生未知错误,请确认问题后重试.";
+        if(getarg(0) ==  1) mes "你身上没有指定的物品.";
+        if(getarg(0) ==  2) mes "副本冷却标记已解除,请重新对话.";
+        if(getarg(0) ==  3) mes "你的等级不符合副本最低进入要求.";
+        if(getarg(0) ==  4) mes "你不是队长或者你没有加入任何队伍.";
+        if(getarg(0) ==  5) mes "队伍人数没有满足副本进入要求.";
+        if(getarg(0) ==  6) mes "有队员处于挂机状态,无法创建副本.";
+        if(getarg(0) ==  7) mes "有队员没有在线,无法创建副本.";
+        if(getarg(0) ==  8) mes ""+.i$+"创建失败,请检查.";
+        if(getarg(0) ==  9) mes "创建副本时,你并没有在此队伍中.";
+        if(getarg(0) == 10) mes "你没有完成副本,现在进入副本冷却CD.";
+        if(getarg(0) == 11) mes "你没有足够的金钱进入副本.";
+        if(getarg(0) == 12) mes "队伍中有队员副本冷却CD尚未结束.";
+        if(getarg(0) == 13) mes "你已经有存在的副本了,无法继续创建.";
+        if(getarg(0) == 14) mes "未开启副本返回功能或你无法返回副本.";
+        if(getarg(0) == 15) mes "冷却CD已经结束,无需消耗道具.";
+        if(getarg(0) == 16) mes "那么下回再见.";
+        if(getarg(0) == 17) mes "返回副本次数已经用尽了.";
+        if(getarg(0) == 18) mes "副本中还有其他玩家,请稍后再试.";
+        if(getarg(0) == 20) mes "此副本暂未开放,请等待版本更新.";
+        if(getarg(0) == 21) mes "有队员今日进入副本次数已达上限.";
+		mes $ColourMes$;
+        close2;
+        //cutin "",255;
+        end;
+    }
+
+//=================================================================================================
+/*                                        副本销毁事件                                            */
+//=================================================================================================
+OnInstanceDestroyEvent:
+    // 销毁副本后设置冷却
+    script4each strnpcinfo(0)+"::OnDestroy",SFE_PARTY,$@instance_owner;
+	end;
+
+OnDestroy:
+	// 检查副本名称是否为当前副本
+    if($@instance_name$ == .iname$['list] || $@instance_name$ == "星界之塔" || $@instance_name$ == "极速之塔" || $@instance_name$ == "恐怖医院" || $@instance_name$ == "乌龟洞讨伐" || $@instance_name$ == "尼德霍格的巢穴"){
+        // 如果副本进行中
+        if('Active == 1){
+            // 设置冷却
+            setd "#Tower_CD_"+getcharid(0)+"_"+'list, gettimetick(2) + atoi('Quest$[1]);
+            // 清除进行中标记
+            set 'Active, 0;
+            dispbottom $@instance_name$+"已结束,你没有顺利完成"+$@instance_name$+",现在进入冷却CD,下次继续加油!";
+        }
+    }
+	end;
+
+//=================================================================================================
+/*                                        副本死亡事件                                            */
+//=================================================================================================
+OnPCDieEvent:
+	if(instance_id(IM_PARTY) && instance_name(instance_id(IM_PARTY)) == .iname$['list])
+		'PcDead += 1;
+	end;
+}
+
+//=================================================================================================
+/*                                        恐怖医院创建函数                                        */
+//=================================================================================================
+function	script	F_CreateNightmareHospital	{
+	.@Instance_List = getarg(0);
+	.@Mode = getarg(1);
+	
+	// 获取队伍信息
+	.@party_id = getcharid(1);
+	.@is_leader = (getcharid(0) == getpartyleader(.@party_id,2));
+	
+	// 检查队员条件
+	getpartymember .@party_id, 2;
+	.@origin = getcharid(3);
+	for(set .@i, 0; .@i < $@partymembercount; set .@i, .@i+1){
+		if(attachrid($@partymemberaid[.@i])){
+			if(BaseLevel < 60){
+				mes "队伍成员 ^FF0000"+strcharinfo(0)+"^000000 等级不足60级！";
+				attachrid(.@origin);
+				close;
+			}
+			if(Zeny < 1500000){
+				mes "队伍成员 ^FF0000"+strcharinfo(0)+"^000000 金币不足！";
+				attachrid(.@origin);
+				close;
+			}
+		}
+	}
+	attachrid(.@origin);
+	
+	// 创建副本
+	.@instance = instance_create("噩梦医院2楼副本");
+	if(.@instance < 0){
+		mes "副本创建失败，请稍后再试。";
+		close;
+	}
+
+	// 设置实例变量
+	donpcevent instance_npcname("nm_hospital_main")+"::OnSetPartyID "+.@party_id;
+	
+	.@gettimetick = gettimetick(2);
+	getpartymember .@party_id,2;
+	
+	// 创建数组存储队员AID
+	.@member_count = $@partymembercount;
+	for(set .@i, 0; .@i < .@member_count; set .@i, .@i+1) {
+		.@member_aids[.@i] = $@partymemberaid[.@i];
+	}
+	
+	for(set .@i, 0; .@i < .@member_count; set .@i, .@i+1) {
+		if(attachrid(.@member_aids[.@i])){
+			set #instance_delay_nmhospital, .@gettimetick + 3600; // 1小时冷却
+			set Zeny, Zeny - 1500000;
+			set NM_INSTANCE_ID, .@instance;
+			dispbottom "[噩梦医院] 支付了1,500,000金币，副本冷却时间已应用。";
+		}
+	}
+	attachrid(.@origin);
+	
+	mes "噩梦医院副本已为队伍 - "+getpartyname(.@party_id)+" 创建。";
+	donpcevent instance_npcname("nm_hospital_main")+"::OnInstanceInit";
+	
+	// 记录启动器相关数据
+	'n$ = strnpcinfo(1);
+	'PLAid = getpartyleader(getcharid(1),1);
+	'PLCid = getpartyleader(getcharid(1),2);
+	'Pid = getcharid(1);
+	'Party = $@partymembercount;
+	'Mode = .@Mode;
+	'list = .@Instance_List;
+	
+	// 记录冷却信息
+	explode(.@Q$[1],getd(".Quest$["+.@Instance_List+"]"),",");
+	copyarray 'Quest$,.@Q$,getarraysize(.@Q$);
+	
+	// 记录队伍成员
+	getpartymember(getcharid(1),1); //CID
+	copyarray 'Cid, $@partymembercid, $@partymembercount;
+	copyarray 'Aid, $@partymemberaid, $@partymembercount;
+	
+	// 传送所有队员进入副本
+	sleep 1000;
+	for(set .@i, 0; .@i < .@member_count; set .@i, .@i+1) {
+		if (isloggedin(.@member_aids[.@i])) {
+			attachrid(.@member_aids[.@i]);
+			if (strcharinfo(3) != instance_mapname("1@ma_a1")) {
+				if (instance_enter("噩梦医院2楼副本") == 0) {
+					instance_announce .@instance, strcharinfo(0)+" 进入了噩梦医院2楼副本。", bc_map, "0x00FF99";
+				} else {
+					dispbottom "进入副本失败，请联系管理员。";
+				}
+			}
+		}
+	}
+	attachrid(.@origin);
+	
+	// 副本开启公告
+	announce "[副本系统]: "+strcharinfo(0)+"开启了恐怖医院副本.",bc_all;
+	
+	end;
+}
+
+//=================================================================================================
+/*                                        乌龟洞讨伐创建函数                                      */
+//=================================================================================================
+function	script	F_CreateTurtleDungeon	{
+	.@Instance_List = getarg(0);
+	.@Mode = getarg(1);
+	
+	// 创建副本
+	.@instance_id = instance_create("乌龟洞讨伐", IM_PARTY);
+	
+	if(.@instance_id <= 0){
+		mes "副本创建失败，请稍后再试！";
+		close;
+	}
+	
+	// 记录启动器相关数据
+	'n$ = strnpcinfo(1);
+	'PLAid = getpartyleader(getcharid(1),1);
+	'PLCid = getpartyleader(getcharid(1),2);
+	'Pid = getcharid(1);
+	getpartymember(getcharid(1),1);
+	'Party = $@partymembercount;
+	'Mode = .@Mode;
+	'list = .@Instance_List;
+	
+	// 记录冷却信息
+	explode(.@Q$[1],getd(".Quest$["+.@Instance_List+"]"),",");
+	copyarray 'Quest$,.@Q$,getarraysize(.@Q$);
+	
+	// 记录队伍成员
+	copyarray 'Cid, $@partymembercid, $@partymembercount;
+	copyarray 'Aid, $@partymemberaid, $@partymembercount;
+	
+	mes "乌龟洞讨伐副本创建成功！正在传送...";
+	close2;
+	
+	// 传送队伍成员到副本
+	getpartymember getcharid(1),2;
+	for(set .@i, 0; .@i < $@partymembercount; set .@i, .@i + 1){
+		if(attachrid($@partymemberaid[.@i])){
+			warp instance_mapname("1@tur01"), 145, 262;
+		}
+	}
+	
+	// 副本开启公告
+	announce "[副本系统]: "+strcharinfo(0)+"开启了乌龟洞讨伐副本.",bc_all;
+	
+	end;
+}
+
+//=================================================================================================
+/*                                        尼德霍格的巢穴创建函数                                  */
+//=================================================================================================
+function	script	F_CreateShadowDragon	{
+	.@Instance_List = getarg(0);
+	.@Mode = getarg(1);
+	
+	// 检查等级要求
+	if (BaseLevel < 99){
+		mes "[尼德霍格的巢穴]";
+		mes "等级不足,进入要求Lv99";
+		close;
+	}
+	
+	// 检查队伍
+	.@party_id = getcharid(1);
+	if (!.@party_id) {
+		mes "请先创建一支队伍再来。";
+		close;
+	}
+	
+	// 创建副本
+	.@instance_id = instance_create("尼德霍格的巢穴", IM_PARTY);
+	
+	if(.@instance_id <= 0){
+		mes "副本创建失败，请稍后再试！";
+		close;
+	}
+	
+	// 设置实例变量
+	set getinstancevar('party_id,instance_id(IM_PARTY)),getcharid(1);
+	
+	// 记录启动器相关数据
+	'n$ = strnpcinfo(1);
+	'PLAid = getpartyleader(getcharid(1),1);
+	'PLCid = getpartyleader(getcharid(1),2);
+	'Pid = getcharid(1);
+	getpartymember(getcharid(1),1);
+	'Party = $@partymembercount;
+	'Mode = .@Mode;
+	'list = .@Instance_List;
+	
+	// 记录冷却信息
+	explode(.@Q$[1],getd(".Quest$["+.@Instance_List+"]"),",");
+	copyarray 'Quest$,.@Q$,getarraysize(.@Q$);
+	
+	// 记录队伍成员
+	copyarray 'Cid, $@partymembercid, $@partymembercount;
+	copyarray 'Aid, $@partymemberaid, $@partymembercount;
+	
+	mes "尼德霍格的巢穴副本创建成功！";
+	announce "==="+strcharinfo(0)+"的队伍[ "+getpartyname(.@party_id)+" ]成功创建副本：尼德霍格的巢穴",0;
+	close;
+}

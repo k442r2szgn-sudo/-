@@ -1,0 +1,164 @@
+prontera,146,100,6	script	世界之树-online#6	894,{
+function	F_Warp_Mes;
+function	F_Warp_Item;
+function	F_Warp_Mob;
+function	F_Warp_Core;
+F_Warp_Mes;
+end;
+
+OnInit:
+	unitaura getnpcid(0),1036; 
+	settitleicon(getnpcid(0),0,"彼丽");
+	while(1){
+		showscript "[ 智 能 传 送 ]";
+		sleep 1000;
+	}	
+	setarray .WarpMap$[0],"boss11","boss21","boss31","bossqu","moc_fild200";
+	end;
+
+function	F_Warp_Mes	{
+    disable_items;
+    mes ""; clear;
+    mes "智能传送";
+    mes $ColourMes$;
+    mes "可通过输入道具编号或魔物编号,";
+    mes "查询详细信息并传送到指定地图。";
+    mes $ColourMes$;
+    next; 
+    switch(select("^696969[I]输入道具编号传送^000000","^696969[M]输入魔物编号传送^000000")){
+        case 1: F_Warp_Item; break;
+        case 2: F_Warp_Mob; break;
+    }
+    end;
+}
+
+function	F_Warp_Item	{
+    input @ItemID;
+    if(!itemexists(@ItemID)){
+        mes ""; clear;
+        mes "智能传送";
+        mes $ColourMes$;
+        mes "输入的道具编号不存在。";
+        mes $ColourMes$;
+        next;
+        F_Warp_Mes;
+        end;
+    }
+    
+    // 使用私有数组存储掉落信息
+    @Count = whodrops(@ItemID, .@MobID, .@Chance);
+    if(!@Count){
+        clear;
+        mes "智能传送";
+        mes $ColourMes$;
+        mesf "没有魔物掉落 %s", getitemname(@ItemID);
+        mes "请重新输入。";
+        mes $ColourMes$;
+        next;
+        F_Warp_Mes;
+        end;
+    }
+    
+    mes ""; clear;
+    mes "智能传送";
+    mes $ColourMes$;
+    mesf "输入道具: %s", getitemname(@ItemID);
+    mesf "可掉落魔物: %d 种", @Count;
+    mes $ColourMes$;
+    next;
+    
+    // 生成菜单选项
+    .@Menu$ = "";
+    for(.@i = 0; .@i < @Count; .@i++)
+        .@Menu$ = .@Menu$ + sprintf("%s:", strmobinfo(1,.@MobID[.@i]));
+    
+    .@Select = select(.@Menu$) - 1;
+    F_Warp_Core(.@MobID[.@Select]);
+    end;
+}
+
+function	F_Warp_Mob	{
+    input @MobID;
+    if(!getmobdrops(@MobID)){
+        mes ""; clear;
+        mes "智能传送";
+        mes $ColourMes$;
+        mes "输入的魔物编号不存在。";
+        mes $ColourMes$;
+        next;
+        F_Warp_Mes;
+        end;
+    }
+    F_Warp_Core(@MobID);
+    end;
+}
+
+function	F_Warp_Core	{
+    .@MobID = getarg(0);
+    getmobdrops(.@MobID);
+    
+    // 使用私有数组存储地图信息
+    .@MapInfo = getmobspawninfo(.@MobID);
+    copyarray .@spawn_mapname$[0], $@spawn_mapname$[0], .@MapInfo;
+    copyarray .@spawn_amount[0], $@spawn_amount[0], .@MapInfo;
+    
+    // 使用私有数组存储掉落信息
+    .@Count = $@MobDrop_count;
+    copyarray .@item[0], $@MobDrop_item[0], .@Count;
+    copyarray .@rate[0], $@MobDrop_rate[0], .@Count;
+    
+    if(!.@MapInfo){
+        mes ""; clear;
+        mes "智能传送";
+        mes $ColourMes$;
+        mesf "没有地图刷新 %s", strmobinfo(1,.@MobID);
+        mes $ColourMes$;
+        next;
+        F_Warp_Mes;
+        end;
+    }
+    
+    do{
+        clear;
+        mes "智能传送";
+        mes $ColourMes$;
+        mesf "魔物名称: %s", strmobinfo(1,.@MobID);
+        mesf "魔物等级: Lv.%s" , strmobinfo(3,.@MobID);
+        mesf "掉落物品: %d 种", .@Count;
+        mesf "刷新地图: %d 张", .@MapInfo;
+        mes $ColourMes$;
+        next;
+        .@select = select("[D]查看魔物掉落物品","[W]传送到魔物所在地图");
+        if(.@select == 2) break;
+        
+        clear;
+        mes "智能传送";
+        mes $ColourMes$;
+        for(.@i = 0; .@i < .@Count; .@i++)
+            mes sprintf("%-15s%s%s", getitemname(.@item[.@i]), .@rate[.@i]/100 + ((.@rate[.@i]%100 < 10) ? ".0":".") + .@rate[.@i]%100, "%");
+        mes $ColourMes$;
+        next;
+    }while(.@select == 1);
+    
+    // 生成地图列表菜单
+    .@MapList$ = "";
+    for(.@i = 0; .@i < .@MapInfo; .@i++)
+        .@MapList$ = .@MapList$ + sprintf("图 %s 有 %d 只:", .@spawn_mapname$[.@i], .@spawn_amount[.@i]);
+    
+    .@Select = select(.@MapList$) - 1;
+    
+    // 传送逻辑
+    if(inarray(.WarpMap$,.@spawn_mapname$[.@Select]) == -1){
+        if( $@Transmission_crystal[getcharid(3)] > gettimetick(2) ){
+            mes "冷却中，请稍后再试。";
+            end;
+        }
+        $@Transmission_crystal[getcharid(3)] = gettimetick(2)+20;
+        warp .@spawn_mapname$[.@Select],0,0;
+    }else{
+        mes "该地图禁止传送。";
+        close;
+    }
+    end;
+}
+}

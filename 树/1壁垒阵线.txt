@@ -1,0 +1,808 @@
+/*
+= 适合范围: BRa
+= <<特色战场>>
+============================================================
+= 更多定制副本创意可以联系作者编写
+= 请勿盗卖 转发他人 版本所有
+============================================================
+= 2021-09-30 by
+= * 添加死亡后返回战场的时间设定
+= * 添加限制指定技能使用次数
+============================================================
+= 2021-10-03 by
+= * 添加设置返场时间，每10分钟增加设定的秒数
+= 2024-01-20 by
+= * 全面修改为prt_lib_q地图战场
+= * 玩家默认进入阵营1，阵营2为全魔物控制
+= * 添加传送门和rwc01地图事件
+= 2024-01-21 by
+= * 优化rwc01地图功能，添加防御水晶和超级士兵机制
+*/
+
+prt_lib_q	mapflag	battleground	2
+prt_lib_q	mapflag	tribe
+prt_lib_q	mapflag	nomemo
+prt_lib_q	mapflag	nosave	SavePoint
+prt_lib_q	mapflag	noteleport
+prt_lib_q	mapflag	nowarp
+prt_lib_q	mapflag	nowarpto
+prt_lib_q	mapflag	noreturn
+prt_lib_q	mapflag	nobranch
+prt_lib_q	mapflag	nopenalty
+prt_lib_q	mapflag	partylock
+prt_lib_q	mapflag	noloot
+prt_lib_q	mapflag	nopet
+
+rwc01	mapflag	battleground	2
+rwc01	mapflag	tribe
+rwc01	mapflag	nomemo
+rwc01	mapflag	nosave	SavePoint
+rwc01	mapflag	noteleport
+rwc01	mapflag	nowarp
+rwc01	mapflag	nowarpto
+rwc01	mapflag	noreturn
+rwc01	mapflag	nobranch
+rwc01	mapflag	nopenalty
+rwc01	mapflag	partylock
+rwc01	mapflag	noloot
+rwc01	mapflag	nopet
+
+// prt_lib_q,159,150,4	script	壁垒阵线工作人员	966,{
+// 	mes "[指挥官-若风]";
+// 	next;
+// 	switch(select("返回首都:取消")) {
+// 		case 1:
+// 			mes "[指挥官-若风]";
+// 			mes "这就送你出去";
+// 			close2;
+// 			warp "prontera",155,152;
+// 			end;
+// 		case 2:
+// 			close;
+// 	}	
+// OnInit:
+// 	.npcname$ = "[返回首都]";
+// 	while(1){
+// 		showscript "[ 返回首都 ]";
+// 		sleep 1000;
+// 	}	
+// 	end;
+// }
+
+prt_lib_q,0,0,0	script	#LOL开局计时	-1,{
+OnTimer120000:
+	$@BG_time_minute++;
+	initnpctimer;
+	end;
+}
+
+prt_lib_q,0,0,0	script	#LOL全局控制	-1,{
+	end;
+	
+Onstoptimer:
+	stopnpctimer;
+	end;
+	
+OnInit:
+	.annBlueColor = 0xB094F9;	
+	.annRedColor = 0xB094F9;	
+	.annKillColor = 0xB094F9;	
+	// 设置传送门
+	//.monster_gate = monster "prt_lib_q",88,91,"传送门",45,strnpcinfo(0)+"::OnGateClick";
+	$@mapflag_gate = 0; // 初始状态未激活（改为全局变量）
+	end;
+
+// 路径箭头绘制（地面特效）：从复活点(10,60)到主水晶(89,43)
+OnDrawPathPrt:
+	freeloop(1);
+	for (.@rep = 0; .@rep < 8; .@rep++) {
+		// 使用 AL_WARPPORTAL 的地面特效标记路径点；周期性重绘保持可见
+		npcskilleffect "AL_WARPPORTAL",1,17,61;
+		npcskilleffect "AL_WARPPORTAL",1,27,61;
+		npcskilleffect "AL_WARPPORTAL",1,40,61;
+		npcskilleffect "AL_WARPPORTAL",1,69,61;
+		npcskilleffect "AL_WARPPORTAL",1,75,52;
+		// 终点用不同色系效果强调
+		npcskilleffect "AL_RUWACH",1,89,43;
+		sleep 1200;
+	}
+	freeloop(0);
+	end;
+
+OnGateClick:
+	end;
+
+OnQuit_2:
+	end;
+
+OnDeath_2:
+	end;
+
+// OnPCDieEvent
+OnPCDieEvent:
+	getmapxy(.@mapname$, .@mapx, .@mapy, BL_PC);
+	if ( .@mapname$ != "prt_lib_q" && .@mapname$ != "rwc01" ) end;
+	.@t = rand($@BG_back_time[0],$@BG_back_time[1]);
+	.@t = .@t + ($@BG_time_minute/10)*$@BG_back_time_add;
+	dispbottom "你将会在"+.@t+"秒后返场。";
+	addtimer .@t*1000,"#LOL全局控制::OnEvBack";
+	end;
+
+OnEvBack:
+	if($@game_statr ==0)end;
+	getmapxy(.@mapname$, .@mapx, .@mapy, BL_PC);
+	if ( .@mapname$ != "prt_lib_q" && .@mapname$ != "rwc01" ) end;
+	if (tribe_getteam() == $@Groupid_1) warp "prt_lib_q",10,60; // 破界者复活点
+	// 返场后绘制地面箭头引导到主水晶
+	donpcevent strnpcinfo(0)+"::OnDrawPathPrt";
+	end;
+
+// OnPCUseSkillFilter
+OnPCUseSkillFilter:
+	getmapxy(.@mapname$, .@mapx, .@mapy, BL_PC);
+	if ( .@mapname$ != "prt_lib_q" && .@mapname$ != "rwc01" ) end;
+	.@i = inarray($@BG_limit_skill_id,useskill_id);
+	if (.@i != -1)
+	{
+		@BG_limit_skill_count[.@i]++;
+		if (@BG_limit_skill_count[.@i] > $@BG_limit_skill_count[.@i])
+		{
+			dispbottom "技能 ["+getskillinfo(useskill_id,3)+"] 使用失败，限制次数为[" + $@BG_limit_skill_count[.@i] + "]，已使用次数为[" + @BG_limit_skill_count[.@i] +"]";
+			processhalt;
+		}
+	}
+	end;
+
+OnPCKillEvent:
+	getmapxy(.@mapname$, .@mapx, .@mapy, BL_PC);
+	if ( .@mapname$ != "prt_lib_q" && .@mapname$ != "rwc01" ) end;
+	
+	callfunc "title_sys","GVG战场";
+	
+	.@meslist = rand(1,10);
+	switch(.@meslist){
+			case 1:
+					.@message$ = "["+strcharinfo(0)+"] 秒杀了 ["+rid2name(killedrid)+"] ！";
+					mapannounce "prt_lib_q","壁垒阵线 : "+.@message$,bc_map,.annKillColor;
+					break;
+			case 2:
+					.@message$ = "["+strcharinfo(0)+"] 把 ["+rid2name(killedrid)+"] 送回了家！";
+					mapannounce "prt_lib_q","壁垒阵线 : "+.@message$,bc_map,.annKillColor;
+					break;		
+			case 3:
+					.@message$ = "["+strcharinfo(0)+"] 把 ["+rid2name(killedrid)+"] 按在地上摩擦！";
+					mapannounce "prt_lib_q","壁垒阵线 : "+.@message$,bc_map,.annKillColor;
+					break;				
+			case 4:
+					.@message$ = "["+strcharinfo(0)+"] 将 ["+rid2name(killedrid)+"] 送下地狱！";
+					mapannounce "prt_lib_q","壁垒阵线 : "+.@message$,bc_map,.annKillColor;
+					break;
+			case 5:
+					.@message$ = "["+strcharinfo(0)+"] 将 ["+rid2name(killedrid)+"] 送上天堂！";
+					mapannounce "prt_lib_q","壁垒阵线 : "+.@message$,bc_map,.annKillColor;
+					break;
+			case 6:
+					.@message$ = "["+strcharinfo(0)+"] 把 ["+rid2name(killedrid)+"] 折磨死了！";
+					mapannounce "prt_lib_q","壁垒阵线 : "+.@message$,bc_map,.annKillColor;
+					break;
+			case 7:
+					.@message$ = "["+strcharinfo(0)+"] 对 ["+rid2name(killedrid)+"] 进行万般羞辱";
+					mapannounce "prt_lib_q","壁垒阵线 : "+.@message$,bc_map,.annKillColor;
+					break;
+			case 8:
+					.@message$ = "["+strcharinfo(0)+"] 一不小心击杀了 ["+rid2name(killedrid)+"] ";
+					mapannounce "prt_lib_q","壁垒阵线 : "+.@message$,bc_map,.annKillColor;
+					break;
+			case 9:
+					.@message$ = "["+strcharinfo(0)+"] 对 ["+rid2name(killedrid)+"] 说 还有谁? ";
+					mapannounce "prt_lib_q","壁垒阵线 : "+.@message$,bc_map,.annKillColor;
+					break;
+			case 10:
+					.@message$ = "["+strcharinfo(0)+"] 对 ["+rid2name(killedrid)+"] 说 就你? ";
+					mapannounce "prt_lib_q","壁垒阵线 : "+.@message$,bc_map,.annKillColor;
+					break;
+	}
+	end;
+
+// 壁垒同盟出兵
+OnMobStart:
+	freeloop(1);
+	do {
+		for ( .@i=0; .@i<$@BG_mob_count; .@i++ ) {
+			if ( !$@mob_move ) end;
+			// 随机选择魔物ID
+			.@mob_id = $@BG_mob_ids[rand(getarraysize($@BG_mob_ids))];
+			// 壁垒同盟从传送门出兵攻击玩家
+			.@Mob = tribe_monster($@Groupid_2,"prt_lib_q",88,91,"壁垒同盟士兵",.@mob_id,strnpcinfo(0)+"::OnMobReDie");
+			unit_Astart_walkto .@Mob,89,43,1; // 向玩家复活点移动
+			sleep 500;
+		}
+		sleep $@BG_mob_ftime;
+	} while ( $@mob_move );
+	freeloop(0);
+	end;
+	
+OnMobReDie:
+	end;
+
+OnStart:
+	// 破界者水晶 (可直接攻击)
+	.crystal_group_1 = tribe_monster($@Groupid_1,"prt_lib_q",89,43,"破界者水晶",1915,strnpcinfo(0)+"::Oncrysta_1");
+	
+	// 破界者水晶保镖
+	.guard1_1 = tribe_monster($@Groupid_1,"prt_lib_q",83,43,"水晶保镖",1906,strnpcinfo(0)+"::OnGuardDie");
+	.guard1_2 = tribe_monster($@Groupid_1,"prt_lib_q",83,44,"水晶保镖",1906,strnpcinfo(0)+"::OnGuardDie");
+	.guard1_3 = tribe_monster($@Groupid_1,"prt_lib_q",94,43,"水晶保镖",1906,strnpcinfo(0)+"::OnGuardDie");
+	.guard1_4 = tribe_monster($@Groupid_1,"prt_lib_q",94,44,"水晶保镖",1906,strnpcinfo(0)+"::OnGuardDie");
+	
+	// 壁垒同盟水晶 (可直接攻击)
+	.crystal_group_2 = tribe_monster($@Groupid_2,"rwc01",50,50,"壁垒同盟水晶",1914,strnpcinfo(0)+"::Oncrysta_2");
+	
+	
+	// 设置水晶可直接攻击
+	setunitdata .crystal_group_1,UMOB_DMGIMMUNE,0;
+	setunitdata .crystal_group_2,UMOB_DMGIMMUNE,0;
+
+	initnpctimer;
+	end;
+	
+OnTimer90000: // 15分钟后开启传送门
+//OnTimer900000: // 15分钟后开启传送门
+	// 传送门功能激活
+	$@mapflag_gate = 1;
+	mapannounce "prt_lib_q","传送门已激活！可通过传送门进入壁垒同盟基地",bc_map,.annKillColor;
+	end;
+
+OnTimer3600000:
+	mapannounce "prt_lib_q","壁垒阵线 : 1小时到了！双方平局",bc_map,.annKillColor;
+	$@winnergroup = 0;
+	goto Ondraw;
+	end;
+
+// 破界者水晶被击破
+Oncrysta_1:
+	$@mob_move = 0;
+	$@mob_move_rwc = 0; // 停止rwc01出兵
+	killmonster "prt_lib_q","#LOL全局控制::OnMobReDie";
+	if ( playerattached() ) 
+		mapannounce "prt_lib_q","壁垒阵线 : 破界者【水晶】已被 "+strcharinfo(0)+" 击破，本次壁垒阵线壁垒同盟获胜！",bc_map,.annRedColor;
+	else 
+		mapannounce "prt_lib_q","壁垒阵线 : 破界者【水晶】已被壁垒同盟击破，本次壁垒阵线壁垒同盟获胜！",bc_map,.annRedColor;
+	$@winnergroup = 2; // 壁垒同盟获胜
+	goto Ondraw;
+	end;
+
+// 壁垒同盟水晶被击破
+Oncrysta_2:
+	$@mob_move = 0;
+	$@mob_move_rwc = 0; // 停止rwc01出兵
+	killmonster "prt_lib_q","#LOL全局控制::OnMobReDie";
+	if ( playerattached() ) 
+		mapannounce "prt_lib_q","壁垒阵线 : 壁垒同盟【水晶】已被 "+strcharinfo(0)+" 击破，本次壁垒阵线破界者获胜！",bc_map,.annBlueColor;
+	else 
+		mapannounce "prt_lib_q","壁垒阵线 : 壁垒同盟【水晶】已被破界者击破，本次壁垒阵线破界者获胜！",bc_map,.annBlueColor;
+	$@winnergroup = 1; // 破界者获胜
+	goto Ondraw;
+	end;
+
+OnGuardDie:
+	end;
+
+OnStoneDie:
+	end;
+
+OnArcherDie:
+	end;
+
+Ondraw:
+	stopnpctimer;
+	stopnpctimer "#LOL开局计时";
+	$@mob_move = 0;
+	$@mob_move_rwc = 0; // 停止rwc01出兵
+	$@first_enter_rwc01 = 0; // 重置首次进入标记
+	killmonsterall "prt_lib_q";
+	killmonsterall "rwc01";
+	$@game_statr = 0;
+	script4each strnpcinfo(0)+"::OnWarp",1,"prt_lib_q";
+	script4each strnpcinfo(0)+"::OnWarp",1,"rwc01";
+	bg_destroy $@Groupid_1;
+	bg_destroy $@Groupid_2;
+	
+	end;
+	
+OnWarp:
+	dispbottom "触发OnWarp事件";
+	if ( $@winnergroup == 0 ) {
+			getitem $@draw_item_id,$@draw_count;  //平局奖励 		
+	} else {
+		if ( $@winnergroup == 1 ) { // 破界者获胜
+			//称号增加
+			callfunc "title_sys","战场";
+			getitem $@win_item_id,$@win_count;  //胜出者奖励 
+		} else {
+			getitem $@los_item_id,$@los_count;	//失败者奖励 
+		}
+	}
+	tribe_setteam 0;
+	pc_has_join = 0;
+	sleep2 5000;
+	warp "prontera",153,98;
+	end;
+}
+
+// 破界者补给NPC
+prt_lib_q,8,64,4	script	战场补给员	734,{
+	mes "[战场补给员]";
+	mes "需要什么支援吗？";
+	next;
+	switch(select("购买增援部队:购买水晶保镖:取消")) {
+		case 1:
+			if (Zeny < 100000) {
+				mes "[战场补给员]";
+				mes "需要100,000 Zeny才能购买增援部队。";
+				close;
+			}
+			Zeny -= 100000;
+			// 在增援坐标召唤部队
+			tribe_monster($@Groupid_1,"prt_lib_q",81,46,"增援部队",1906,"#LOL全局控制::OnMobReDie");
+			tribe_monster($@Groupid_1,"prt_lib_q",97,46,"增援部队",1906,"#LOL全局控制::OnMobReDie");
+			mes "[战场补给员]";
+			mes "增援部队已派出！";
+			close;
+			
+		case 2:
+			if (Zeny < 50000) {
+				mes "[战场补给员]";
+				mes "需要50,000 Zeny才能购买水晶保镖。";
+				close;
+			}
+			Zeny -= 50000;
+			// 召唤水晶保镖
+			tribe_monster($@Groupid_1,"prt_lib_q",83,43,"水晶保镖",1906,"#LOL全局控制::OnGuardDie");
+			tribe_monster($@Groupid_1,"prt_lib_q",83,44,"水晶保镖",1906,"#LOL全局控制::OnGuardDie");
+			tribe_monster($@Groupid_1,"prt_lib_q",94,43,"水晶保镖",1906,"#LOL全局控制::OnGuardDie");
+			tribe_monster($@Groupid_1,"prt_lib_q",94,44,"水晶保镖",1906,"#LOL全局控制::OnGuardDie");
+			mes "[战场补给员]";
+			mes "水晶保镖已部署！";
+			close;
+			
+		case 3:
+			close;
+	}
+}
+
+// 传送门NPC
+prt_lib_q,88,91,4	script	魔物传送门	45,1,1,{
+	if ($@mapflag_gate != 1) {
+		mes "[传送门]";
+		mes "传送门尚未激活...";
+		close;
+	}
+	mes "[传送门]";
+	mes "通往壁垒同盟基地的传送门";
+	next;
+	if (select("进入壁垒同盟基地:取消") == 1) {
+		// 玩家进入魔物基地（对话方式）
+		warp "rwc01",4,50;
+		// 触发第一次进入事件
+		donpcevent "#rwc01控制::OnFirstEnter";
+	}
+	close;
+
+OnTouch:
+	// 走进传送门即传送（激活后启用）
+	if ($@mapflag_gate != 1) end;
+	warp "rwc01",4,50;
+	// 触发第一次进入事件
+	donpcevent "#rwc01控制::OnFirstEnter";
+	end;
+}
+
+// rwc01地图控制 - 优化版本
+rwc01,0,0,0	script	#rwc01控制	-1,{
+OnFirstEnter:
+	// 第一次有玩家进入rwc01
+	if ($@rwc01_first_announce) end; // 防止重复触发
+	
+	$@rwc01_first_announce = 1;
+	mapannounce "rwc01","警告：壁垒同盟基地遭到进攻！",bc_map,0xFF0000;
+	sleep 3000;
+	mapannounce "rwc01","玩家可以选择：1.先击破四个防御水晶停止出怪 2.直接攻击壁垒同盟水晶",bc_map,0x00FF00;
+	
+	// 若防御水晶未生成，则在首次进入时生成（确保$@Groupid_2已存在）
+	if ( mobcount("rwc01",strnpcinfo(0)+"::OnRwcCrystalDie") == 0 ) {
+		.crystal1 = tribe_monster($@Groupid_2,"rwc01",30,70,"防御水晶",1914,strnpcinfo(0)+"::OnRwcCrystalDie");
+		.crystal2 = tribe_monster($@Groupid_2,"rwc01",70,70,"防御水晶",1914,strnpcinfo(0)+"::OnRwcCrystalDie");
+		.crystal3 = tribe_monster($@Groupid_2,"rwc01",70,30,"防御水晶",1914,strnpcinfo(0)+"::OnRwcCrystalDie");
+		.crystal4 = tribe_monster($@Groupid_2,"rwc01",30,30,"防御水晶",1914,strnpcinfo(0)+"::OnRwcCrystalDie");
+		.rwc_crystal = tribe_monster($@Groupid_2,"rwc01",50,50,"魔物主水晶",1914,strnpcinfo(0)+"::OnRwcMainCrystalDamage");
+		setunitdata .rwc_crystal,UMOB_DMGIMMUNE,0;
+		setunitdata .crystal1,UMOB_DMGIMMUNE,0;
+		setunitdata .crystal2,UMOB_DMGIMMUNE,0;
+		setunitdata .crystal3,UMOB_DMGIMMUNE,0;
+		setunitdata .crystal4,UMOB_DMGIMMUNE,0;
+		.crystal_hp = 100;
+	}
+	
+	// 启动魔物基地的出兵
+	$@mob_move_rwc = 1;
+	donpcevent strnpcinfo(0)+"::OnRwcMobStart";
+	
+	// 启动定时播报
+	initnpctimer;
+	end;
+
+OnTimer30000:
+	mapannounce "rwc01","提示：击破地图四个角落的防御水晶可以停止魔物出兵！",bc_map,0x00FF00;
+	end;
+	
+OnTimer60000:
+	mapannounce "rwc01","提示：壁垒同盟水晶血量降低会召唤超级士兵守护！",bc_map,0x00FF00;
+	end;
+
+OnInit:
+	// 初始化四个防御水晶
+	.crystal1 = tribe_monster($@Groupid_2,"rwc01",30,70,"防御水晶",1914,strnpcinfo(0)+"::OnRwcCrystalDie");
+	.crystal2 = tribe_monster($@Groupid_2,"rwc01",70,70,"防御水晶",1914,strnpcinfo(0)+"::OnRwcCrystalDie");
+	.crystal3 = tribe_monster($@Groupid_2,"rwc01",70,30,"防御水晶",1914,strnpcinfo(0)+"::OnRwcCrystalDie");
+	.crystal4 = tribe_monster($@Groupid_2,"rwc01",30,30,"防御水晶",1914,strnpcinfo(0)+"::OnRwcCrystalDie");
+	
+	// 设置水晶可直接攻击
+	setunitdata .crystal1,UMOB_DMGIMMUNE,0;
+	setunitdata .crystal2,UMOB_DMGIMMUNE,0;
+	setunitdata .crystal3,UMOB_DMGIMMUNE,0;
+	setunitdata .crystal4,UMOB_DMGIMMUNE,0;
+	
+	// 初始化壁垒同盟水晶
+	.rwc_crystal = tribe_monster($@Groupid_2,"rwc01",50,50,"魔物主水晶",1914,strnpcinfo(0)+"::OnRwcMainCrystalDamage");
+	setunitdata .rwc_crystal,UMOB_DMGIMMUNE,0;
+	
+	// 设置水晶初始血量监听
+	.crystal_hp = 100;
+	$@mob_move_rwc = 0; // 初始状态不主动出兵
+	$@rwc01_first_announce = 0; // 重置首次进入公告标记
+	end;
+
+// rwc01地图魔物出兵
+OnRwcMobStart:
+	freeloop(1);
+	do {
+		if ( $@mob_move_rwc ) {
+			// 从四个角落出兵攻击进入的玩家
+			.@mob_id = $@BG_mob_ids[rand(getarraysize($@BG_mob_ids))];
+			
+			// 从四个角落各出一个兵
+			.@mob1 = tribe_monster($@Groupid_2,"rwc01",30,70,"基地守卫",.@mob_id,strnpcinfo(0)+"::OnRwcMobDie");
+			.@mob2 = tribe_monster($@Groupid_2,"rwc01",69,70,"基地守卫",.@mob_id,strnpcinfo(0)+"::OnRwcMobDie");
+			.@mob3 = tribe_monster($@Groupid_2,"rwc01",70,30,"基地守卫",.@mob_id,strnpcinfo(0)+"::OnRwcMobDie");
+			.@mob4 = tribe_monster($@Groupid_2,"rwc01",30,30,"基地守卫",.@mob_id,strnpcinfo(0)+"::OnRwcMobDie");
+			
+			// 让魔物向主水晶坐标移动保护
+			unit_Astart_walkto .@mob1,50,50,1;
+			unit_Astart_walkto .@mob2,50,50,1;
+			unit_Astart_walkto .@mob3,50,50,1;
+			unit_Astart_walkto .@mob4,50,50,1;
+		}
+		sleep 20000; // 每20秒出一波兵
+	} while ( $@mob_move_rwc );
+	freeloop(0);
+	end;
+
+OnRwcMobDie:
+	end;
+
+OnRwcCrystalDie:
+	// 防御水晶被击破
+	.@crystal_count = mobcount("rwc01",strnpcinfo(0)+"::OnRwcCrystalDie");
+	
+	if (.@crystal_count == 3) {
+		mapannounce "rwc01","第一个防御水晶已被击破！",bc_map,0xFFFF00;
+	}
+	else if (.@crystal_count == 2) {
+		mapannounce "rwc01","第二个防御水晶已被击破！",bc_map,0xFFFF00;
+	}
+	else if (.@crystal_count == 1) {
+		mapannounce "rwc01","第三个防御水晶已被击破！",bc_map,0xFFFF00;
+	}
+	else if (.@crystal_count == 0) {
+		mapannounce "rwc01","所有防御水晶已被击破！壁垒同盟停止出兵！",bc_map,0xFF0000;
+		$@mob_move = 0; // 停止prt_lib_q地图出兵
+		$@mob_move_rwc = 0; // 停止rwc01地图出兵
+		
+		// 出动超级士兵守护主水晶
+		mapannounce "rwc01","壁垒同盟出动超级士兵守护主水晶！",bc_map,0xFF0000;
+		// .@sup1 = tribe_monster($@Groupid_2,"rwc01",30,70,"超级士兵",2473,strnpcinfo(0)+"::OnSuperMobDie");   
+		// .@sup2 = tribe_monster($@Groupid_2,"rwc01",69,70,"超级士兵",2473,strnpcinfo(0)+"::OnSuperMobDie");
+		// .@sup3 = tribe_monster($@Groupid_2,"rwc01",70,30,"超级士兵",2474,strnpcinfo(0)+"::OnSuperMobDie");
+		// .@sup4 = tribe_monster($@Groupid_2,"rwc01",30,30,"超级士兵",2474,strnpcinfo(0)+"::OnSuperMobDie");
+		.@sup1 = tribe_monster($@Groupid_2,"rwc01",30,70,"超级士兵",1002,strnpcinfo(0)+"::OnSuperMobDie");
+		.@sup2 = tribe_monster($@Groupid_2,"rwc01",69,70,"超级士兵",1002,strnpcinfo(0)+"::OnSuperMobDie");
+		.@sup3 = tribe_monster($@Groupid_2,"rwc01",70,30,"超级士兵",1002,strnpcinfo(0)+"::OnSuperMobDie");
+		.@sup4 = tribe_monster($@Groupid_2,"rwc01",30,30,"超级士兵",1002,strnpcinfo(0)+"::OnSuperMobDie");
+		
+		// 设置超级士兵守护主水晶
+		unit_Astart_walkto .@sup1,50,50,1;
+		unit_Astart_walkto .@sup2,50,50,1;
+		unit_Astart_walkto .@sup3,50,50,1;
+		unit_Astart_walkto .@sup4,50,50,1;
+	}
+	end;
+
+OnRwcMainCrystalDamage:
+	// 魔物主水晶受到伤害
+	.@current_hp = getunitdata(.rwc_crystal,UMOB_HP);
+	.@max_hp = getunitdata(.rwc_crystal,UMOB_MAXHP);
+	.@new_percent = .@current_hp * 100 / .@max_hp;
+	
+	if (.@new_percent <= 70 && .crystal_hp > 70) {
+		mapannounce "rwc01","壁垒同盟水晶血量70% - 超级士兵出现！",bc_map,0xFF0000;
+		//.@sup1 = tribe_monster($@Groupid_2,"rwc01",30,70,"超级士兵",2473,strnpcinfo(0)+"::OnSuperMobDie");
+		.@sup1 = tribe_monster($@Groupid_2,"rwc01",30,70,"超级士兵",1002,strnpcinfo(0)+"::OnSuperMobDie");   //测试
+		unit_Astart_walkto .@sup1,50,50,1;
+	}
+	else if (.@new_percent <= 50 && .crystal_hp > 50) {
+		mapannounce "rwc01","壁垒同盟水晶血量50% - 第二波超级士兵出现！",bc_map,0xFF0000;
+		//.@sup1 = tribe_monster($@Groupid_2,"rwc01",30,70,"超级士兵",2473,strnpcinfo(0)+"::OnSuperMobDie");
+		.@sup1 = tribe_monster($@Groupid_2,"rwc01",30,70,"超级士兵",1002,strnpcinfo(0)+"::OnSuperMobDie");   //测试
+		unit_Astart_walkto .@sup1,50,50,1;
+		//.@sup2 = tribe_monster($@Groupid_2,"rwc01",69,70,"超级士兵",2473,strnpcinfo(0)+"::OnSuperMobDie");
+		.@sup1 = tribe_monster($@Groupid_2,"rwc01",30,70,"超级士兵",1002,strnpcinfo(0)+"::OnSuperMobDie");   //测试
+		unit_Astart_walkto .@sup2,50,50,1;
+	}
+	else if (.@new_percent <= 30 && .crystal_hp > 30) {
+		mapannounce "rwc01","壁垒同盟水晶血量30% - 第三波超级士兵出现！",bc_map,0xFF0000;
+		//.@sup1 = tribe_monster($@Groupid_2,"rwc01",30,70,"超级士兵",2473,strnpcinfo(0)+"::OnSuperMobDie");
+		.@sup1 = tribe_monster($@Groupid_2,"rwc01",30,70,"超级士兵",1002,strnpcinfo(0)+"::OnSuperMobDie");   //测试
+		unit_Astart_walkto .@sup1,50,50,1;
+		//.@sup2 = tribe_monster($@Groupid_2,"rwc01",69,70,"超级士兵",2473,strnpcinfo(0)+"::OnSuperMobDie");
+		.@sup2 = tribe_monster($@Groupid_2,"rwc01",69,70,"超级士兵",1002,strnpcinfo(0)+"::OnSuperMobDie");   //测试
+		unit_Astart_walkto .@sup2,50,50,1;
+		//.@sup3 = tribe_monster($@Groupid_2,"rwc01",70,30,"超级士兵",2474,strnpcinfo(0)+"::OnSuperMobDie");
+		.@sup3 = tribe_monster($@Groupid_2,"rwc01",70,30,"超级士兵",1002,strnpcinfo(0)+"::OnSuperMobDie");   //测试
+		   //测试
+		unit_Astart_walkto .@sup3,50,50,1;
+	}
+	else if (.@new_percent <= 10 && .crystal_hp > 10) {
+		mapannounce "rwc01","壁垒同盟水晶血量10% - 最终守护超级士兵出现！",bc_map,0xFF0000;
+		//.@sup1 = tribe_monster($@Groupid_2,"rwc01",30,70,"超级士兵",2473,strnpcinfo(0)+"::OnSuperMobDie");
+		.@sup1 = tribe_monster($@Groupid_2,"rwc01",30,70,"超级士兵",1002,strnpcinfo(0)+"::OnSuperMobDie");   //测试
+		unit_Astart_walkto .@sup1,50,50,1;
+		//.@sup2 = tribe_monster($@Groupid_2,"rwc01",69,70,"超级士兵",2473,strnpcinfo(0)+"::OnSuperMobDie");
+		.@sup2 = tribe_monster($@Groupid_2,"rwc01",69,70,"超级士兵",1002,strnpcinfo(0)+"::OnSuperMobDie");   //测试
+		unit_Astart_walkto .@sup2,50,50,1;
+		//.@sup3 = tribe_monster($@Groupid_2,"rwc01",70,30,"超级士兵",2474,strnpcinfo(0)+"::OnSuperMobDie");
+		.@sup3 = tribe_monster($@Groupid_2,"rwc01",70,30,"超级士兵",1002,strnpcinfo(0)+"::OnSuperMobDie");   //测试
+		unit_Astart_walkto .@sup3,50,50,1;
+		//.@sup4 = tribe_monster($@Groupid_2,"rwc01",30,30,"超级士兵",2474,strnpcinfo(0)+"::OnSuperMobDie");
+		.@sup4 = tribe_monster($@Groupid_2,"rwc01",30,30,"超级士兵",1002,strnpcinfo(0)+"::OnSuperMobDie");   //测试
+		unit_Astart_walkto .@sup4,50,50,1;
+	}
+	
+	.crystal_hp = .@new_percent;
+	end;
+
+OnSuperMobDie:
+	end;
+}
+
+prt_in,135,34,2	script	世界之树-online#1	966,{
+	mes "[壁垒阵线工作人员]";
+	mes "^ff0000每天^00000013：00开始报名";
+	mes "等级"+.need_baselvl+"以上";
+	mes "进入壁垒阵线前请先解散队伍";
+	mes .need_const+"rob报名费";	
+	mes "为防止恶意多开";
+	mes "^ff0000通行证^000000通过消耗品商店购买";
+	mes "有^ff000010分钟^000000报名时间";
+	mes "^ff000021：10^000000正式开始";
+	next;
+	switch(select($@game_statr==1?"我要报名":"","壁垒阵线介绍",getgmlevel()>=99?"^FF0000GM手动重新开启^000000":"")) {
+		case 1:
+			if ( BaseLevel < .need_baselvl ) {
+				mes "[指挥官-若风]";
+				mes "壁垒阵线需要等级大于"+.need_baselvl;
+				close;
+			}
+			if ( getcharid(1) ) {
+				mes "[指挥官-若风]";
+				mes "进入壁垒阵线前请先解散队伍";
+				close;
+			}
+			
+			if ( countitem(.need_ID) < 1 ) {
+				mes "[指挥官-若风]";
+				mes "需要携带邀请证件: ["+getitemname(.need_ID)+"]";
+				close;
+			}
+			
+			if ( Zeny < .need_const ) {
+				mes "[指挥官-若风]";
+				mes "壁垒阵线报名费为: "+.need_const+"z";
+				close;
+			}
+			mes "[指挥官-若风]";
+			if(select("我要进入:取消")==2)end;
+			close2;
+			if ( Reg_fee != $Reg_fee) {
+				Zeny = Zeny-.need_const;
+				Reg_fee = $Reg_fee;
+			}
+			cleararray @BG_limit_skill_count,0,getarraysize($@BG_limit_skill_id);
+			if (ismounting()) setmounting();
+			// 直接进入prt_lib_q地图，默认加入破界者
+			warp "prt_lib_q",10,60;
+			end;
+		case 2:
+			mes "[指挥官-若风]";
+			mes "破界者 vs 壁垒同盟";
+			mes "加入破界者";
+			mes "壁垒同盟由系统自动控制";
+			mes "破界者：保护己方水晶，摧毁魔物水晶";
+			mes "壁垒同盟：自动出兵攻击破界者";
+			mes "15分钟后可进入魔物基地直接攻击";
+			mes "奖励如下";
+			mes "胜：10个战场积分袋子";
+			mes "败：5个战场积分袋子";
+			mes "和：2个战场积分袋子";
+			close;
+		case 3:
+			mes "[指挥官-若风]";
+			mes "现在手动重新开启吗？";
+			next;
+			if ( select("开启:取消") == 2 ) close;
+			stopnpctimer;
+			$@mob_move=0;
+			$@mob_move_rwc=0;
+			killmonsterall "prt_lib_q";
+			killmonsterall "rwc01";
+			donpcevent "#LOL全局控制::Onstoptimer";
+			areawarp "prt_lib_q",0,0,500,500,"prontera",157,161;
+			areawarp "rwc01",0,0,500,500,"prontera",157,161;				
+			close2;
+			donpcevent strnpcinfo(0)+"::OnApply";	
+			end;
+	}
+	end;
+
+OnApply:
+	if ( $@game_statr || $@mob_move ) end;
+	$Reg_fee++;
+	//报名状态
+	$@game_statr = 1;
+	$@winnergroup = 0;
+	$@first_enter_rwc01 = 0; // 重置首次进入标记
+	$@rwc01_first_announce = 0; // 重置rwc01首次公告标记
+	announce "[壁垒阵线]:报名开始，时间为"+.delaytime/60000+"分钟",bc_all;
+	initnpctimer;
+	$@BG_time_minute = 0;
+	initnpctimer "#LOL开局计时";
+	sleep .delaytime;
+	//正式开始
+	$@game_statr = 2;
+	announce "壁垒阵线：报名已经停止，战场正式开启。",bc_all;
+	$@mob_move = 1;
+	$@mob_move_rwc = 0; // rwc01初始不主动出兵
+	killmonsterall "prt_lib_q";
+	killmonsterall "rwc01";
+	
+	bg_destroy $@Groupid_1;
+	bg_destroy $@Groupid_2;
+	// 只创建破界者，壁垒同盟由脚本控制
+	$@Groupid_1 = bg_create("prt_lib_q",10,60,"#LOL全局控制::OnQuit_1","#LOL全局控制::OnDeath_1");	// 破界者
+	$@Groupid_2 = bg_create("rwc01",50,50,"#LOL全局控制::OnQuit_2","#LOL全局控制::OnDeath_2");	// 壁垒同盟（用于tribe_monster归属）
+	
+	// 将所有玩家分配到阵营1
+	script4each strnpcinfo(0)+"::Ongroup",1,"prt_lib_q";
+	donpcevent "#LOL全局控制::OnStart";
+	donpcevent "#LOL全局控制::OnMobStart";
+	end;
+
+OnTimer300000:
+	announce "壁垒阵线：报名时间剩下5分钟。",bc_all;	
+	end;
+OnTimer360000:
+	announce "壁垒阵线：基础复活时间为:【5-10】秒,每10分钟递增【15】秒",bc_all;	
+	end;
+OnTimer420000:
+	announce "壁垒阵线：报名时间剩下3分钟。",bc_all;	
+	end;
+OnTimer480000:
+	announce "壁垒阵线：15分钟后可进入魔物基地直接攻击水晶！",bc_all;	
+	end;
+OnTimer540000:
+	announce "壁垒阵线：报名还剩下1分钟。",bc_all;	
+	stopnpctimer;
+	end;
+	
+Ongroup:
+	// 所有玩家都加入阵营1
+	bg_join($@Groupid_1,"prt_lib_q",10,60,getcharid(0));	// 破界者复活点
+	tribe_setteam convertpcinfo(getcharid(0),CPC_ACCOUNT),$@Groupid_1;
+	pc_has_join = 1000;
+	end;
+
+// 每天13点开启
+OnClock1300:
+	donpcevent strnpcinfo(0)+"::OnApply";	
+	end;
+
+OnInit:
+//=======入口相关设置==================
+	//.delaytime=10000;     // 测试时间
+	.delaytime=600000; // 报名时间10分钟
+	.need_baselvl=99;	
+	.need_const=500000;
+	.need_ID=7350;	
+
+//=======战场相关魔物设置==================	
+	// 壁垒同盟怪物ID池
+	setarray $@BG_mob_ids,3510,3518,3622,20350,20356;  //魔物ID
+	//setarray $@BG_mob_ids,1002,1009,1010,1012,1013,1014;    //测试ID
+	$@BG_mob_count=10; // 每波出兵数量
+	$@BG_mob_ftime=10; // 测试时间
+	//$@BG_mob_ftime = 15000; // 出兵间隔15秒
+
+//=======奖励相关设置==================		
+	$@draw_item_id=7432;	//平局奖励
+	$@draw_count=2;	
+	$@win_item_id=7432;	//胜方奖励
+	$@win_count=10;    
+	$@los_item_id=7432;	//败方奖励
+	$@los_count=5;	   
+
+	//取消死亡返场时间设定：立即返场
+	setarray $@BG_back_time,0,0;
+	$@BG_back_time_add = 0;
+
+	//限制使用的技能
+	setarray $@BG_limit_skill_id,117,119,121;
+	setarray $@BG_limit_skill_count,200,200,200;
+	unitaura getnpcid(0),486; 
+	settitleicon(getnpcid(0),0,"指挥官-若风");
+	while(1){
+		showscript "[ 壁垒战场 - 13点开启 ]";
+		sleep 1000;
+	}	
+	end;
+}
+
+-	script	LOL_ReconnectHelper	-1,{
+	end;
+OnPCLoginEvent:
+	sleep2 100;
+	if ( $@game_statr==2 ){
+		if(pc_has_join ==1000){
+			// 已在复活点，无需二次传送
+			bg_join($@Groupid_1,"prt_lib_q",10,60,getcharid(0));	
+			tribe_setteam convertpcinfo(getcharid(0),CPC_ACCOUNT),$@Groupid_1;
+
+			// 导航：在小地图标注一条前往破界者主水晶(89,43)的路径
+			viewpoint 1,17,61,101,0x00FF00; // 路径点1（绿）
+			viewpoint 1,27,61,102,0x00FF00; // 路径点2（绿）
+			viewpoint 1,40,61,103,0x00FF00; // 路径点3（绿）
+			viewpoint 1,69,61,104,0x00FF00; // 路径点4（绿）
+			viewpoint 1,75,52,105,0x00FF00; // 路径点5（绿）
+			dispbottom "[LOL战场] 导航：沿小地图绿色标记前往破界者水晶（目标点为蓝色）。";
+
+			// 直接设置复活倒计时
+			.@t = rand($@BG_back_time[0],$@BG_back_time[1]);
+			.@t = .@t + ($@BG_time_minute/10)*$@BG_back_time_add;
+			dispbottom "你将会在"+.@t+"秒后返场。";
+			addtimer .@t*1000,"#LOL全局控制::OnEvBack";
+			end;
+		}
+		else end;
+	}
+	else{
+		if(pc_has_join){
+		pc_has_join = 0;
+		tribe_setteam 0;
+		}
+	}
+	end;
+}
+
+function	script	title_sys	{
+	.@title$ = getarg(0);
+	return;
+}

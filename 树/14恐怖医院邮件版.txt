@@ -1,0 +1,1354 @@
+/*
+  - Id: 205
+    Name: 噩梦医院
+    TimeLimit: 1800
+    Enter:
+      Map: 1@ma_a1
+      X: 147
+      Y: 10
+    AdditionalMaps:
+      1@ma_a2: true
+*/
+
+
+1@pop3,64,47,2	script	噩梦医院接待员::nm_hospital	10184,{
+	OnStart:
+		set .@party_id, getcharid(1);
+		set .@is_leader, (getcharid(0) == getpartyleader(.@party_id,2));
+		set .@has_instance, NM_INSTANCE_ID > 0;
+		
+		set .@nm_instance_delay, (#instance_delay_nmhospital - gettimetick(2));
+		
+		mes "^0055FF[ 噩梦医院接待员 ]^000000";
+		mes "欢迎来到噩梦医院。";
+		mes "我们的医院二楼爆发了可怕的传染病，";
+		mes "病人情况危急，急需救治！";
+		mes "那里已经变成了人间地狱...";
+		mes "尖叫声日夜不息...";
+		mes "你确定要进入这个噩梦之地吗？";
+		next;
+		
+		switch(select(
+			(.@party_id && .@is_leader && !.@has_instance)?"进入噩梦医院2楼副本":"",
+			(.@party_id && .@has_instance)?"进入副本":"",
+			"取消"
+		)){
+			case 1:
+				if(.@nm_instance_delay > 0){
+					mes "你需要等待: ^FF0000"+.@nm_instance_delay+" 秒。^000000";
+					close;
+				}
+				
+				// 检查队员条件
+				getpartymember .@party_id, 2;
+				set .@origin, getcharid(3);
+				for(set .@i, 0; .@i < $@partymembercount; set .@i, .@i+1){
+					if(attachrid($@partymemberaid[.@i])){
+						if(BaseLevel < 60){
+							mes "队伍成员 ^FF0000"+strcharinfo(0)+"^000000 等级不足60级！";
+							attachrid(.@origin);
+							close;
+						}
+						if(Zeny < 1500000){
+							mes "队伍成员 ^FF0000"+strcharinfo(0)+"^000000 金币不足！";
+							attachrid(.@origin);
+							close;
+						}
+					}
+				}
+				attachrid(.@origin);
+				
+				// 创建副本
+				set .@instance, instance_create("噩梦医院2楼副本");
+				if(.@instance < 0){
+					mes "副本创建失败，请稍后再试。";
+					close;
+				}
+
+				// 修复：使用事件设置实例变量
+				donpcevent instance_npcname("nm_hospital_main")+"::OnSetPartyID "+.@party_id;
+				
+				set .@gettimetick, gettimetick(2);
+				getpartymember .@party_id,2;
+				
+				// 创建数组存储队员AID
+				set .@member_count, $@partymembercount;
+				for(set .@i, 0; .@i < .@member_count; set .@i, .@i+1) {
+					set .@member_aids[.@i], $@partymemberaid[.@i];
+				}
+				
+				for(set .@i, 0; .@i < .@member_count; set .@i, .@i+1) {
+					if(attachrid(.@member_aids[.@i])){
+						set #instance_delay_nmhospital, .@gettimetick + 3; // 1小时冷却
+						set Zeny, Zeny - 1500000;
+						set NM_INSTANCE_ID, .@instance;
+						dispbottom "[噩梦医院] 支付了1,500,000金币，副本冷却时间已应用。";
+					}
+				}
+				attachrid(.@origin);
+				
+				mes "噩梦医院副本已为队伍 - "+getpartyname(.@party_id)+" 创建。";
+				donpcevent instance_npcname("nm_hospital_main")+"::OnInstanceInit";
+				
+				// 传送所有队员进入副本
+				sleep 1000;
+				for(set .@i, 0; .@i < .@member_count; set .@i, .@i+1) {
+					if (isloggedin(.@member_aids[.@i])) {
+						attachrid(.@member_aids[.@i]);
+						if (strcharinfo(3) != instance_mapname("1@ma_a1")) {
+							if (instance_enter("噩梦医院2楼副本") == 0) {
+								instance_announce .@instance, strcharinfo(0)+" 进入了噩梦医院2楼副本。", bc_map, "0x00FF99";
+							} else {
+								dispbottom "进入副本失败，请联系管理员。";
+							}
+						}
+					}
+				}
+				attachrid(.@origin);
+				close;
+				
+			case 2:
+				if(NM_INSTANCE_ID <= 0){
+					mes "队伍没有激活的副本。";
+					close;
+				}
+				
+				switch(instance_enter("噩梦医院2楼副本")){
+					case 0:
+						instance_announce NM_INSTANCE_ID, strcharinfo(0)+" 进入了噩梦医院2楼副本。", bc_map, "0x00FF99";
+						end;
+					case 1:
+						mes "你需要加入队伍才能进入副本。";
+						break;
+					case 2:
+						set NM_INSTANCE_ID, 0;
+						mes "副本已结束，请队长重新创建副本。";
+						break;
+					default:
+						mes "发生未知错误。";
+				}
+				close;
+		}
+	close;
+		
+	OnInit:
+		set .instance_name$, "噩梦医院2楼副本";
+		end;
+}
+
+1@ma_a1,1,1,1	script	nm_hospital_main	HIDDEN_NPC,{
+	end;
+
+	// 新增：通过事件设置队伍ID
+	OnSetPartyID:
+		set $@nm_party_id, atoi(getarg(0));
+		end;
+
+	OnInstanceInit:
+		set $@nm_reward_given, 0;
+		set $@nm_boss_triggered, 0;
+		set $@nm_floor2_started, 0;
+		set $@nm_floor2_triggered, 0;
+		set $@nm_final_boss_triggered, 0;
+		set $@nm_special_kills, 0;
+		set $@nm_gate_status, 0;
+		set $@nm_item_collected, 0;
+		
+		stopnpctimer;
+		set .stage, 0;
+		set .boss_killed, 0;
+		// 修复：使用已设置的实例变量
+		set .party_id, $@nm_party_id;
+		
+		disablenpc instance_npcname("nm_floor1_gate");
+		disablenpc instance_npcname("nm_boss_gate");
+		disablenpc instance_npcname("nm_final_boss_gate");
+		disablenpc instance_npcname("nm_stage1_reward");
+		disablenpc instance_npcname("nm_reward_npc"); // 医院主任初始禁用
+		disablenpc instance_npcname("nm_isolation_gate");
+		
+		enablenpc instance_npcname("nm_infected_kafra");
+		
+		donpcevent instance_npcname("nm_boss_controller")+"::OnReset";
+
+		set $@nm_item_collected, 0;
+		set $@nm_gate_status, 0;
+
+		set .@map$, instance_mapname("1@ma_a1");
+		for(set .@i, 0; .@i < 60; set .@i, .@i+1) {
+			callfunc "RandomSpawn", .@map$, 2311, 1, "OnPatientKilled", "肿瘤护士";
+		}
+		for(set .@i, 0; .@i < 60; set .@i, .@i+1) {
+			callfunc "RandomSpawn", .@map$, 2314, 1, "OnPatientKilled", "恶魔婴儿";
+		}
+		for(set .@i, 0; .@i < 60; set .@i, .@i+1) {
+			callfunc "RandomSpawn", .@map$, 2315, 1, "OnPatientKilled", "黑瘟僵尸";
+		}
+		for(set .@i, 0; .@i < 20; set .@i, .@i+1) {
+			callfunc "RandomSpawn", .@map$, 2766, 1, "OnPatientKilled", "死亡护士";
+		}
+		
+		enablenpc instance_npcname("nm_infected_kafra");
+		
+		initnpctimer "OnInitBroadcast";
+		end;
+
+	OnInitBroadcast:
+		stopnpctimer;
+		sleep 3000;
+		
+		instance_announce instance_id(), "医院走廊传来诡异的笑声...", bc_map, "0xCC0000";
+		sleep 2000;
+		instance_announce instance_id(), "墙壁开始渗出暗红色的液体...", bc_map, "0xCC0000";
+		sleep 2000;
+		instance_announce instance_id(), "远处传来痛苦的呻吟声...", bc_map, "0xCC0000";
+		
+		set $nm_kill_count, 0;
+		set .total_patients, 200;
+		
+		enablenpc instance_npcname("nm_infected_kafra");
+		
+		initnpctimer;
+		end;
+
+	OnPatientKilled:
+		set .@map$, strnpcinfo(4);
+		set $nm_kill_count, $nm_kill_count + 1;
+		
+		if($nm_kill_count >= .total_patients && .stage == 0){
+			set .stage, 1;
+			instance_announce instance_id(), "救救我...我不想变成它们那样...", bc_map, "0xCC0000";
+			sleep 2000;
+			instance_announce instance_id(), "医院走廊传来诡异的笑声...", bc_map, "0xCC0000";
+			sleep 2000;
+			instance_announce instance_id(), "墙壁开始渗出暗红色的液体...", bc_map, "0xCC0000";
+			sleep 2000;
+			instance_announce instance_id(), "谁来帮帮我！这病毒太可怕了！", bc_map, "0xCC0000";
+			sleep 2000;
+			instance_announce instance_id(), "我不想死在这里，放我出去！", bc_map, "0xCC0000";
+			sleep 2000;
+			instance_announce instance_id(), "我被感染了！", bc_map, "0xCC0000";
+			sleep 2000;
+			instance_announce instance_id(), "身体不受控制了，它们在侵蚀我！", bc_map, "0xCC0000";
+			sleep 2000;
+			instance_announce instance_id(), "救命啊！我能感觉到自己在变化！", bc_map, "0xCC0000";
+			sleep 2000;
+			instance_announce instance_id(), "我必须尽快离开！", bc_map, "0xCC0000";
+			sleep 2000;
+			instance_announce instance_id(), "...我还有使命没有完成。", bc_map, "0xCC0000";
+			sleep 2000;
+			instance_announce instance_id(), "乌龟岛...发生了...叛...乱", bc_map, "0xCC0000";
+			sleep 2000;
+		}
+		end;
+		
+	OnPlayerLeaveAfterReward:
+		disablenpc instance_npcname("nm_floor1_gate");
+		disablenpc instance_npcname("nm_boss_gate");
+		disablenpc instance_npcname("nm_isolation_gate");
+		
+		if (.party_id) {
+			getpartymember .party_id, 0;
+			set .@size, $@partymembercount;
+			for (set .@i, 0; .@i < .@size; set .@i, .@i+1) {
+				if (isloggedin($@partymemberaid[.@i], $@partymembercid[.@i])) {
+					attachrid($@partymemberaid[.@i]);
+					set NM_INSTANCE_ID, 0;
+					
+					if (strcharinfo(3) == instance_mapname("1@ma_a1") || 
+						strcharinfo(3) == instance_mapname("1@ma_a2")) {
+						if (countitem(601) > 0) {
+							set .@item_count, countitem(601);
+							delitem 601, .@item_count;
+							dispbottom "离开副本，恐怖医院出入凭证碎片(" + .@item_count + "个)已被清除";
+						}
+					}
+				}
+			}
+		}
+		
+		instance_announce instance_id(), "逃不掉的...永远逃不掉的...", bc_map, "0xCC0000";
+		instance_destroy instance_id();
+		end;
+
+	OnSetStage2:
+		set .stage, 2;
+		end;
+
+	OnSetStage3:
+		set .stage, 3;
+		end;
+
+	OnMonsterKilled:
+		if(.stage != 3) end;
+		
+		.@count = mobcount(instance_mapname("1@ma_a2"), instance_npcname("nm_hospital_main")+"::OnMonsterKilled");
+		
+		if(.@count == 0){
+			enablenpc instance_npcname("nm_boss_gate");
+			instance_announce instance_id(), "所有感染病人已被清除！请前往手术室击杀操纵者一切的幕后黑手！！！", bc_map, "0x00FF99";
+			instance_announce instance_id(), "祂醒了...祂来找你们了...", bc_map, "0xCC0000";
+		}
+		end;
+
+	OnSpecialMonsterKilled:
+		set $@nm_special_kills, $@nm_special_kills + 1;
+		
+		if ($@nm_special_kills >= 30) {
+			enablenpc instance_npcname("nm_final_boss_gate");
+			instance_announce instance_id(), "通往最终BOSS的传送门已开启！", bc_map, "0x00FF99";
+			instance_announce instance_id(), "手术室深处传来令人不安的震动...", bc_map, "0xCC0000";
+		}
+		end;
+		
+	OnBossKilled:
+		if (.boss_killed) end;
+		set .boss_killed, 1;
+		
+		instance_announce instance_id(), "融合病毒 307 型: 怎么…会就这样地输掉了呢…", bc_map, "0xFFB347";
+		sleep 3000;
+		instance_announce instance_id(), "融合病毒 307 型: 别以为这样就结束了!!", bc_map, "0xFF6B6B";
+		sleep 3000;
+		instance_announce instance_id(), "融合病毒 307 型: 我一定会再回来的!!!", bc_map, "0xFF5733";
+		sleep 3000;
+
+		donpcevent instance_npcname("nm_stage1_reward")+"::OnEnable";
+		
+		instance_announce instance_id(), "请前往病房救治特殊病人！他们的尖叫声越来越痛苦...", bc_map, "0x00FF99";
+		instance_announce instance_id(), "救救我们...我们不想变成怪物...", bc_map, "0xCC0000";
+		end;
+		
+	OnSecondBossKilled:
+		// 关键修复：确保医院主任在击杀变异病毒后出现
+		enablenpc  instance_npcname("nm_reward_npc")+"::OnEnable";
+		instance_announce instance_id(), "医院主任出现在手术室(145,157)，快去领取奖励吧！", bc_map, "0x00FF99";
+		end;
+
+	OnTimer7200000:
+		instance_announce instance_id(), "副本即将关闭...", bc_map, "0xFF0000";
+		instance_destroy instance_id();
+		end;
+}
+
+
+1@ma_a1,37,116,4	script	卡普拉职员 安杰::nm_infected_kafra	4_f_nfdeadkafra,{
+	mes "^FF0000[被感染的卡普拉]^000000";
+	mes "咳...咳咳...";
+	mes "我...我被感染了...";
+	mes "请帮帮我...";
+	mes "收集20个^0000FF恐怖医院出入凭证碎片^000000...";
+	mes "也许能净化我体内的病毒...";
+	next;
+	
+	if (getcharid(0) != getpartyleader(getcharid(1), 2)) {
+		mes "^FF0000[被感染的卡普拉]^000000";
+		mes "只有队伍队长才能帮助我...";
+		close;
+	}
+	
+	if ($@nm_gate_status == 1) {
+		mes "^00FF00[卡普拉职员 安杰]^000000";
+		mes "谢谢你拯救了医院！";
+		mes "通往二楼的传送门已经开启...";
+		mes "但那里...比这里更可怕...";
+		close;
+	}
+	
+	if (countitem(601) < 20) {
+		mes "^FF0000[被感染的卡普拉]^000000";
+		mes "还需要...^0000FF" + (20 - countitem(601)) + "个^000000碎片...";
+		mes "请...快一点...";
+		mes "我感觉...它正在控制我...";
+		close;
+	}
+
+	mes "^FF0000[被感染的卡普拉]^000000";
+	mes "啊！你收集齐了！";
+	mes "请把碎片给我...";
+	delitem 601, 20;
+	next;
+	
+	mes "^00FF00[净化中的卡普拉]^000000";
+	mes "感觉...好多了...";
+	mes "病毒正在离开我的身体...";
+	next;
+	
+	setnpctimer 0;
+	disablenpc;
+	initnpctimer;
+	end;
+	
+OnTimer1000:
+	setnpcdisplay instance_npcname("nm_infected_kafra"), "卡普拉职员 安杰", 117;
+	
+	enablenpc;
+	instance_announce instance_id(), "感谢你让我得到了恢复！但请小心...楼上的情况更糟...我听到尖叫声日夜不停...", bc_map, "0xFF0000";
+	enablenpc instance_npcname("nm_floor1_gate");
+	set $@nm_gate_status, 1; 
+	instance_announce instance_id(), "通往二楼的传送门已经开启！", bc_map, "0x00FF99";
+	instance_announce instance_id(), "空洞的回声...新的猎物...来了...", bc_map, "0xCC0000";
+	
+	killmonster instance_mapname("1@ma_a1"), instance_npcname("nm_hospital_main")+"::OnPatientKilled";
+	
+	donpcevent instance_npcname("nm_hospital_main")+"::OnSetStage2";
+	stopnpctimer;
+	end;
+}
+
+1@ma_a1,31,110,0	script	nm_floor1_gate	45,2,2,{
+	warp instance_mapname("1@ma_a2"),35,63;
+	instance_announce instance_id(), "一股刺骨的寒意从二楼传来...", bc_map, "0xCC0000";
+	donpcevent instance_npcname("nm_floor2_controller")+"::OnPlayerEnter";
+	end;
+OnInit:
+	disablenpc;
+	end;
+}
+
+1@ma_a2,1,1,1	script	nm_floor2_controller	HIDDEN_NPC,{
+	end;
+
+	OnPlayerEnter:
+		if ($@nm_floor2_started) end;
+		set $@nm_floor2_started, 1;
+		set $@nm_special_kills, 0; 
+		initnpctimer;
+		end;
+
+	OnReset:
+		set $@nm_floor2_started, 0;
+		set $@nm_floor2_triggered, 0;
+		set $@nm_special_kills, 0; 
+		end;
+
+	OnTimer3000: 
+		stopnpctimer; 	
+		if ($@nm_floor2_triggered) end;
+		set $@nm_floor2_triggered, 1;
+		
+		instance_announce instance_id(), "二楼出现大量感染病人！请尽快清除！否则5分钟后会出现时间裂隙造成时光倒流.", bc_map, "0xFF0000";
+		instance_announce instance_id(), "啊啊啊——不要过来！离我远点！", bc_map, "0xCC0000";
+		
+		setarray .@areas[0],
+			42,70,60,88,
+			45,37,61,54,
+			64,70,83,88,
+			65,37,83,55,
+			86,71,104,88,
+			89,37,105,55;
+		
+		setarray .@mob_info$[0],
+			"2338", "肿瘤护士", "2339", "脓疱缝合者",
+			"2340", "恶魔婴儿", "2313", "寄生医生",
+			"2353", "变异体", "2354", "黑瘟僵尸",
+			"2355", "盐水变异体", "2357", "基因熔毁者",
+			"2359", "缝合线蠕虫", "2360", "停尸房倒影",
+			"2365", "手术台恶灵", "2371", "X射线幽灵";
+		
+		for(set .@area_index, 0; .@area_index < 6; set .@area_index, .@area_index + 1) {
+			set .@min_x, .@areas[.@area_index * 4];
+			set .@min_y, .@areas[.@area_index * 4 + 1];
+			set .@max_x, .@areas[.@area_index * 4 + 2];
+			set .@max_y, .@areas[.@area_index * 4 + 3];
+			
+			set .@mob1_id, atoi(.@mob_info$[.@area_index * 4]);
+			set .@mob1_name$, .@mob_info$[.@area_index * 4 + 1];
+			set .@mob2_id, atoi(.@mob_info$[.@area_index * 4 + 2]);
+			set .@mob2_name$, .@mob_info$[.@area_index * 4 + 3];
+
+			for(set .@j, 0; .@j < 8; set .@j, .@j + 1) {
+				set .@x, rand(.@min_x, .@max_x);
+				set .@y, rand(.@min_y, .@max_y);
+
+				set .@tries, 0;
+				while (!checkcell("1@ma_a2", .@x, .@y, cell_chkpass) && .@tries < 10) {
+					set .@x, rand(.@min_x, .@max_x);
+					set .@y, rand(.@min_y, .@max_y);
+					set .@tries, .@tries + 1;
+				}
+				
+				monster instance_mapname("1@ma_a2"), .@x, .@y, .@mob1_name$, .@mob1_id, 1, instance_npcname("nm_hospital_main")+"::OnMonsterKilled";
+			}
+			
+			for(set .@j, 0; .@j < 8; set .@j, .@j + 1) {
+				set .@x, rand(.@min_x, .@max_x);
+				set .@y, rand(.@min_y, .@max_y);
+				
+				set .@tries, 0;
+				while (!checkcell("1@ma_a2", .@x, .@y, cell_chkpass) && .@tries < 10) {
+					set .@x, rand(.@min_x, .@max_x);
+					set .@y, rand(.@min_y, .@max_y);
+					set .@tries, .@tries + 1;
+				}
+				
+				monster instance_mapname("1@ma_a2"), .@x, .@y, .@mob2_name$, .@mob2_id, 1, instance_npcname("nm_hospital_main")+"::OnMonsterKilled";
+			}
+		}
+		
+		sleep 9000;
+
+		setarray .@elite_coords[0],
+			52,79,
+			74,81,
+			95,80,
+			95,46,
+			74,47,
+			52,47;
+		
+		setarray .@elite_mobs[0], 
+			2228,
+			2229,
+			2230,
+			2231,
+			2232,
+			2233;
+			
+		setarray .@elite_names$[0],
+			"睡不着的病人",
+			"狂吃不胖的病人",
+			"重度玉玉症的",
+			"32合1的怨念体",
+			"我是蘑菇",
+			"容易发狂的病人";
+		
+		for(set .@i, 0; .@i < 6; set .@i, .@i + 1) {
+			set .@x, .@elite_coords[.@i * 2];
+			set .@y, .@elite_coords[.@i * 2 + 1];
+			set .@mob_id, .@elite_mobs[.@i];
+			
+			if (checkcell("1@ma_a2", .@x, .@y, cell_chkpass)) {
+				monster instance_mapname("1@ma_a2"), .@x, .@y, .@elite_names$[.@i], .@mob_id, 1, instance_npcname("nm_hospital_main")+"::OnMonsterKilled";
+			}
+		}
+		
+		instance_announce instance_id(), "感染融合病毒 307-1型的病人已出现在医院各处！请小心应对！", bc_map, "0xFF9900";
+		instance_announce instance_id(), "新鲜的血肉...更多痛苦...", bc_map, "0xCC0000";
+
+		donpcevent instance_npcname("nm_hospital_main")+"::OnSetStage3";
+		end;
+}
+
+1@ma_a2,104,64,0	script	nm_boss_gate	45,2,2,{
+	warp instance_mapname("1@ma_a2"),114,64 ;
+
+	if (!$@nm_boss_triggered) {
+		instance_announce instance_id(), "一股令人窒息的压迫感从手术室传来...", bc_map, "0xCC0000";
+		set $@nm_boss_triggered, 1;
+		donpcevent instance_npcname("nm_boss_controller")+"::OnEnable";
+	}
+	end;
+OnInit:
+	disablenpc;
+	end;
+}
+
+1@ma_a2,1,1,0	script	nm_boss_controller	HIDDEN_NPC,{
+	end;
+
+	OnInit:
+		disablenpc;
+		end;
+
+	OnReset:
+		set .triggered, 0;
+		end;
+
+	OnEnable:
+		if (.triggered) end;
+		set .triggered, 1;
+
+		sleep 1000;
+		instance_announce instance_id(), "融合病毒 307 型: 可怜的小家伙…把你带入传染病之中…", bc_map, "0xFFC107";
+		sleep 2000;
+		instance_announce instance_id(), "融合病毒 307 型: 会让你窒息般痛苦万分的疾病!", bc_map, "0xFF9800";
+		sleep 2000;
+		instance_announce instance_id(), "融合病毒 307 型: 我会让你尝尝那是什么东西!", bc_map, "0xFF5722";
+		sleep 2000;
+		instance_announce instance_id(), "融合病毒 307 型: 你听过病人们的哀嚎声吗?", bc_map, "0xF44336";
+		sleep 2000;
+		instance_announce instance_id(), "融合病毒 307 型: 没听过的话，我就让你听听吧!", bc_map, "0xE91E63";
+		sleep 2000;
+		instance_announce instance_id(), "啊啊啊啊——————", bc_map, "0x9C27B0";
+		sleep 2000;
+		instance_announce instance_id(), "融合病毒 307 型: 绝望吧！", bc_map, "0x673AB7";
+		sleep 2000;
+		
+		set .bossGID, monster(instance_mapname("1@ma_a2"),137,64,"融合病毒 307 型",2317,1,instance_npcname("nm_hospital_main")+"::OnBossKilled");
+		end;
+		
+	OnBossKilled:
+		instance_announce instance_id(), "融合病毒 307 型倒下了！但它的怨念正在凝聚...", bc_map, "0x3F51B5";
+		instance_announce instance_id(), "深渊回响...痛苦...死亡...永恒...", bc_map, "0x2196F3";
+		end;
+}
+
+1@ma_a2,141,66,4	script	神秘医师::nm_stage1_reward	849,{
+	// 检查是否在队伍中
+	if (getcharid(1) == 0) {
+		mes "^00FF00[神秘医师]^000000";
+		mes "只有队伍成员才能与我对话。";
+		close;
+	}
+
+	// 检查是否已领取奖励
+	if ($@mystery_doctor_reward_given != 0) {
+		mes "^00FF00[神秘医师]^000000";
+		mes "你已经领取过奖励了。";
+		mes "现在只能选择继续深入或者直接离开。";
+		next;
+		
+		switch(select("继续深入", "直接离开")){
+			case 1:
+				// 继续深入：创建传送门
+				enablenpc instance_npcname("nm_isolation_gate");
+				instance_announce instance_id(), "通往特殊隔离区的传送门已在(145,63)开启！", bc_map, "0x00FF99";
+				instance_announce instance_id(), "空洞的回声...新的猎物...来了...", bc_map, "0xCC0000";
+				close;
+			case 2:
+				// 直接离开
+				mes "^00FF00[神秘医师]^000000";
+				mes "明智的选择...";
+				mes "希望你能忘记这里看到的一切...";
+				close2;
+				
+				// 传送回城
+				warp "prontera",155,120;
+				end;
+		}
+	}
+
+	// 首次对话：提供完整选项
+	mes "^00FF00[神秘医师]^000000";
+	mes "你们做得很好，暂时遏制了医院的感染。";
+	mes "但真正的威胁还未消除...";
+	mes "你可以选择现在领取部分奖励离开，";
+	mes "或者继续深入对抗更可怕的威胁...";
+	next;
+	
+	switch(select("继续深入", "领取奖励离开")){
+		case 1:
+			// 继续深入：创建传送门
+			enablenpc instance_npcname("nm_isolation_gate");
+			instance_announce instance_id(), "通往特殊隔离区的传送门已在(145,63)开启！", bc_map, "0x00FF99";
+			instance_announce instance_id(), "空洞的回声...新的猎物...来了...", bc_map, "0xCC0000";
+			close;
+		case 2:
+			// 领取奖励离开逻辑
+			
+			// 清除副本变量
+			set NM_INSTANCE_ID, 0;
+			
+			// 发放奖励 - 使用邮件系统
+			callfunc "NM_SendRewardByMail", 675, 5; // 5个银币
+			callfunc "NM_SendRewardByMail", 630, 1;  // 其他奖励物品1
+			callfunc "NM_SendRewardByMail", 635, 1;  // 其他奖励物品2
+			callfunc "NM_SendRewardByMail", 637, 1;  // 其他奖励物品3
+			
+			dispbottom "获得了奖励！物品已发放（如背包满将通过邮件发送）";
+			
+			mes "^00FF00[神秘医师]^000000";
+			mes "明智的选择...";
+			mes "希望你能忘记这里看到的一切...";
+			close2;
+			
+			// 设置已领取奖励标志
+			set $@mystery_doctor_reward_given, 1;
+			
+			// 传送回城
+			warp "prontera",155,120;
+			end;
+	}
+	
+OnInstanceInit:
+	set $@mystery_doctor_reward_given, 0;
+	disablenpc;
+	end;
+	
+OnEnable:
+	enablenpc;
+	end;
+}
+
+// 隔离区传送门
+1@ma_a2,145,63,0	script	nm_isolation_gate	45,2,2,{
+	warp instance_mapname("1@ma_a2"),36,156;
+	instance_announce instance_id(), "你被传送到了特殊隔离区...这里的空气更加沉重...", bc_map, "0xCC0000";
+	end;
+OnInit:
+	disablenpc;
+	end;
+}
+
+1@ma_a2,106,157,0	script	nm_final_boss_gate	45,2,2,{
+	warp instance_mapname("1@ma_a2"),113,157;
+	donpcevent instance_npcname("nm_final_boss")+"::OnEnable";
+	end;
+	
+OnInit:
+	disablenpc;
+	end;
+	
+OnEnable:
+	enablenpc;
+	end;
+}
+
+1@ma_a2,1,1,1	script	nm_final_boss	HIDDEN_NPC,{
+	end;
+
+	OnEnable:
+		if($@nm_final_boss_triggered) end;
+		set $@nm_final_boss_triggered, 1;
+		
+		sleep 1000;
+		instance_announce instance_id(), "变异病毒  A型: 死亡...痛苦...毁灭...", bc_map, "0x00BCD4";
+		sleep 2000;
+		instance_announce instance_id(), "变异病毒  A型: 所有生命...都将终结...", bc_map, "0x009688";
+		sleep 2000;
+		instance_announce instance_id(), "变异病毒  A型: 加入我们...成为永恒...", bc_map, "0x4CAF50";
+		sleep 2000;
+		instance_announce instance_id(), "变异病毒  A型: 接受...绝望的命运...", bc_map, "0x8BC34A";
+		sleep 2000;
+		
+		set 'bossGID, monster(instance_mapname("1@ma_a2"),137,158,"变异病毒  A型",2997,1,strnpcinfo(0)+"::OnBossDied");
+		initnpctimer;
+		end;
+		
+	OnTimer2000:
+		if('bossGID && unitexists('bossGID)) {
+			.@RandSkillMode = rand(1,10);
+			switch(.@RandSkillMode) {
+				case 1:
+					if(unitexists('bossGID)) {
+						unittalk 'bossGID,"末日的雷光，将撕碎这虚妄的生机，让黑暗吞噬一切！";
+						mobskill 'bossGID,81,10,0,0,3;
+						unitskilltowide2 'bossGID,21,5,15,7,25,200;
+					}
+					sleep 1000;
+					break;
+				case 2:
+					if(unitexists('bossGID)) {
+						unittalk 'bossGID,"空间开始崩塌，无尽的黑暗即将吞噬一切！逃不掉的！";
+						mobskill 'bossGID,81,10,0,0,3;
+						unitskilltowide2 'bossGID,91,5,15,4,25,100;
+					}
+					sleep 1000;
+					break;
+				case 5:
+					if(unitexists('bossGID)) {
+						unittalk 'bossGID,"极寒的死亡之冬，将冻结一切生机，堕入无尽的冰狱深渊！";
+						unitskilltoAOE 'bossGID,78,1,30;
+						mobskill 'bossGID,720,10,0,0,3;
+						sleep 500;
+						if(unitexists('bossGID)) {
+							unitskilltoAOE 'bossGID,78,1,30;
+							mobskill 'bossGID,720,10,0,0,3;
+							sleep 500;
+							if(unitexists('bossGID)) {
+								unitskilltoAOE 'bossGID,78,1,30;
+								mobskill 'bossGID,720,10,0,0,3;
+								sleep 500;
+								if(unitexists('bossGID)) {
+									unitskilltoAOE 'bossGID,78,1,30;
+									unitskilltoAOE 'bossGID,84,10,30;
+								}
+							}
+						}
+					}
+					sleep 1000;
+					break;
+				case 7:
+					if(unitexists('bossGID)) {
+						unittalk 'bossGID,"无尽的毁灭之火，如陨星般降临，吞噬一切生机！";
+						getunitdata 'bossGID, .@mob_data;
+						.@x = .@mob_data[UMOB_X];
+						.@y = .@mob_data[UMOB_Y];
+						.@range = 3;
+						for(.@i = 0; .@i < 15; .@i += .@range){
+							if(checkcell(strnpcinfo(4), .@x+.@i, .@y+.@i, cell_chkpass)){
+								monster strnpcinfo(4), .@x+.@i, .@y+.@i, "", 1002, 1, "";
+								.@unit_id = $@mobid[0];
+								setunitdata .@unit_id, UMOB_DMGIMMUNE, 1;
+								setunitdata .@unit_id, UMOB_CLASS, 139;
+								setunitdata .@unit_id, UMOB_INT,500;
+								setunitdata .@unit_id, UMOB_MATKMIN,3000;
+								setunitdata .@unit_id, UMOB_MATKMAX,5000;
+								unitskillusepos .@unit_id, "WZ_METEOR", 10, .@x+.@i, .@y+.@i, -5000;
+								.@bot[getarraysize(.@bot)] = .@unit_id;
+							}
+							if(checkcell(strnpcinfo(4), .@x+.@i, .@y-.@i, cell_chkpass)){
+								monster strnpcinfo(4), .@x+.@i, .@y-.@i, "", 1002, 1, "";
+								.@unit_id = $@mobid[0];
+								setunitdata .@unit_id, UMOB_DMGIMMUNE, 1;
+								setunitdata .@unit_id, UMOB_CLASS, 139;
+								setunitdata .@unit_id, UMOB_INT,500;
+								setunitdata .@unit_id, UMOB_MATKMIN,3000;
+								setunitdata .@unit_id, UMOB_MATKMAX,5000;
+								unitskillusepos .@unit_id, "WZ_METEOR", 10, .@x+.@i, .@y-.@i, -5000;
+								.@bot[getarraysize(.@bot)] = .@unit_id;
+							}
+							if(checkcell(strnpcinfo(4), .@x-.@i, .@y-.@i, cell_chkpass)){
+								monster strnpcinfo(4), .@x-.@i, .@y-.@i, "", 1002, 1, "";
+								.@unit_id = $@mobid[0];
+								setunitdata .@unit_id, UMOB_DMGIMMUNE, 1;
+								setunitdata .@unit_id, UMOB_CLASS, 139;
+								setunitdata .@unit_id, UMOB_INT,500;
+								setunitdata .@unit_id, UMOB_MATKMIN,3000;
+								setunitdata .@unit_id, UMOB_MATKMAX,5000;
+								unitskillusepos .@unit_id, "WZ_METEOR", 10, .@x-.@i, .@y-.@i, -5000;
+								.@bot[getarraysize(.@bot)] = .@unit_id;
+							}
+							if(checkcell(strnpcinfo(4), .@x-.@i, .@y+.@i, cell_chkpass)){
+								monster strnpcinfo(4), .@x-.@i, .@y+.@i, "", 1002, 1, "";
+								.@unit_id = $@mobid[0];
+								setunitdata .@unit_id, UMOB_DMGIMMUNE, 1;
+								setunitdata .@unit_id, UMOB_CLASS, 139;
+								setunitdata .@unit_id, UMOB_INT,500;
+								setunitdata .@unit_id, UMOB_MATKMIN,3000;
+								setunitdata .@unit_id, UMOB_MATKMAX,5000;
+								unitskillusepos .@unit_id, "WZ_METEOR", 10, .@x-.@i, .@y+.@i, -5000;
+								.@bot[getarraysize(.@bot)] = .@unit_id;
+							}
+							sleep 500;
+						}
+						sleep 3000;
+						for(.@i = 0; .@i < getarraysize(.@bot); .@i++){
+							if(unitexists(.@bot[.@i]))
+								mobremove .@bot[.@i];
+						}
+					}
+					break;
+				case 8:
+					if(unitexists('bossGID)) {
+						unittalk 'bossGID,"空间在扭曲！现实在崩塌！噩梦正在侵蚀一切！";
+						getunitdata 'bossGID, .@mob_data;
+						.@x = .@mob_data[UMOB_X];
+						.@y = .@mob_data[UMOB_Y];
+						if(checkcell(strnpcinfo(4), .@x+.@i, .@y+.@i, cell_chkpass)){
+							unitskilltoAOE 'bossGID,78,1,30;
+							unitskillusepos 'bossGID,2216,5,.@x,.@y-3;
+							unitskillusepos 'bossGID,2216,5,.@x,.@y+3;
+							unitskillusepos 'bossGID,2216,5,.@x-3,.@y;
+							unitskillusepos 'bossGID,2216,5,.@x+3,.@y;
+							sleep 1500;
+							if(unitexists('bossGID)) {
+								unitskilltoAOE 'bossGID,78,1,30;
+								unitskillusepos 'bossGID,2216,5,.@x,.@y-3;
+								unitskillusepos 'bossGID,2216,5,.@x,.@y+3;
+								unitskillusepos 'bossGID,2216,5,.@x-3,.@y;
+								unitskillusepos 'bossGID,2216,5,.@x+3,.@y;
+							}
+							sleep 1500;
+							if(unitexists('bossGID)) {
+								unitskilltoAOE 'bossGID,78,1,30;
+								unitskillusepos 'bossGID,2216,5,.@x,.@y-3;
+								unitskillusepos 'bossGID,2216,5,.@x,.@y+3;
+								unitskillusepos 'bossGID,2216,5,.@x-3,.@y;
+								unitskillusepos 'bossGID,2216,5,.@x+3,.@y;
+							}
+						}
+					}
+					sleep 1000;
+					break;
+				case 10:
+					if(unitexists('bossGID)) {
+						unittalk 'bossGID, "剥离！！让血肉与灵魂分离！！";
+						getunitdata 'bossGID, .@mob_data;
+						.@x = .@mob_data[UMOB_X];
+						.@y = .@mob_data[UMOB_Y];
+						monster strnpcinfo(4),.@x,.@y,"--ja--",1063,1,strnpcinfo(0)+"::OnServantDie";
+						.@id[0] = $@mobid[0];
+						monster strnpcinfo(4),.@x+6,.@y,"--ja--",1063,1,strnpcinfo(0)+"::OnServantDie";
+						.@id[1] = $@mobid[0];
+						monster strnpcinfo(4),.@x-6,.@y,"--ja--",1063,1,strnpcinfo(0)+"::OnServantDie";
+						.@id[2] = $@mobid[0];
+						monster strnpcinfo(4),.@x,.@y+6,"--ja--",1063,1,strnpcinfo(0)+"::OnServantDie";
+						.@id[3] = $@mobid[0];
+						monster strnpcinfo(4),.@x,.@y-6,"--ja--",1063,1,strnpcinfo(0)+"::OnServantDie";
+						.@id[4] = $@mobid[0];
+						for(set .@i,0; .@i < 5; set .@i,.@i+1) {
+							setunitdata .@id[.@i], UMOB_DMGIMMUNE, 1;
+							setunitdata .@id[.@i], UMOB_CLASS, 139;
+							setunitdata .@id[.@i], UMOB_INT,100;
+							setunitdata .@id[.@i], UMOB_MATKMIN,2000;
+							setunitdata .@id[.@i], UMOB_MATKMAX,3000;
+							unitskilluseid .@id[.@i], 353, 1;
+						}
+						sleep 500;
+						unitskillusepos .@id[0],2213,5,.@x,.@y,-16;
+						unitskillusepos .@id[1],2213,5,.@x+8,.@y,-16;
+						unitskillusepos .@id[2],2213,5,.@x-8,.@y,-16;
+						unitskillusepos .@id[3],2213,5,.@x,.@y+8,-16;
+						unitskillusepos .@id[4],2213,5,.@x,.@y-8,-16;
+						sleep 500;
+						unitskillusepos .@id[0],2213,5,.@x,.@y,-16;
+						unitskillusepos .@id[1],2213,5,.@x+8,.@y,-16;
+						unitskillusepos .@id[2],2213,5,.@x-8,.@y,-16;
+						unitskillusepos .@id[3],2213,5,.@x,.@y+8,-16;
+						unitskillusepos .@id[4],2213,5,.@x,.@y-8,-16;
+						sleep 500;
+						unitskillusepos .@id[0],2213,5,.@x,.@y,-16;
+						unitskillusepos .@id[1],2213,5,.@x+8,.@y,-16;
+						unitskillusepos .@id[2],2213,5,.@x-8,.@y,-16;
+						unitskillusepos .@id[3],2213,5,.@x,.@y+8,-16;
+						unitskillusepos .@id[4],2213,5,.@x,.@y-8,-16;
+						sleep 500;
+						unitskillusepos .@id[0],2213,5,.@x,.@y,-16;
+						unitskillusepos .@id[1],2213,5,.@x+8,.@y,-16;
+						unitskillusepos .@id[2],2213,5,.@x-8,.@y,-16;
+						unitskillusepos .@id[3],2213,5,.@x,.@y+8,-16;
+						unitskillusepos .@id[4],2213,5,.@x,.@y-8,-16;
+						sleep 1000;
+					}
+					break;
+				default:
+					if(unitexists('bossGID)) {
+						unittalk 'bossGID,"感受这无尽的痛苦吧！腐朽之力侵蚀你的灵魂！！！";
+						unitskilltoAOE 'bossGID,78,1,30;
+					}
+			}
+		}
+		initnpctimer;
+		end;
+		
+	OnServantDie:
+		set .@map$, strnpcinfo(4);
+		set .@npc_name$, instance_npcname( strnpcinfo(0) );
+		if( !mobcount( .@map$,.@npc_name$+"::OnServantDie" ) ){
+			instance_announce instance_id(),"[ 噩梦医院 ]  : 保持警惕，还没结束呢！！",bc_map,0x00FF99;
+		}
+		end;
+		
+	OnBossDied:
+		set .@instance_id, instance_id();
+		
+		instance_announce .@instance_id, "[ 噩梦医院 ]  : 变异病毒 A型已被消灭!医院恢复了平静。", bc_map, "0x00FF99";
+		enablenpc instance_npcname("nm_reward_npc");
+		instance_announce .@instance_id, "医院主任出现在手术室中，快去领取奖励吧！", bc_map, "0x00FF99";
+		end;
+}
+
+1@ma_a2,145,157,4	script	医院主任::nm_reward_npc	4_M_DOCTOR,{
+	if (getcharid(0) != getpartyleader(getcharid(1), 2)) {
+		mes "^0066CC[医院主任]^000000";
+		mes "只有队伍队长可以领取奖励。";
+		close;
+	}
+
+	if ($@nm_reward_given) {
+		mes "^0066CC[医院主任]^000000";
+		mes "你的队伍已经领取过奖励了。";
+		close;
+	}
+
+	mes "^0066CC[医院主任]^000000";
+	mes "太感谢你了，勇敢的队长！";
+	mes "多亏了你的队伍，我们医院终于恢复了正常。";
+	mes "但夜晚来临时...我仍能听到那些声音...";
+	mes "这是医院的一点心意，请收下。";
+	next;
+
+	set .@party_id, getcharid(1);
+	set .@leader_aid, getcharid(3);
+	set .@map_instance, instance_id();
+	
+	// 获取所有队伍成员
+	getpartymember .@party_id, 1;
+	set .@member_count, $@partymembercount;
+	set .@reward_count, 0;
+	
+	// 开始发放奖励
+	for(set .@i, 0; .@i < .@member_count; set .@i, .@i+1) {
+		if (isloggedin($@partymemberaid[.@i], $@partymembercid[.@i])) {
+			attachrid($@partymemberaid[.@i]);
+			if (instance_id() == .@map_instance) {
+				// 发放奖励 - 使用邮件系统
+				callfunc "NM_SendRewardByMail", 675, 25; // 25个银币
+				callfunc "NM_SendRewardByMail", 630, 1;  // 其他奖励物品1
+				callfunc "NM_SendRewardByMail", 635, 1;  // 其他奖励物品2
+				callfunc "NM_SendRewardByMail", 637, 1;  // 其他奖励物品3
+ 				
+				set Zeny, Zeny + 5000000; // 金币
+				set .@reward_count, .@reward_count + 1;
+				dispbottom "获得了5,000,000金币和物品奖励！物品已发放（如背包满将通过邮件发送）";
+				
+				// 清除副本变量和物品
+				set NM_INSTANCE_ID, 0;
+				if (countitem(601) > 0) {
+					delitem 601, countitem(601);
+				}
+			}
+		}
+	}
+	
+	// 返回队长视角
+	attachrid(.@leader_aid);
+	
+	mes "^0066CC[医院主任]^000000";
+	mes "已为 ^FF0000" + .@reward_count + "名^000000队员发放奖励！";
+	mes "再次感谢你的伙伴！";
+	mes "离开后...忘记这里看到的一切吧...";
+	next;
+
+	set $@nm_reward_given, 1;
+	
+	mes "^0066CC[医院主任]^000000";
+	mes "正在传送队伍回城...";
+	close2;
+	
+	// 传送所有队员
+	for(set .@i, 0; .@i < .@member_count; set .@i, .@i+1) {
+		if (isloggedin($@partymemberaid[.@i], $@partymembercid[.@i])) {
+			attachrid($@partymemberaid[.@i]);
+			warp "prontera",155,120;
+		}
+	}
+	
+	// 销毁副本
+	attachrid(.@leader_aid);
+	sleep 1000;
+	instance_destroy .@map_instance;
+	end;
+
+OnInit:
+	disablenpc;
+	end;
+
+OnEnable:
+	enablenpc;
+	end;
+}
+
+// ========== 噩梦医院专用邮件发送奖励函数 ==========
+function	script	NM_SendRewardByMail	{
+	set .@item_id, getarg(0);
+	set .@item_amount, getarg(1);
+	set .@item_name$, getitemname(.@item_id);
+	set .@char_id, getcharid(0);
+	set .@char_name$, strcharinfo(0);
+	
+	// 尝试直接给予物品
+	if (checkweight(.@item_id, .@item_amount) == 1) {
+		getitem .@item_id, .@item_amount;
+		dispbottom "获得了 [" + .@item_name$ + " x" + .@item_amount + "]";
+		return 1; // 成功直接给予
+	} else {
+		// 背包已满，通过邮件发送
+		set .@sender_name$, "噩梦医院系统";
+		set .@mail_title$, "医院奖励";
+		set .@mail_body$, "您在噩梦医院副本中获得的物品 [" + .@item_name$ + " x" + .@item_amount + "] 由于背包已满，已通过邮件发送给您。";
+		set .@mail_zeny, 0;
+		set .@mail_item_id, .@item_id;
+		set .@mail_amount, .@item_amount;
+		
+		// 发送邮件
+		if (mail(.@char_id, .@sender_name$, .@mail_title$, .@mail_body$, .@mail_zeny, .@mail_item_id, .@mail_amount) == 1) {
+			dispbottom "^FF0000[系统提示]^000000 由于背包已满，您获得的 [" + .@item_name$ + " x" + .@item_amount + "] 已通过邮件发送，请查收。";
+			return 2; // 邮件发送成功
+		} else {
+			dispbottom "^FF0000[错误]^000000 邮件发送失败，请联系管理员。";
+			return 0; // 邮件发送失败
+		}
+	}
+}
+
+// ========================= 特殊病人NPC - 使用智能坐标生成系统 =========================
+1@ma_a2,52,183,5	script	特殊病人#1	589,{
+	instance_announce instance_id(), "帮帮我...它们要来了...", bc_map, "0xFF0000";
+	instance_announce instance_id(), "它们会从阴影中出现...", bc_map, "0xFF0000";
+	disablenpc;
+	instance_announce instance_id(), "一个神秘的身影消失在阴影中，周围的空气变得凝重...", bc_map, "0x9900FF";
+	
+	// 智能坐标生成系统
+	set .@min_x, 43;
+	set .@max_x, 58;
+	set .@min_y, 165;
+	set .@max_y, 182;
+	
+	for(set .@i, 0; .@i < 5; set .@i, .@i+1) {
+		set .@tries, 0;
+		while(1) {
+			set .@x, rand(.@min_x, .@max_x);
+			set .@y, rand(.@min_y, .@max_y);
+			if (checkcell("1@ma_a2", .@x, .@y, cell_chkpass)) {
+				callfunc "SpawnSpecialMonster", instance_mapname("1@ma_a2"), .@x, .@y, "暗影魔物", 2221;
+				break;
+			}
+			set .@tries, .@tries + 1;
+			if (.@tries >= 10) {
+				// 后备方案：在中心点附近生成
+				set .@x, (.@min_x + .@max_x) / 2 + rand(3)-1;
+				set .@y, (.@min_y + .@max_y) / 2 + rand(3)-1;
+				if (checkcell("1@ma_a2", .@x, .@y, cell_chkpass)) {
+					callfunc "SpawnSpecialMonster", instance_mapname("1@ma_a2"), .@x, .@y, "暗影魔物", 2221;
+				} else {
+					// 如果后备坐标也不行，就在中心点生成
+					callfunc "SpawnSpecialMonster", instance_mapname("1@ma_a2"), (.@min_x + .@max_x) / 2, (.@min_y + .@max_y) / 2, "暗影魔物", 2221;
+				}
+				break;
+			}
+		}
+	}
+	end;
+}
+
+1@ma_a2,55,130,1	script	特殊病人#2	597,{
+	instance_announce instance_id(), "你听到了吗？那些低语声...", bc_map, "0xFF0000";
+	instance_announce instance_id(), "它们就在墙壁里...", bc_map, "0xFF0000";
+	disablenpc;
+	instance_announce instance_id(), "一阵诡异的笑声在走廊回荡，墙壁开始渗出黑色的液体...", bc_map, "0x9900FF";
+	
+	// 智能坐标生成系统
+	set .@min_x, 45;
+	set .@max_x, 59;
+	set .@min_y, 132;
+	set .@max_y, 148;
+	
+	for(set .@i, 0; .@i < 5; set .@i, .@i+1) {
+		set .@tries, 0;
+		while(1) {
+			set .@x, rand(.@min_x, .@max_x);
+			set .@y, rand(.@min_y, .@max_y);
+			if (checkcell("1@ma_a2", .@x, .@y, cell_chkpass)) {
+				callfunc "SpawnSpecialMonster", instance_mapname("1@ma_a2"), .@x, .@y, "腐化医生", 2222;
+				break;
+			}
+			set .@tries, .@tries + 1;
+			if (.@tries >= 10) {
+				// 后备方案：在中心点附近生成
+				set .@x, (.@min_x + .@max_x) / 2 + rand(3)-1;
+				set .@y, (.@min_y + .@max_y) / 2 + rand(3)-1;
+				if (checkcell("1@ma_a2", .@x, .@y, cell_chkpass)) {
+					callfunc "SpawnSpecialMonster", instance_mapname("1@ma_a2"), .@x, .@y, "腐化医生", 2222;
+				} else {
+					// 如果后备坐标也不行，就在中心点生成
+					callfunc "SpawnSpecialMonster", instance_mapname("1@ma_a2"), (.@min_x + .@max_x) / 2, (.@min_y + .@max_y) / 2, "腐化医生", 2222;
+				}
+				break;
+			}
+		}
+	}
+	end;
+}
+
+1@ma_a2,75,183,5	script	特殊病人#3	590,{
+	instance_announce instance_id(), "它们...在手术室里...", bc_map, "0xFF0000";
+	instance_announce instance_id(), "进行着可怕的实验...", bc_map, "0xFF0000";
+	disablenpc;
+	instance_announce instance_id(), "手术室的门突然打开，几个扭曲的身影蹒跚而出...", bc_map, "0x9900FF";
+	
+	// 智能坐标生成系统
+	set .@min_x, 64;
+	set .@max_x, 82;
+	set .@min_y, 166;
+	set .@max_y, 182;
+	
+	for(set .@i, 0; .@i < 5; set .@i, .@i+1) {
+		set .@tries, 0;
+		while(1) {
+			set .@x, rand(.@min_x, .@max_x);
+			set .@y, rand(.@min_y, .@max_y);
+			if (checkcell("1@ma_a2", .@x, .@y, cell_chkpass)) {
+				callfunc "SpawnSpecialMonster", instance_mapname("1@ma_a2"), .@x, .@y, "变异护士", 2223;
+				break;
+			}
+			set .@tries, .@tries + 1;
+			if (.@tries >= 10) {
+				// 后备方案：在中心点附近生成
+				set .@x, (.@min_x + .@max_x) / 2 + rand(3)-1;
+				set .@y, (.@min_y + .@max_y) / 2 + rand(3)-1;
+				if (checkcell("1@ma_a2", .@x, .@y, cell_chkpass)) {
+					callfunc "SpawnSpecialMonster", instance_mapname("1@ma_a2"), .@x, .@y, "变异护士", 2223;
+				} else {
+					// 如果后备坐标也不行，就在中心点生成
+					callfunc "SpawnSpecialMonster", instance_mapname("1@ma_a2"), (.@min_x + .@max_x) / 2, (.@min_y + .@max_y) / 2, "变异护士", 2223;
+				}
+				break;
+			}
+		}
+	}
+	end;
+}
+
+1@ma_a2,75,131,5	script	特殊病人#4	591,{
+	instance_announce instance_id(), "地下室...不要去地下室...", bc_map, "0xFF0000";
+	instance_announce instance_id(), "那里有...它们的主巢...", bc_map, "0xFF0000";
+	disablenpc;
+	instance_announce instance_id(), "地板突然裂开，几只苍白的手伸了出来...", bc_map, "0x9900FF";
+	
+	// 智能坐标生成系统
+	set .@min_x, 65;
+	set .@max_x, 82;
+	set .@min_y, 131;
+	set .@max_y, 149;
+	
+	for(set .@i, 0; .@i < 5; set .@i, .@i+1) {
+		set .@tries, 0;
+		while(1) {
+			set .@x, rand(.@min_x, .@max_x);
+			set .@y, rand(.@min_y, .@max_y);
+			if (checkcell("1@ma_a2", .@x, .@y, cell_chkpass)) {
+				callfunc "SpawnSpecialMonster", instance_mapname("1@ma_a2"), .@x, .@y, "地狱婴儿", 2224;
+				break;
+			}
+			set .@tries, .@tries + 1;
+			if (.@tries >= 10) {
+				// 后备方案：在中心点附近生成
+				set .@x, (.@min_x + .@max_x) / 2 + rand(3)-1;
+				set .@y, (.@min_y + .@max_y) / 2 + rand(3)-1;
+				if (checkcell("1@ma_a2", .@x, .@y, cell_chkpass)) {
+					callfunc "SpawnSpecialMonster", instance_mapname("1@ma_a2"), .@x, .@y, "地狱婴儿", 2224;
+				} else {
+					// 如果后备坐标也不行，就在中心点生成
+					callfunc "SpawnSpecialMonster", instance_mapname("1@ma_a2"), (.@min_x + .@max_x) / 2, (.@min_y + .@max_y) / 2, "地狱婴儿", 2224;
+				}
+				break;
+			}
+		}
+	}
+	end;
+}
+
+1@ma_a2,98,182,5	script	特殊病人#5	594,{
+	instance_announce instance_id(), "清洁工...他们不是清洁工...", bc_map, "0xFF0000";
+	instance_announce instance_id(), "他们在收集...我们的痛苦...", bc_map, "0xFF0000";
+	disablenpc;
+	instance_announce instance_id(), "清洁车突然翻倒，里面爬出了可怕的生物...", bc_map, "0x9900FF";
+
+	// 智能坐标生成系统
+	set .@min_x, 87;
+	set .@max_x, 103;
+	set .@min_y, 165;
+	set .@max_y, 181;
+	
+	for(set .@i, 0; .@i < 5; set .@i, .@i+1) {
+		set .@tries, 0;
+		while(1) {
+			set .@x, rand(.@min_x, .@max_x);
+			set .@y, rand(.@min_y, .@max_y);
+			if (checkcell("1@ma_a2", .@x, .@y, cell_chkpass)) {
+				callfunc "SpawnSpecialMonster", instance_mapname("1@ma_a2"), .@x, .@y, "痛苦收集者", 2226;
+				break;
+			}
+			set .@tries, .@tries + 1;
+			if (.@tries >= 10) {
+				// 后备方案：在中心点附近生成
+				set .@x, (.@min_x + .@max_x) / 2 + rand(3)-1;
+				set .@y, (.@min_y + .@max_y) / 2 + rand(3)-1;
+				if (checkcell("1@ma_a2", .@x, .@y, cell_chkpass)) {
+					callfunc "SpawnSpecialMonster", instance_mapname("1@ma_a2"), .@x, .@y, "痛苦收集者", 2226;
+				} else {
+					// 如果后备坐标也不行，就在中心点生成
+					callfunc "SpawnSpecialMonster", instance_mapname("1@ma_a2"), (.@min_x + .@max_x) / 2, (.@min_y + .@max_y) / 2, "痛苦收集者", 2226;
+				}
+				break;
+			}
+		}
+	}
+	end;
+}
+
+1@ma_a2,93,131,1	script	特殊病人#6	595,{
+	instance_announce instance_id(), "镜子...不要看镜子...", bc_map, "0xFF0000";
+	instance_announce instance_id(), "它们会从镜子里出来...", bc_map, "0xFF0000";
+	disablenpc;
+	instance_announce instance_id(), "走廊的镜子突然破裂，黑影从中涌出...", bc_map, "0x9900FF";
+	
+	// 智能坐标生成系统
+	set .@min_x, 89;
+	set .@max_x, 103;
+	set .@min_y, 132;
+	set .@max_y, 148;
+	
+	for(set .@i, 0; .@i < 5; set .@i, .@i+1) {
+		set .@tries, 0;
+		while(1) {
+			set .@x, rand(.@min_x, .@max_x);
+			set .@y, rand(.@min_y, .@max_y);
+			if (checkcell("1@ma_a2", .@x, .@y, cell_chkpass)) {
+				callfunc "SpawnSpecialMonster", instance_mapname("1@ma_a2"), .@x, .@y, "镜中魅影", 2227;
+				break;
+			}
+			set .@tries, .@tries + 1;
+			if (.@tries >= 10) {
+				// 后备方案：在中心点附近生成
+				set .@x, (.@min_x + .@max_x) / 2 + rand(3)-1;
+				set .@y, (.@min_y + .@max_y) / 2 + rand(3)-1;
+				if (checkcell("1@ma_a2", .@x, .@y, cell_chkpass)) {
+					callfunc "SpawnSpecialMonster", instance_mapname("1@ma_a2"), .@x, .@y, "镜中魅影", 2227;
+				} else {
+					// 如果后备坐标也不行，就在中心点生成
+					callfunc "SpawnSpecialMonster", instance_mapname("1@ma_a2"), (.@min_x + .@max_x) / 2, (.@min_y + .@max_y) / 2, "镜中魅影", 2227;
+				}
+				break;
+			}
+		}
+	}
+	end;
+}
+
+function	script	RandomSpawn	{
+	set .@map$, getarg(0);
+	set .@mob_id, getarg(1);
+	set .@amount, getarg(2);
+	set .@event_name$, getarg(3); 
+	
+	set .@min_x, 40;
+	set .@max_x, 170;
+	set .@min_y, 15;
+	set .@max_y, 130;
+	
+	set .@tries, 0;
+	while(1) {
+		set .@x, rand(.@min_x, .@max_x);
+		set .@y, rand(.@min_y, .@max_y);
+
+		if (checkcell(.@map$, .@x, .@y, cell_chkpass)) {
+			monster .@map$, .@x, .@y, "病毒携带者", .@mob_id, .@amount, 
+				instance_npcname("nm_hospital_main")+"::"+.@event_name$;
+			break;
+		}
+		
+		set .@tries, .@tries + 1;
+		if (.@tries >= 20) {
+			monster .@map$, 75, 75, "病毒携带者", .@mob_id, .@amount, 
+				instance_npcname("nm_hospital_main")+"::"+.@event_name$;
+			break;
+		}
+	}
+	return;
+}
+
+function	script	SpawnSpecialMonster	{
+	set .@map$, getarg(0);
+	set .@x, getarg(1);
+	set .@y, getarg(2);
+	set .@name$, getarg(3);
+	set .@mob_id, getarg(4);
+	
+	monster .@map$, .@x, .@y, .@name$, .@mob_id, 1, 
+		instance_npcname("nm_hospital_main")+"::OnSpecialMonsterKilled";
+	
+	return;
+}
+
+1@ma_a1	mapflag	partylock		
+1@ma_a1	mapflag	noteleport		
+1@ma_a1	mapflag	monster_noteleport	
+1@ma_a1	mapflag	nosave	SavePoint	
+1@ma_a1	mapflag	nomemo			
+1@ma_a1	mapflag	nobranch		
+1@ma_a1	mapflag	noicewall		
+1@ma_a1	mapflag	restricted	6	
+1@ma_a1	mapflag	mvpdroprate	10	
+1@ma_a1	mapflag	mobspawnbase	350,350,350,500	
+1@ma_a2	mapflag	partylock		
+1@ma_a2	mapflag	noteleport		
+1@ma_a2	mapflag	monster_noteleport	
+1@ma_a2	mapflag	nosave	SavePoint	
+1@ma_a2	mapflag	nomemo			
+1@ma_a2	mapflag	nobranch		
+1@ma_a2	mapflag	noicewall		
+1@ma_a2	mapflag	restricted	6	
+1@ma_a2	mapflag	mvpdroprate	10	
+1@ma_a2	mapflag	mobspawnbase	350,350,350,500

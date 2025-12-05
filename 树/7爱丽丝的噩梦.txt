@@ -1,0 +1,2771 @@
+//爱丽丝的噩梦
+//自定义副本由Lioran制作
+//使用自定义地图haunt_1和haunt_e由Syouji制作
+//如果您的服务器上有这些地图，请不要使用它们。
+//我为我的副本修改了它们....以及它们的名称
+
+//奖励
+//我没有为此副本设置奖励。
+//您需要自行设置
+//使用Ctrl+F搜索"/*Reward*/"来添加它们，有6种不同的可能奖励。
+//请阅读它们的描述
+/*
+  - Id: 301
+    Name: 爱丽丝的噩梦
+    TimeLimit: 10800
+    Enter:
+      Map: 1@antgm
+      X: 150
+      Y: 119
+    AdditionalMaps:
+      2@antgm: true
+      3@antgm: true
+*/
+
+
+//---副本变量------
+//'main_event
+//1=副本刚开始
+//2=爱丽丝场景第一部分完成
+//3=爱丽丝场景第二部分完成
+//4=怪物被杀死，传送门已开启
+
+//'aline_secret
+//0=未尝试
+//1=战斗中
+//2=战斗过但输了
+//3=战斗过并获胜
+
+//'door_opened   Aline的门
+//0=未打开
+//1=已打开
+
+//任务物品获取（非库存物品）
+//0=无人获得，-1=已交付，其他任何值是获得它并需要将其交给死亡魔法师的玩家的ID。
+//'piano_got
+//'herb_got
+//'bottle_got
+//'crystal_got
+//'book_got
+
+//'touch_crystal
+
+//'hera_gid    她生成时的怪物GID
+//'aline_gid   她生成时的怪物GID
+//'lord_gid    憎恨领主生成时的GID
+
+//---玩家变量------
+//anightmare_rand	副本开始时生成的随机数，用于避免副本结束后重新进入的错误
+//anightmare_partyid	加入副本时的队伍ID
+//anightmare_timer	进入时间
+//anightmare_wakeup	爱丽丝任务变量，也用于检查之前是否完成过副本以跳过对话
+//anightmare_aline	Aline任务变量
+
+//----任务起始NPC--------------------------
+moc_para01,22,35,4	script	世界之树-online#forest	10013,{
+
+
+	set .@party_id,getcharid(1);
+	set .@md_name$,"爱丽丝的噩梦";
+
+	set .@anightmare_timer,checkquest(40400,PLAYTIME); // 20小时，所以是每日副本
+	set .@anightmare_timer2,checkquest(40401,PLAYTIME); // 3小时
+	
+	mes "[^0000ff爱丽丝^000000]";
+	mes "救救我...";
+	next;
+	mes "[^0000ff"+strcharinfo(0)+"^000000]";
+	mes "她正在进入森林";
+	next;
+	if (instance_id()){
+		set .@randn,'random_number;
+		set .@text$,"加入副本";
+	}else{
+		set .@randn,-1;
+		set .@text$,"创建副本";
+	}
+	
+	if (.@anightmare_timer == 0 || .@anightmare_timer == 1){
+		if (.@anightmare_timer2 == -1 || .@anightmare_timer2 == 2 || anightmare_rand!=.@randn){
+							//显示剩余时间
+							set .@dun_lim_time,anightmare_timer+72000; // 1周
+							set .@dun_cur_time,gettimetick(2);
+							set .@dun_ent_t,(.@dun_lim_time - .@dun_cur_time);
+							set .@dun_h,(.@dun_ent_t / 3600);
+							set .@dun_m,(.@dun_ent_t - (.@dun_h * 3600)) / 60;
+							set .@dun_s,.@dun_ent_t - ((.@dun_h * 3600) + (.@dun_m * 60));
+
+							mes "一股浓密的黑雾阻止你继续前进。";
+							mes "";
+							mes "^ff0000距离可以重新进入还有 " + .@dun_h + " 小时 " + .@dun_m + " 分钟 " + .@dun_s + " 秒。";
+							close;
+		}else{
+			if (.@party_id != anightmare_partyid) {
+				mes "[^0000ff"+strcharinfo(0)+"^000000]";
+				mes "我的朋友们抛弃了我！";
+				close;
+			}
+		}
+	}else{
+		//如果不在副本时间窗口内，重置随机数
+		if (anightmare_rand !=0){
+			set anightmare_rand,0;
+			erasequest 40400;
+			erasequest 40401;
+		}
+		
+	}
+	
+	switch(select("跟随她:不跟随她")) {
+		case 1:
+			mes "你试图跟随她进入森林。";
+			next;
+			//不在2人队伍中
+			if (!instance_check_party(.@party_id,2)) {
+				mes "[^0000ff"+strcharinfo(0)+"^000000]";
+				mes "也许我不应该独自做这件事。";
+				mes "我需要团队来寻找她";
+				close;
+			}
+			
+			if (getcharid(0) == getpartyleader(.@party_id,2)) {//检查是否是队长
+				if (.@anightmare_timer == -1 || .@anightmare_timer == 2){//检查副本计时器是否完成
+					set .@i_inst,instance_create(.@md_name$); //如果可能则启动副本
+					if (.@i_inst !=0){
+						set 'random_number,rand(1,9999998)+1;
+						
+					}
+				}
+			}
+			switch(instance_enter("爱丽丝的噩梦")) {
+				case IE_OTHER:
+					mes "发生未知错误。";
+					close;
+				case IE_NOINSTANCE:
+					if (getcharid(0) != getpartyleader(.@party_id,2)) {
+							//你不是队长却试图进入副本
+							if (.@anightmare_timer == -1 || .@anightmare_timer == 2){
+								mes "[^0000ff"+strcharinfo(0)+"^000000]";
+								mes "我不应该是发起进入的人。";
+								close;
+							}
+							
+						}
+							//显示剩余时间
+							set .@dun_lim_time,anightmare_timer+72000; // 1周
+							set .@dun_cur_time,gettimetick(2);
+							set .@dun_ent_t,(.@dun_lim_time - .@dun_cur_time);
+							set .@dun_h,(.@dun_ent_t / 3600);
+							set .@dun_m,(.@dun_ent_t - (.@dun_h * 3600)) / 60;
+							set .@dun_s,.@dun_ent_t - ((.@dun_h * 3600) + (.@dun_m * 60));
+
+							mes "一股浓密的黑雾阻止你继续前进。";
+							mes "";
+							mes "^ff0000距离可以重新进入还有 " + .@dun_h + " 小时 " + .@dun_m + " 分钟 " + .@dun_s + " 秒。";
+							close;
+				case IE_NOMEMBER:
+					//这应该永远不会发生
+					mes "[^0000ff"+strcharinfo(0)+"^000000]";
+					mes "为什么我孤身一人？";
+					close;
+				case IE_OK:
+					//有人正在进入副本
+					mapannounce "niflheim", strcharinfo(0) +" 正冒险进入森林。",bc_map,"0x00ff99",FW_NORMAL,12;
+					if ('main_event<3){
+						if (anightmare_wakeup == 2){
+							set anightmare_wakeup,3;
+						}
+					}
+					if (.@anightmare_timer == -1 || .@anightmare_timer == 2){//检查副本计时器是否已设置
+						set anightmare_timer,gettimetick(2);
+						set anightmare_partyid, getcharid(1);
+						setquest 40400;
+						setquest 40401;
+						set anightmare_rand,'random_number;
+					}
+					close;
+			}
+		case 2:
+			close;
+		
+	}
+	end;
+OnInit:	
+	// 添加显示效果
+	unitaura getnpcid(0),485;
+	unitaura getnpcid(0),486;
+	settitleicon(getnpcid(0),0,"爱丽丝");
+	while(1){
+		showscript "「请救救我~」";
+		sleep 3000;
+	}
+}
+	
+
+//----第一个房间场景-------------------------
+1@antgm,151,195,0	script	爱丽丝#1	10013,{
+	set .@party_id,getcharid(1);
+	//只有队长能进行下一部分
+	if (getcharid(0) != getpartyleader(.@party_id,2)) {
+		mes "...";
+		close;
+	}
+	
+	if ('main_event == 1){
+		mes "[^0000ff爱丽丝^000000]";
+		mes "我好害怕！";
+		npctalk "爱丽丝：我好害怕！";
+		next;
+		select("你还好吗？");
+		unittalk 0,strcharinfo(0)+"：你还好吗？";
+		next;
+		mes "[^0000ff爱丽丝^000000]";
+		mes "啊！！！";
+		npctalk "爱丽丝：啊！！！";
+		next;
+		enablenpc instance_npcname("赫拉#1");
+		mes "[^ff0000赫拉^000000]";
+		mes "怎么了小宝贝，你害怕了吗？";
+		npctalk ("赫拉：怎么了小宝贝，你害怕了吗？",instance_npcname("赫拉#1"));
+		next;
+		mes "[^ff0000赫拉^000000]";
+		mes "也许你只需要一个拥抱。";
+		npctalk "赫拉：也许你只需要一个拥抱。",instance_npcname("赫拉#1");
+		next;
+		unitwalk getnpcid(0,instance_npcname("赫拉#1")),151,196;
+		emotion ET_CHUP,getnpcid(0,instance_npcname("赫拉#1"));
+		mes "...";
+		next;
+		mes "[^0000ff爱丽丝^000000]";
+		mes "不要！！！";
+		npctalk "爱丽丝：不要！！！";
+		next;
+		movenpc instance_npcname("赫拉#1"),151,198;
+		mes "[^ff00ff赫拉^000000]";
+		mes "哈哈哈... 你真可爱。";
+		npctalk "赫拉：哈哈哈... 你真可爱。",instance_npcname("赫拉#1");
+		next;
+		mes "[^ff0000赫拉^000000]";
+		mes "我们来玩个小游戏吧。";
+		npctalk "赫拉：我们来玩个小游戏吧。",instance_npcname("赫拉#1");
+		next;
+		specialeffect EF_READYPORTAL2,AREA,instance_npcname("爱丽丝#1");//传送门效果
+		mes "[^0000ff爱丽丝^000000]";
+		mes "！";
+		emotion ET_SURPRISE;
+		npctalk "爱丽丝：！";
+		next;
+		specialeffect 6,AREA,instance_npcname("爱丽丝#1");//传送效果
+		set 'main_event,2;
+		disablenpc instance_npcname("爱丽丝#1");
+		mes "...";
+		select("你对她做了什么？");
+		unittalk 0,strcharinfo(0)+"：你对她做了什么？";
+		next;
+		mes "[^ff0000赫拉^000000]";
+		mes "也许你也可以加入我们的游戏。";
+		npctalk "赫拉：也许你也可以加入我们的游戏。",instance_npcname("赫拉#1");
+		next;
+		mes "[^ff0000赫拉^000000]";
+		mes "为什么不跟我进来呢。";
+		npctalk "赫拉：为什么不跟我进来呢。",instance_npcname("赫拉#1");
+		close2;
+		specialeffect 44,AREA,instance_npcname("赫拉#1");//烟雾效果
+		specialeffect 53,AREA,instance_npcname("赫拉#1");//烟雾效果
+		emotion ET_SMILE,getnpcid(0,instance_npcname("赫拉#1"));
+		set .@entrace_spawn$,instance_npcname("anightmare#1")+"::OnMobDead";
+		
+		areamonster 'first_map$,145,194,159,181,"憎恨残影",3401,3,.@entrace_spawn$;
+		areamonster 'first_map$,145,194,159,181,"憎恨载体",3402,2,.@entrace_spawn$;
+		
+		monster ('first_map$,151,195,"憎恨载体",3403,1,.@entrace_spawn$);
+		unittalk $@mobid[0],"阴影：憎恨会带给你快乐。";
+		
+		set 'main_event,3;
+		disablenpc instance_npcname("赫拉#1");
+		
+		end;
+	}
+	mes "啊！！！";
+	close;
+	
+}
+
+1@antgm,151,198,4	script	赫拉#1	3400,{
+	if (getcharid(0) != getpartyleader(getcharid(1),2) || 'main_event != 2) {
+		mes "...";
+		close;
+	}
+		mes "...";
+		select("你对她做了什么？");
+		unittalk 0,strcharinfo(0)+"：你对她做了什么？";
+		next;
+		mes "[^ff0000赫拉^000000]";
+		mes "也许你也可以加入我们的游戏。";
+		npctalk "赫拉：也许你也可以加入我们的游戏。",instance_npcname("赫拉#1");
+		next;
+		mes "[^ff0000赫拉^000000]";
+		mes "为什么不跟我进来呢。";
+		npctalk "赫拉：为什么不跟我进来呢。",instance_npcname("赫拉#1");
+		close2;
+		set 'main_event,3;
+		specialeffect 44,AREA,instance_npcname("赫拉#1");//烟雾效果
+		specialeffect 53,AREA,instance_npcname("赫拉#1");//烟雾效果
+		emotion ET_SMILE;
+		set .@entrace_spawn$,instance_npcname("anightmare#1")+"::OnMobDead";
+
+		areamonster 'first_map$,145,194,159,181,"憎恨残影",3401,3,.@entrace_spawn$;
+		areamonster 'first_map$,145,194,159,181,"憎恨载体",3402,2,.@entrace_spawn$;
+		monster ('first_map$,151,195,"憎恨阴影",3403,1,.@entrace_spawn$);
+		unittalk $@mobid[0],"阴影：憎恨会带给你快乐。";
+		disablenpc instance_npcname("赫拉#1");
+		end;
+	
+
+	
+}
+
+1@antgm,3,3,4	script	anightmare#1	45,1,1,{
+
+	mes "...";
+	close;
+
+	
+OnInstanceInit:
+	hideonnpc instance_npcname("anightmare#1");
+	set 'first_map$,instance_mapname("1@antgm");
+	set 'second_map$,instance_mapname("2@antgm");
+	set 'third_map$,instance_mapname("3@antgm");
+	set 'main_event,1;
+	set 'aline_secret,0;
+	set 'door_opened,0;
+	
+	set 'piano_got,0;
+	set 'bottle_got,0;
+	set 'book_got,0;
+	set 'crystal_got,0;
+	set 'herb_got,0;
+	set 'touch_crystal,0;
+	
+	disablenpc instance_npcname("赫拉#1");
+	disablenpc instance_npcname("outsidewarp#1");
+	monster 'first_map$,166,187,"萝莉璐莉",1505,1;
+	monster 'first_map$,143,184,"萝莉璐莉",1505,1;
+	monster 'first_map$,152,179,"血腥谋杀者",1507,1;
+	monster 'first_map$,150,165,"生命体研究者",1510,1;
+	monster 'first_map$,153,171,"生命体研究者",1510,1;
+	set .@lude_spawn$, instance_npcname("anightmare#1")+"::OnLudeDead";
+	monster 'first_map$,150,161,"卢德",1509,1,.@lude_spawn$;
+	monster 'first_map$,118,189,"卢德",1509,1,.@lude_spawn$;
+	monster 'first_map$,180,203,"卢德",1509,1,.@lude_spawn$;
+	monster 'first_map$,153,167,"奎夫",1508,1,.@lude_spawn$;
+	end;
+
+	
+OnLudeDead:
+	addtimer 40000+rand(1,20000),instance_npcname("anightmare#1")+"::OnLudeTimer";
+	end;
+	
+OnMobDead:
+		if (mobcount('first_map$,instance_npcname("anightmare#1")+"::OnMobDead") < 1) {
+			enablenpc instance_npcname("outsidewarp#1");
+			set 'main_event,4;
+			
+			mapannounce 'first_map$,"赫拉：这将会非常有趣！",bc_map,"0xFF0000",FW_NORMAL,12;
+		}
+		end;
+
+OnLudeTimer:
+		set .@lude_spawn$, instance_npcname("anightmare#1")+"::OnLudeDead";
+		switch (rand(1,4)){
+			case 1:
+				monster 'first_map$,182,192,"卢德",1509,1,.@lude_spawn$;
+				end;
+			case 2:
+				monster 'first_map$,190,184,"卢德",1509,1,.@lude_spawn$;
+				end;
+			case 3:
+				monster 'first_map$,194,192,"卢德",1509,1,.@lude_spawn$;
+				end;
+			case 4:
+				monster 'first_map$,186,193,"奎夫",1508,1,.@lude_spawn$;
+				end;
+		}
+	end;
+
+}
+
+1@antgm,151,200,4	script	outsidewarp#1	45,1,1,{
+	mes "...";
+	close;
+	
+OnTouch:
+	warp 'second_map$,20,156;
+	end;
+	
+}
+
+2@antgm,18,154,4	script	insidewarp#1	45,1,1,{
+	mes "...";
+	close;
+	
+OnTouch:
+	warp 'first_map$,152,196;
+	end;
+	
+}
+
+//地图2生成主控
+2@antgm,91,125,4	script	anightmare#2	45,10,10,{
+OnInstanceInit:
+	hideonnpc instance_npcname("anightmare#2");
+	set .@npc_name$,instance_npcname("anightmare#2");
+	setwall 'second_map$,126,12,8,0,0,'second_map$+"anightmare_walllist0";
+	setwall 'second_map$,132,173,4,0,0,'second_map$+"anightmare_walllist1";
+
+	end;
+	
+OnInstanceDestroy:
+	delwall 'second_map$+"anightmare_walllist0";
+	delwall 'second_map$+"anightmare_walllist1";
+	end;
+	
+OnTimer500:
+	stopnpctimer;
+	
+	if ('main_event == 5){
+		if (mobcount('second_map$,instance_npcname("anightmare#2")+"::OnFakeHera") < 1) {
+			mapannounce 'second_map$,"赫拉：对不起，吓到你了吗？",bc_map,"0xFF0000",FW_NORMAL,12;
+			initnpctimer instance_npcname("死亡魔法师#anightmare1");
+			set 'main_event,6;
+			set .@guard_spawn$,instance_npcname("anightmare#2")+"::OnGuardSpawn";
+			areamonster 'second_map$,119,18,123,13,"憎恨残影",3401,1,.@guard_spawn$;
+			areamonster 'second_map$,119,18,123,13,"憎恨载体",3402,1,.@guard_spawn$;
+			areamonster 'second_map$,119,18,123,13,"憎恨阴影",3403,3,.@guard_spawn$;
+			end;
+		}
+		initnpctimer;
+		end;
+	}
+	if ('main_event != 7){end;}
+	
+	getunitdata 'hera_gid,.@hera_hp;
+	if (.@hera_hp[UMOB_HP]<2600000){
+			makeitem "烤得很好的饼干",1,'second_map$,.@hera_hp[UMOB_X],.@hera_hp[UMOB_Y];
+			unitwarp 'hera_gid,'second_map$,190,105;
+			unitkill 'hera_gid;
+			set 'hera_gid,0;
+			set 'main_event,8;
+			delwall 'second_map$+"anightmare_walllist0";
+			disablenpc instance_npcname("黑暗力量#anightmare1");
+			disablenpc instance_npcname("黑暗力量#anightmare2");
+			disablenpc instance_npcname("黑暗力量#anightmare3");
+			disablenpc instance_npcname("黑暗力量#anightmare4");
+			disablenpc instance_npcname("黑暗力量#anightmare5");
+			disablenpc instance_npcname("黑暗力量#anightmare6");
+			disablenpc instance_npcname("黑暗力量#anightmare7");
+			disablenpc instance_npcname("黑暗力量#anightmare8");
+			disablenpc instance_npcname("黑暗力量#anightmare9");
+			disablenpc instance_npcname("黑暗力量#anightmare10");
+			disablenpc instance_npcname("黑暗力量#anightmare11");
+			disablenpc instance_npcname("黑暗力量#anightmare12");
+			mapannounce 'second_map$,"赫拉：也许下次吧。",bc_map,"0xFF0000",FW_NORMAL,12;
+		}
+	else{
+		initnpctimer;
+	}
+	
+OnTouch:
+	if ('main_event == 4){
+		areamonster 'second_map$,92,137,97,126,"赫拉的怨恨",3410,12,instance_npcname("anightmare#2")+"::OnFakeHera";
+		initnpctimer;
+		//addtimer 500,instance_npcname("anightmare#2")+"::OnHeraTimer";
+		set 'main_event,5;
+	}
+	end;
+OnFakeHera:
+	end;
+
+	
+OnGuardSpawn:
+		set .@guard_spawn$,instance_npcname("anightmare#2")+"::OnGuardSpawn";
+		if (mobcount('second_map$,.@guard_spawn$) < 1) {
+			mapannounce 'second_map$,"赫拉：你做得很好，亲爱的，吃块饼干吧。",bc_map,"0xFF0000",FW_NORMAL,12;
+			monster 'second_map$,122,16,"赫拉的怨恨",3419,1;
+			set 'hera_gid,$@mobid[0];
+			initnpctimer;
+			set 'main_event,7;
+		}
+		end;
+		
+	
+OnHeraTimer2:
+	mapannounce 'second_map$,"赫拉：我保证不会再那样做了。",bc_map,"0xFF0000",FW_NORMAL,12;
+	end;
+	
+OnHeraTimer3:
+	mapannounce 'second_map$,"赫拉：也许如果你们击败阴影守卫，我就会移除墙壁，嗯哼。",bc_map,"0xFF0000",FW_NORMAL,12;
+	end;
+
+	
+}
+//迷你头目战
+3@antgm,46,81,4	script	憎恨领主#1	1219,{
+	set .@party_id,getcharid(1);
+	if (getcharid(0) != getpartyleader(.@party_id,2)) {
+		end;
+	}
+	if ('main_event == 12){
+		mes "[憎恨领主]";
+		mes "你在这里做什么，凡人？";
+		npctalk "憎恨领主：你在这里做什么，凡人？";
+		select ("你对爱丽丝做了什么？");
+		unittalk 0,strcharinfo(0)+"：你对爱丽丝做了什么？";
+		next;
+		
+		mes "[憎恨领主]";
+		mes "我们吞噬灵魂，就像你们凡人吞噬肉体一样。";
+		npctalk "憎恨领主：我们吞噬灵魂，就像你们凡人吞噬肉体一样。";
+		next;
+		
+		mes "[憎恨领主]";
+		mes "而我将是评判你存在意义的人。";
+		npctalk "憎恨领主：而我将是评判你存在意义的人。";
+		next;
+		
+		specialeffect 128;
+		specialeffect 650;	
+		mes "[憎恨领主]";
+		mes "不幸的是，你的旅程将在此结束。";
+		npctalk "憎恨领主：不幸的是，你的旅程将在此结束。";
+		next;
+		
+		mes "[憎恨领主]";
+		mes "我将赐予你永恒的痛苦，却没有死亡的权利。";
+		npctalk "憎恨领主：我将赐予你永恒的痛苦，却没有死亡的权利。";
+		close2;
+		monster 'third_map$,46,81,"憎恨领主",3404,1,instance_npcname("憎恨领主#1")+"::OnLordDead";
+		set 'lord_gid,$@mobid[0];
+		disablenpc instance_npcname("憎恨仆从#1");
+		disablenpc instance_npcname("憎恨仆从#2");
+		disablenpc instance_npcname("gardenwarp#1");
+		initnpctimer;
+		set 'main_event,13;
+		unitwarp getnpcid(0,instance_npcname("憎恨领主#1")),'third_map$,5,3;
+		//hideonnpc instance_npcname("憎恨领主#1");
+		end;
+	}
+	
+OnTimer60000:
+		
+		if (unitexists('lord_gid)==0){
+			stopnpctimer;
+			end;}
+		getunitdata 'lord_gid,.@test;
+		if (.@test[UMOB_TARGETID] != 0){
+			
+			unittalk 'lord_gid,"憎恨领主：从坟墓中崛起吧。";
+			areamonster 'third_map$,(.@test[UMOB_X]-12),(.@test[UMOB_Y]-12),(.@test[UMOB_X]+12),(.@test[UMOB_Y]+12),"不死骑士",3408,1,instance_npcname("憎恨领主#1")+"::OnUndeadDead";
+			areamonster 'third_map$,(.@test[UMOB_X]-12),(.@test[UMOB_Y]-12),(.@test[UMOB_X]+12),(.@test[UMOB_Y]+12),"不死骑士",3409,1,instance_npcname("憎恨领主#1")+"::OnUndeadDead";
+		
+		}
+		
+		end;
+OnTimer120000:
+	stopnpctimer;
+	initnpctimer;
+	end;
+		
+		
+OnUndeadDead:
+	end;
+OnLordDead:
+	set 'main_event,14;
+	mapannounce 'third_map$,"憎恨领主：没有憎恨的存在有何意义？",bc_map,"0xFF0000",FW_NORMAL,12;
+	enablenpc instance_npcname("gardenwarp#1");
+	initnpctimer instance_npcname("gardenwarp#1");
+	disablenpc instance_npcname("黑暗力量#anightmare13");
+	disablenpc instance_npcname("黑暗力量#anightmare14");
+	disablenpc instance_npcname("黑暗力量#anightmare15");
+	disablenpc instance_npcname("黑暗力量#anightmare16");
+	disablenpc instance_npcname("黑暗力量#anightmare17");
+	disablenpc instance_npcname("黑暗力量#anightmare18");
+	delwall 'second_map$+"anightmare_walllist2";
+	delwall 'second_map$+"anightmare_walllist3";
+	delwall 'second_map$+"anightmare_walllist4";
+	delwall 'second_map$+"anightmare_walllist5";
+	delwall 'second_map$+"anightmare_walllist6";
+	delwall 'second_map$+"anightmare_walllist7";
+	delwall 'second_map$+"anightmare_walllist8";
+	delwall 'second_map$+"anightmare_walllist9";
+	delwall 'second_map$+"anightmare_walllist10";
+	delwall 'second_map$+"anightmare_walllist11";
+	delwall 'second_map$+"anightmare_walllist12";
+	delwall 'second_map$+"anightmare_walllist13";
+	delwall 'second_map$+"anightmare_walllist14";
+	delwall 'second_map$+"anightmare_walllist15";
+	
+	end;
+}
+
+//憎恨仆从NPC
+3@antgm,43,83,4	script	憎恨仆从#1	494,{
+	mes "[憎恨仆从]";
+	mes "憎恨、痛苦、苦闷、恐惧...";
+	next;
+	mes "[憎恨仆从]";
+	mes "这些都是我们需要滋养的有效情感。";
+	close;
+}
+3@antgm,49,83,4	duplicate(憎恨仆从#1)	憎恨仆从#2	494
+
+
+//地图3互动
+3@antgm,1,1,4	script	anightmare#3	45,1,1,{
+	end;
+OnInstanceInit:
+	//花园墙壁，有很多墙是为了防止在憎恨领主战斗期间怪物在另一侧生成
+	setwall 'third_map$,43,86,6,6,0,'second_map$+"anightmare_walllist2";
+	setwall 'third_map$,43,87,6,6,0,'second_map$+"anightmare_walllist3";
+	setwall 'third_map$,43,88,6,6,0,'second_map$+"anightmare_walllist4";
+	setwall 'third_map$,38,89,16,6,0,'second_map$+"anightmare_walllist5";
+	setwall 'third_map$,38,90,16,6,0,'second_map$+"anightmare_walllist6";
+	setwall 'third_map$,40,91,12,6,0,'second_map$+"anightmare_walllist7";
+	setwall 'third_map$,40,92,12,6,0,'second_map$+"anightmare_walllist8";
+	setwall 'third_map$,40,93,12,6,0,'second_map$+"anightmare_walllist9";
+	setwall 'third_map$,40,94,12,6,0,'second_map$+"anightmare_walllist10";
+	setwall 'third_map$,40,95,12,6,0,'second_map$+"anightmare_walllist11";
+	setwall 'third_map$,40,96,12,6,0,'second_map$+"anightmare_walllist12";
+	setwall 'third_map$,40,97,12,6,0,'second_map$+"anightmare_walllist13";
+	setwall 'third_map$,40,98,12,6,0,'second_map$+"anightmare_walllist14";
+	setwall 'third_map$,40,99,12,6,0,'second_map$+"anightmare_walllist15";
+	//最后的墙壁只是为了暂时强迫你走一个方向
+	setwall 'third_map$,190,182,14,6,0,'second_map$+"anightmare_walllist16";
+	setwall 'third_map$,190,183,17,0,0,'second_map$+"anightmare_walllist17";
+	setwall 'third_map$,203,183,17,0,0,'second_map$+"anightmare_walllist18";
+	setwall 'third_map$,191,197,12,6,0,'second_map$+"anightmare_walllist19";
+	end;
+	
+OnInstanceDestroy:
+	delwall 'second_map$+"anightmare_walllist2";
+	delwall 'second_map$+"anightmare_walllist3";
+	delwall 'second_map$+"anightmare_walllist4";
+	delwall 'second_map$+"anightmare_walllist5";
+	delwall 'second_map$+"anightmare_walllist6";
+	delwall 'second_map$+"anightmare_walllist7";
+	delwall 'second_map$+"anightmare_walllist8";
+	delwall 'second_map$+"anightmare_walllist9";
+	delwall 'second_map$+"anightmare_walllist10";
+	delwall 'second_map$+"anightmare_walllist11";
+	delwall 'second_map$+"anightmare_walllist12";
+	delwall 'second_map$+"anightmare_walllist13";
+	delwall 'second_map$+"anightmare_walllist14";
+	delwall 'second_map$+"anightmare_walllist15";
+	
+	delwall 'second_map$+"anightmare_walllist16";
+	delwall 'second_map$+"anightmare_walllist17";
+	delwall 'second_map$+"anightmare_walllist18";
+	delwall 'second_map$+"anightmare_walllist19";
+	end;
+	
+
+	
+
+}
+
+3@antgm,45,13,4	script	gardenwarp#1	45,1,1,{
+	end;
+OnTouch:
+	warp 'second_map$,137,165;
+	end;
+OnTimer3500:
+	mapannounce 'third_map$,"憎恨领主：击败我只是承认了你的否认。",bc_map,"0xFF0000",FW_NORMAL,12;
+	end;
+OnTimer7000:
+	mapannounce 'third_map$,"憎恨领主：我活在每个人心中。",bc_map,"0xFF0000",FW_NORMAL,12;
+	stopnpctimer;
+	end;
+}
+2@antgm,137,162,4	script	insidewarp#4	45,1,1,{
+	end;
+OnTouch:
+	warp 'third_map$,45,18;
+	end;
+}
+
+//传送到Aline
+2@antgm,174,81,4	script	insidewarp#2	45,1,1,{
+		end;
+OnTouch:
+	if ('door_opened == 1){
+		if ('aline_secret==1){
+			playBGM "92";
+		}
+		warp 'second_map$,190,105;
+		end;
+	}
+	if (countitem(7026) < 1 && countitem(7027) < 1){
+		mes "门锁着。";
+		mes "要是我带了^FF0000钥匙^000000就好了。";
+		close;
+	}
+	if (countitem(7026) > 0){
+		set 'door_opened,1;
+		mes "你用^ff0000钟楼钥匙^000000打开了门。";
+		close2;
+		delitem 7026,1;
+		warp 'second_map$,190,105;
+		end;
+	}
+		set 'door_opened,1;
+		mes "你用^ff0000地下钥匙^000000打开了门。";
+		close2;
+		delitem 7027,1;
+		warp 'second_map$,190,105;
+		end;
+	
+}
+
+//从Aline处传送出来
+2@antgm,186,105,4	script	insidewarp#3	45,1,1,{
+	end;
+OnTouch:
+	warp 'second_map$,170,81;
+	end;
+}
+
+
+
+2@antgm,184,114,5	script	艾琳#1		10191,{
+	set .@party_id,getcharid(1);
+	set .@aline_at,(anightmare_aline / 2);
+	//只有队长能进行下一部分
+	if (getcharid(0) != getpartyleader(.@party_id,2)) {
+		cutin "ep16_evil102",1;
+		mes "[艾琳]";
+		mes "嗨！";
+		close2;
+		cutin "",255;
+		end;
+	}
+	//你输掉了战斗
+	if ('aline_secret == 2){
+		cutin "ep16_evil102",1;
+		mes "[艾琳]";
+		mes "哦天哪！真刺激！";
+		npctalk "艾琳：哦天哪！真刺激！";
+		next;
+		if (.@aline_at >6){
+			cutin "pops_lau",1;
+			mes "[六翼天使]";
+			mes "耶，我们赢了！";
+			npctalk ("六翼天使：耶，我们赢了！",instance_npcname("六翼天使#1"));
+			next;
+			cutin "ep16_evil102",1;
+			mes "[艾琳]";
+			mes "我们现在大概是世界上最强大的组合了！";
+			npctalk "艾琳：我们现在大概是世界上最强大的组合了！";
+			next;
+			mes "[艾琳]";
+			mes "我想我们不需要再训练了。";
+			npctalk "艾琳：我想我们不需要再训练了。";
+		}else{
+			mes "[艾琳]";
+			mes "我现在大概是世界上最强大的人了！";
+			npctalk "艾琳：我现在大概是世界上最强大的人了！";
+			next;
+			mes "[艾琳]";
+			mes "我想我不需要再训练了。";
+			npctalk "艾琳：我想我不需要再训练了";
+		
+		}
+		
+
+
+		next;
+		mes "[艾琳]";
+		mes "你去训练吧，等你变强了再回来。";
+		npctalk "艾琳：你去训练吧，等你变强了再回来。";
+		close2;
+		disablenpc instance_npcname("艾琳#1");
+		disablenpc instance_npcname("六翼天使#1");
+		cutin "",255;
+		end;
+	}
+	//赢得了战斗
+	if ('aline_secret == 3){
+		if (.@aline_at >6){
+			cutin "pops_lau",1;
+			mes "[六翼天使]";
+			mes "真好玩！";
+			npctalk ("六翼天使：真好玩！",instance_npcname("六翼天使#1"));
+			next;
+			
+			cutin "ep16_evil103",1;
+			mes "[艾琳]";
+			mes "但是我们输了。";
+			npctalk "艾琳：但是我们输了。";
+			next;
+			
+			cutin "ep16_evil102",1;
+			mes "[艾琳]";
+			mes "哦好吧，如果你想再和我们打，晚点再来吧。";
+			npctalk "艾琳：哦好吧，如果你想再和我们打，晚点再来吧。";
+			close2;
+		}else{
+			cutin "ep16_evil103",1;
+			mes "[艾琳]";
+			mes "啊，我输了！";
+			npctalk "艾琳：啊，我输了！";
+			next;
+			mes "[艾琳]";
+			mes "我需要更多训练。";
+			npctalk "艾琳：我需要更多训练。";
+			next;
+			mes "[艾琳]";
+			mes "晚点再来吧，我要去多练习了。";
+			npctalk "艾琳：晚点再来吧，我要去多练习了。";
+			close2;
+		}
+		
+		if (anightmare_aline - (.@aline_at * 2) == 1 && anightmare_aline < 16 && anightmare_aline > 2){
+			anightmare_aline++;
+			switch (anightmare_aline){
+				case 4:
+					/*Reward*/
+					//首次击败艾琳的奖励
+					//每个角色只能获得一次（简单）
+					//艾琳是副本中一个具有渐进难度的隐藏头目。
+					//只有队长可以开始或推进任务
+					//每次你来副本，艾琳都会变得越来越难
+					//由于任务的性质，一个玩家需要很多天才能获得所有奖励
+					getitem 607,5; // 5个神秘箱子
+					getitem 12103,1; // 1个祝福的矿石
+					break;
+				case 6:
+					/*Reward*/
+					//第二次击败艾琳的奖励
+					//每个角色只能获得一次（普通）
+					/*Reward*/
+					// 第二次击败艾琳的奖励
+					getitem 607,8; // 8个神秘箱子
+					getitem 12103,2; // 2个祝福的矿石
+					getitem 14592,1; // 1个时空之石
+					break;
+				case 8:
+					/*Reward*/
+					//第三次击败艾琳的奖励
+					//每个角色只能获得一次（普通）
+					// 第三次击败艾琳的奖励
+					getitem 607,10; // 10个神秘箱子
+					getitem 12103,3; // 3个祝福的矿石
+					getitem 14592,2; // 2个时空之石
+					getitem 682,1; // 1个VIP礼包
+					break;
+				case 10:
+					/*Reward*/
+					//第四次击败艾琳的奖励
+					//每个角色只能获得一次（普通）
+					getitem 607,15; // 15个神秘箱子
+					getitem 12103,5; // 5个祝福的矿石
+					getitem 14592,3; // 3个时空之石
+					getitem 682,2; // 2个VIP礼包
+					getitem 2357,1; // 1个BOSS雷达
+					break;
+				case 12:
+					/*Reward*/
+					//第五次击败艾琳的奖励
+					//每个角色只能获得一次（困难）
+					getitem 607,20; // 20个神秘箱子
+					getitem 12103,8; // 8个祝福的矿石
+					getitem 14592,5; // 5个时空之石
+					getitem 682,3; // 3个VIP礼包
+					getitem 2357,2; // 2个BOSS雷达
+					getitem 12208,1; // 1个高密度魔力之石
+					break;
+				case 14:
+					/*Reward*/
+					//第六次击败艾琳的奖励
+					//每个角色只能获得一次（非常困难）
+					//情况14只发生一次，但基本上与16相同，所以你可以让这个奖励在情况14：时一次又一次地给予，或者只给一次，甚至两种不同的奖励
+					//当她在14级以后和她战斗时，她有一个仆从，所以难度有所增加
+					getitem 607,25; // 25个神秘箱子
+					getitem 12103,10; // 10个祝福的矿石
+					getitem 14592,8; // 8个时空之石
+					getitem 682,5; // 5个VIP礼包
+					getitem 2357,3; // 3个BOSS雷达
+					getitem 12208,2; // 2个高密度魔力之石
+					getitem 12246,1; // 1个堕落大神官卡片
+					break;
+				case 16:
+					//如果你不希望每次都给予奖励的最终奖励
+					//否则使用下面的检查
+					break;
+
+
+			}
+
+		}
+		if (anightmare_aline == 16){
+			/*Reward*/
+			//击败艾琳的最终奖励
+			//在这里设置奖励会让你从这一点开始每次击败都获得奖励
+			//如果你只想给一次，请改用上面的情况16。
+			getitem 607,3; // 30个神秘箱子
+			getitem 12103,1; // 15个祝福的矿石
+			getitem 14592,1; // 10个时空之石
+			getitem 2357,5; // 5个BOSS雷达
+			getitem 12208,5; // 5个高密度魔力之石
+			getitem 12246,1; // 1个堕落大神官卡片
+			getitem 27298,1; // 1个爱丽丝的感谢信（特殊头饰）
+		}
+		
+		
+		disablenpc instance_npcname("艾琳#1");
+		disablenpc instance_npcname("六翼天使#1");
+		cutin "",255;
+		end;
+	}
+	
+	//以前从未交谈过
+	if (anightmare_aline==0){
+		cutin "ep16_evil102",1;
+		mes "[艾琳]";
+		mes "嗨，我是这里的学生。";
+		npctalk "艾琳：嗨，我是这里的学生。";
+		select ("这里不是学校");
+		unittalk 0,strcharinfo(0)+"：这里不是学校。";
+		next;
+		cutin "ep16_evil103",1;
+		mes "[艾琳]";
+		mes "我说了，我是这里的学生！";
+		npctalk "艾琳：我说了，我是这里的学生！";
+		select ("随你怎么说。");
+		unittalk 0,strcharinfo(0)+"：随你怎么说。";
+		next;
+		cutin "ep16_evil102",1;
+		mes "[艾琳]";
+		mes "我正在学习战斗的艺术。";
+		npctalk "艾琳：我正在学习战斗的艺术。";
+		next;
+		cutin "",255;
+		cutin "ep16_evil101",1;
+		mes "[艾琳]";
+		mes "问题是我没有人可以一起战斗。";
+		npctalk "艾琳：问题是我没有人可以一起战斗。";
+		switch (select ("和你的敌人战斗：和魔物战斗")){
+			case 1:
+				unittalk 0,strcharinfo(0)+"：和你的敌人战斗。";
+				next;
+				mes "[艾琳]";
+				mes "敌人？我没有敌人，每个人都是我的朋友。";
+				npctalk "艾琳：敌人？我没有敌人，每个人都是我的朋友。";
+				break;
+			case 2:
+				unittalk 0,strcharinfo(0)+"：和魔物战斗。";
+				next;
+				mes "[艾琳]";
+				mes "不！这里的魔物都是我的朋友。";
+				npctalk "艾琳：不！这里的魔物都是我的朋友。";
+				break;
+		}
+		next;
+		cutin "ep16_evil102",1;
+		mes "[艾琳]";
+		mes "我有个主意。";
+		npctalk "艾琳：我有个主意。";
+		next;
+		mes "[艾琳]";
+		mes "成为我的BFF。";
+		npctalk "艾琳：成为我的BFF。";
+		select ("永远的好朋友？");
+		unittalk 0,strcharinfo(0)+"：永远的好朋友？";
+		next;
+		mes "[艾琳]";
+		mes "不，最佳战斗朋友。";
+		npctalk "艾琳：不，最佳战斗朋友。";
+		next;
+		mes "[艾琳]";
+		mes "只互相战斗的朋友。";
+		npctalk "艾琳：只互相战斗的朋友。";
+		select ("那叫做敌人");
+		unittalk 0,strcharinfo(0)+"：那叫做敌人。";
+		next;
+		mes "[艾琳]";
+		mes "敌人互相憎恨，我们不需要。";
+		npctalk "艾琳：敌人互相憎恨，我们不需要。";
+		next;
+		mes "[艾琳]";
+		mes "你可以时不时来看我。";
+		npctalk "艾琳：你可以时不时来看我。";
+		next;
+		mes "[艾琳]";
+		mes "我们可以战斗，你可以看到我进步了多少。";
+		npctalk "艾琳：我们可以战斗，你可以看到我进步了多少。";
+		next;
+		mes "[艾琳]";
+		mes "你觉得怎么样？";
+		npctalk "艾琳：你觉得怎么样？";
+		switch (select ("当然，我们开始吧！：太危险了")){
+			case 1:
+				set anightmare_aline,2;
+				unittalk 0,strcharinfo(0)+"：当然，我们开始吧。";
+				next;
+				cutin "ep16_evil102",1;
+				mes "[艾琳]";
+				mes "太棒了！你想和我打架的时候告诉我。";
+				npctalk "艾琳：太棒了！你想和我打架的时候告诉我。";
+				break;
+			case 2:
+				set anightmare_aline,1;
+				unittalk 0,strcharinfo(0)+"：太危险了。";
+				next;
+				cutin "ep16_evil101",1;
+				mes "[艾琳]";
+				mes "真扫兴……我还以为我终于找到可以一起打架的人了。";
+				npctalk "艾琳：真扫兴……我还以为我终于找到可以一起打架的人了。";
+				next;
+				mes "[艾琳]";
+				mes "嗯……如果你改变主意就回来吧。";
+				npctalk "艾琳：嗯……如果你改变主意就回来吧。";
+				break;
+		
+		}
+		close2;
+		cutin "",255;
+		end;
+	}
+	//交谈过但拒绝了
+	if (anightmare_aline==1){
+			cutin "ep16_evil102",1;
+			mes "[艾琳]";
+			mes "又见面了。";
+			npctalk "艾琳：又见面了。";
+			next;
+			mes "[艾琳]";
+			mes "你改变主意了吗？";
+			npctalk "艾琳：你改变主意了吗？";
+			
+			switch (select ("是的：没有")){
+				case 1:
+				
+					set anightmare_aline,2;
+					unittalk 0,strcharinfo(0)+"：是的。";
+					next;
+					mes "[艾琳]";
+					mes "太棒了！你想和我打架的时候告诉我。";
+					npctalk "艾琳：太棒了！你想和我打架的时候告诉我。";
+					break;
+				case 2:
+					unittalk 0,strcharinfo(0)+"：没有。";
+					next;
+					mes "[艾琳]";
+					mes "哦好吧。";
+					npctalk "艾琳：哦好吧。";
+					break;
+			
+			}
+			close2;
+			cutin "",255;
+			end;
+	}
+	
+	switch (.@aline_at){
+		case 0:
+			end;
+		case 1:
+			cutin "ep16_evil102",1;
+			mes "[艾琳]";
+			mes "只是想告诉你，我们打架的时候我会关上门。";
+			npctalk "艾琳：只是想告诉你，我们打架的时候我会关上门。";
+			next;
+			break;
+		case 2:
+			cutin "ep16_evil102",1;
+			mes "[艾琳]";
+			mes "我们又见面了！";
+			npctalk "艾琳：我们又见面了！";
+			next;
+			mes "[艾琳]";
+			mes "我想了很多关于我们之前的战斗。";
+			npctalk "艾琳：我想了很多关于我们之前的战斗。";
+			select ("你学到了什么？");
+			unittalk 0,strcharinfo(0)+"：你学到了什么？";
+			next;
+			mes "[艾琳]";
+			mes "我感觉和你比起来非常弱小。";
+			npctalk "艾琳：我感觉和你比起来非常弱小。";
+			next;
+			mes "[艾琳]";
+			mes "我决定向沙漠中的一头巨兽寻求帮助。";
+			npctalk "艾琳：我决定向沙漠中的一头巨兽寻求帮助。";
+			next;
+			mes "[艾琳]";
+			mes "当我遇见他时，我明白了。";
+			npctalk "艾琳：当我遇见他时，我明白了。";
+			select ("是什么？");
+			unittalk 0,strcharinfo(0)+"：是什么？";
+			next;
+			mes "[艾琳]";
+			mes "我需要更多的力量！";
+			npctalk "艾琳：我需要更多的力量！";
+			next;
+			mes "[艾琳]";
+			mes "我可能太小了，无法像他那样把山劈成两半。";
+			npctalk "艾琳：我可能太小了，无法像他那样把山劈成两半。";
+			next;
+			mes "[艾琳]";
+			mes "但我可以把同样多的力量压缩在更小的区域里。";
+			npctalk "艾琳：但我可以把同样多的力量压缩在更小的区域里。";
+			next;
+			mes "[艾琳]";
+			mes "所以我进行了严格的训练，并向他学习。";
+			npctalk "艾琳：所以我进行了严格的训练，并向他学习。";
+			next;
+			mes "[艾琳]";
+			mes "现在我有信心我能赢！";
+			npctalk "艾琳：现在我有信心我能赢！";
+			next;
+			break;
+		case 3:
+			cutin "ep16_evil102",1;
+			mes "[艾琳]";
+			mes "你回来了！";
+			npctalk "艾琳：你回来了！";
+			next;
+			cutin "ep16_evil101",1;
+			mes "[艾琳]";
+			mes "我以为上次之后你不会再回来了。";
+			npctalk "艾琳：我以为上次之后你不会再回来了。";
+			select ("为什么这么想？");
+			unittalk 0,strcharinfo(0)+"：为什么这么想？";
+			next;
+			mes "[艾琳]";
+			mes "因为我太弱了。";
+			npctalk "艾琳：因为我太弱了。";
+			select ("你才刚刚开始学习");
+			unittalk 0,strcharinfo(0)+"：你才刚刚开始学习。";
+			next;
+			mes "[艾琳]";
+			mes "那倒是真的。";
+			npctalk "艾琳：那倒是真的。";
+			next;
+			mes "[艾琳]";
+			mes "但是你的防御力实在太高了。";
+			npctalk "艾琳：但是你的防御力实在太高了。";
+			next;
+			mes "[艾琳]";
+			mes "我的攻击根本没造成任何伤害。";
+			npctalk "艾琳：我的攻击根本没造成任何伤害。";
+			next;
+			mes "[艾琳]";
+			mes "但是面对防御你能做什么呢？";
+			npctalk "艾琳：但是面对防御你能做什么呢？";
+			next;
+			mes "[艾琳]";
+			mes "武僧们有一种技巧，如果你的防御越高，造成的伤害就越高。";
+			npctalk "艾琳：武僧们有一种技巧，如果你的防御越高，造成的伤害就越高。";
+			next;
+			mes "[艾琳]";
+			mes "但是没有防御比拥有高防御要容易得多。";
+			npctalk "艾琳：但是没有防御比拥有高防御要容易得多。";
+			next;
+			mes "[艾琳]";
+			mes "所以，那是适得其反的。";
+			npctalk "艾琳：所以，那是适得其反的。";
+			next;
+			mes "[艾琳]";
+			mes "相反，我研究了无视防御的攻击。";
+			npctalk "艾琳：相反，我研究了无视防御的攻击。";
+			next;
+			mes "[艾琳]";
+			mes "我想有了这些新技巧，我可以打败你。";
+			npctalk "艾琳：我想有了这些新技巧，我可以打败你。";
+			next;
+			break;
+		case 4:
+			cutin "ep16_evil101",1;
+			mes "[艾琳]";
+			mes "我现在明白了！";
+			npctalk "艾琳：我现在明白了！";
+			select ("什么？");
+			unittalk 0,strcharinfo(0)+"：什么？";
+			next;
+			mes "[艾琳]";
+			mes "问题不在于我弱！";
+			npctalk "艾琳：问题不在于我弱！";
+			
+			next;
+			mes "[艾琳]";
+			mes "而是我太依赖力量本身了。";
+			npctalk "艾琳：而是我太依赖力量本身了。";
+			
+			next;
+			mes "[艾琳]";
+			mes "我看到一群冒险者在教堂被歼灭。";
+			npctalk "艾琳：我看到一群冒险者在教堂被歼灭。";
+			
+			next;
+			mes "[艾琳]";
+			mes "因为他们的敌人极大地削弱了他们。";
+			npctalk "艾琳：因为他们的敌人极大地削弱了他们。";
+			
+			next;
+			mes "[艾琳]";
+			mes "如果你让敌人寸步难行，他们还能做什么。";
+			npctalk "艾琳：如果你让敌人寸步难行，他们还能做什么。";
+			
+			next;
+			mes "[艾琳]";
+			mes "我研究了许多可以施加的虚弱状态。";
+			npctalk "艾琳：我研究了许多可以施加的虚弱状态。";		
+	
+			next;
+			mes "[艾琳]";
+			mes "我非常渴望尝试这个！";
+			npctalk "艾琳：我非常渴望尝试这个！";
+			next;
+			break;
+			
+		case 5:
+			cutin "ep16_evil101",1;
+			mes "[艾琳]";
+			mes "我真的感觉很挫败。";
+			npctalk "艾琳：我真的感觉很挫败。";
+			select ("你在进步");
+			unittalk 0,strcharinfo(0)+"：你在进步。";
+			
+			next;
+			mes "[艾琳]";
+			mes "你不明白。";
+			npctalk "艾琳：你不明白。";
+			
+			next;
+			mes "[艾琳]";
+			mes "我一直以来都学错了东西。";
+			npctalk "艾琳：我一直以来都学错了东西。";
+			select ("是这样吗？");
+			unittalk 0,strcharinfo(0)+"：是这样吗？";
+			
+			next;
+			mes "[艾琳]";
+			mes "是的，我看到一个魔法师通过施放巨大的雷电、火焰和冰霜风暴摧毁了整个军队。";
+			npctalk "艾琳：是的，我看到一个魔法师通过施放巨大的雷电、火焰和冰霜风暴摧毁了整个军队。";
+			
+			next;
+			mes "[艾琳]";
+			mes "我想……我那可怜的小镰刀怎么能对抗那个？";
+			npctalk "艾琳：我想……我那可怜的小镰刀怎么能对抗那个？";
+			
+			next;
+			mes "[艾琳]";
+			mes "如果我当时在那支军队里，我根本起不到任何作用。";
+			npctalk "艾琳：如果我当时在那支军队里，我根本起不到任何作用。";
+			
+			next;
+			mes "[艾琳]";
+			mes "但是，我不能一直挫败下去！";
+			npctalk "艾琳：但是，我不能一直挫败下去！";
+			
+			next;
+			mes "[艾琳]";
+			mes "所以，我学习了魔法！";
+			npctalk "艾琳：所以，我学习了魔法！";
+			
+			next;
+			mes "[艾琳]";
+			mes "这比我想象的要难，但是……";
+			npctalk "艾琳：这比我想象的要难，但是……";
+			
+			next;
+			mes "[艾琳]";
+			mes "我取得了很大的进步，我准备好进行测试了！";
+			npctalk "艾琳：我取得了很大的进步，我准备好进行测试了！";
+			next;
+			break;
+			
+		case 6:
+			cutin "ep16_evil101",1;
+			mes "[艾琳]";
+			mes "我想，我已经达到了一个顶峰。";
+			npctalk "艾琳：我想，我已经达到了一个顶峰。";
+			select ("你现在相当强了");
+			unittalk 0,strcharinfo(0)+"：你现在相当强了";
+			next;
+
+			mes "[艾琳]";
+			mes "我现在需要做的就是完全掌握我的技能。";
+			npctalk "艾琳：我现在需要做的就是完全掌握我的技能。";
+			next;
+			
+			mes "[艾琳]";
+			mes "我从我们所有的战斗中学到了很多。";
+			npctalk "艾琳：我从我们所有的战斗中学到了很多。";
+			next;
+			mes "[艾琳]";
+			mes "我只需要把它们整合起来，进行更多的策略规划。";
+			npctalk "艾琳：我只需要把它们整合起来，进行更多的策略规划。";
+			next;
+			break;
+			
+		case 7:
+			cutin "ep16_evil102",1;
+			mes "[艾琳]";
+			mes "嘿！";
+			npctalk "艾琳：嘿！";
+			next;
+			
+			mes "[艾琳]";
+			mes "我交了一个新朋友！";
+			npctalk "艾琳：我交了一个新朋友！";
+			next;
+			enablenpc  instance_npcname("六翼天使#1");
+			set 'seraphon,1;
+			cutin "pops_lau",1;
+			mes "[六翼天使]";
+			mes "嗨！";
+			npctalk ("六翼天使：嗨！",instance_npcname("六翼天使#1"));
+			select ("哇，你从哪里来的？");
+			unittalk 0,strcharinfo(0)+"：哇，你从哪里来的？";
+			next;
+			cutin "ep16_evil102",1;
+			mes "[艾琳]";
+			mes "她将在战斗中协助我。";
+			npctalk "艾琳：她将在战斗中协助我。";
+			next;
+			break;
+			
+		case 8:
+			cutin "ep16_evil102",1;
+			enablenpc  instance_npcname("六翼天使#1");
+			set 'seraphon,1;
+			mes "[艾琳]";
+			mes "你又来看我们了。";
+			npctalk "艾琳：你又来看我们了。";
+			next;
+			break;
+			
+	}
+	//接受了但从未战斗过
+			
+			mes "[艾琳]";
+			mes "那么，你准备好了吗？";
+			npctalk "艾琳：那么，你准备好了吗？";
+			switch (select("开始吧！：也许晚点")){
+				case 1:
+					unittalk 0,strcharinfo(0)+"：开始吧！";
+					playBGMall "92",'second_map$,179,120,192,107;
+					next;
+					mes "[艾琳]";
+					mes "好的，我来了！";
+					npctalk "艾琳：好的，我来了！";
+					close2;
+					
+					set 'aline_secret,1;
+					if (anightmare_aline - (.@aline_at * 2) == 0 && anightmare_aline < 16 && anightmare_aline > 1){
+						anightmare_aline++;
+					}
+					
+					if (anightmare_aline>15){
+						monster 'second_map$,184,114,"艾琳",3417,1,instance_npcname("艾琳#1")+"::OnAlineDead";
+					}else{
+						monster 'second_map$,184,114,"艾琳",(3410 + .@aline_at),1,instance_npcname("艾琳#1")+"::OnAlineDead";
+					}
+					set 'aline_gid,$@mobid[0];
+					hideonnpc instance_npcname("艾琳#1");
+					disablenpc  instance_npcname("insidewarp#3");
+					disablenpc  instance_npcname("六翼天使#1");
+					cutin "",255;
+					set 'notarget,0;
+					initnpctimer;
+					end;
+				case 2:
+					unittalk 0,strcharinfo(0)+"：也许晚点。";
+					mes "[艾琳]";
+					mes "好的，不急。";
+					npctalk "艾琳：好的，不急。";
+					close2;
+					cutin "",255;
+					end;
+			}
+	
+
+//如果艾琳长时间没有目标，则移除她。
+OnTimer1000:
+	getunitdata 'aline_gid,.@test;
+	playBGMall "92",'second_map$,179,120,192,107;
+	if (.@test[UMOB_TARGETID] == 0){
+		'notarget++;
+		if ('notarget >10){
+			set 'aline_secret,2;
+			unitwarp 'aline_gid,'second_map$,40,179;
+			unitkill 'aline_gid;
+			set 'aline_secret,2;
+			stopnpctimer;
+			end;
+		}
+	}else{
+		set 'notarget,0;
+	}
+	initnpctimer;
+	end;
+	
+OnAlineDead:
+	if ('aline_secret == 1){
+		set 'aline_secret,3;
+	}
+	playBGMall "107",'second_map$,179,120,192,107;
+	stopnpctimer;
+	enablenpc  instance_npcname("insidewarp#3");
+	hideoffnpc instance_npcname("艾琳#1");
+	if ('seraphon == 1){
+		enablenpc  instance_npcname("六翼天使#1");
+	}
+	end;
+}
+
+2@antgm,185,116,4	script	六翼天使#1	10173,{
+		mes "[六翼天使]";
+		mes "...";
+		close;
+	OnInstanceInit:
+		disablenpc  instance_npcname("六翼天使#1");
+		end;
+
+}
+
+
+//路障视觉效果
+2@antgm,127,19,0	script	黑暗力量#anightmare1	10045,{
+	
+	if ('main_event == 11){
+		set .@party_id,getcharid(1);
+		if (getcharid(0) != getpartyleader(.@party_id,2)) {
+			end;
+		}
+		mes "你对屏障使用了石头。";
+		next;
+		specialeffect 59;
+		specialeffect 108;
+		specialeffect 702;
+		mes "";
+		next;
+		specialeffect 62;
+		mes "";
+		next;
+		specialeffect 90;
+		specialeffect 99;
+		mes "";
+		next;
+		specialeffect 108;
+		disablenpc instance_npcname("黑暗力量#anightmare19");
+		disablenpc instance_npcname("黑暗力量#anightmare20");
+		disablenpc instance_npcname("黑暗力量#anightmare21");
+		disablenpc instance_npcname("黑暗力量#anightmare22");
+		disablenpc instance_npcname("黑暗力量#anightmare23");
+		disablenpc instance_npcname("黑暗力量#anightmare24");
+		delwall 'second_map$+"anightmare_walllist1";
+		monster ('third_map$,45,31,"憎恨阴影",3403,1,"");
+		monster ('third_map$,38,25,"憎恨阴影",3403,1,"");
+		monster ('third_map$,53,25,"憎恨阴影",3403,1,"");
+		set 'main_event,12;
+	}
+	end;
+	}
+2@antgm,127,18,0	duplicate(黑暗力量#anightmare1)	黑暗力量#anightmare2	10042
+2@antgm,127,17,0	duplicate(黑暗力量#anightmare1)	黑暗力量#anightmare3	10045
+2@antgm,127,16,0	duplicate(黑暗力量#anightmare1)	黑暗力量#anightmare4	10042
+2@antgm,127,15,0	duplicate(黑暗力量#anightmare1)	黑暗力量#anightmare5	10045
+2@antgm,127,14,0	duplicate(黑暗力量#anightmare1)	黑暗力量#anightmare6	10042
+2@antgm,127,13,0	duplicate(黑暗力量#anightmare1)	黑暗力量#anightmare7	10045
+2@antgm,127,12,0	duplicate(黑暗力量#anightmare1)	黑暗力量#anightmare8	10042
+2@antgm,127,18,0	duplicate(黑暗力量#anightmare1)	黑暗力量#anightmare9	723
+2@antgm,127,16,0	duplicate(黑暗力量#anightmare1)	黑暗力量#anightmare10	723
+2@antgm,127,14,0	duplicate(黑暗力量#anightmare1)	黑暗力量#anightmare11	723
+2@antgm,127,12,0	duplicate(黑暗力量#anightmare1)	黑暗力量#anightmare12	723
+
+2@antgm,132,176,0	duplicate(黑暗力量#anightmare1)	黑暗力量#anightmare19	10042
+2@antgm,132,175,0	duplicate(黑暗力量#anightmare1)	黑暗力量#anightmare20	10045
+2@antgm,132,174,0	duplicate(黑暗力量#anightmare1)	黑暗力量#anightmare21	10042
+2@antgm,132,173,0	duplicate(黑暗力量#anightmare1)	黑暗力量#anightmare22	10045
+2@antgm,132,175,0	duplicate(黑暗力量#anightmare1)	黑暗力量#anightmare23	723
+2@antgm,132,173,0	duplicate(黑暗力量#anightmare1)	黑暗力量#anightmare24	723
+
+3@antgm,43,87,0	duplicate(黑暗力量#anightmare1)	黑暗力量#anightmare13	10045
+3@antgm,44,87,0	duplicate(黑暗力量#anightmare1)	黑暗力量#anightmare14	10042
+3@antgm,45,87,0	duplicate(黑暗力量#anightmare1)	黑暗力量#anightmare15	10045
+3@antgm,46,87,0	duplicate(黑暗力量#anightmare1)	黑暗力量#anightmare16	10042
+3@antgm,47,87,0	duplicate(黑暗力量#anightmare1)	黑暗力量#anightmare17	10045
+3@antgm,48,87,0	duplicate(黑暗力量#anightmare1)	黑暗力量#anightmare18	10042
+
+
+2@antgm,116,182,0	script	钢琴#anightmare1	111,{
+	if ('main_event !=9){
+		end;
+	}
+
+	if ('piano_got == 0){
+		mes "你试图从钢琴上取下一个琴键";
+		next;
+		mes ".";
+		next;
+		mes "..";
+		next;
+		mes "...";
+		next;
+		if (rand(1,10)==1){
+			mes "琴键没有损坏就取下来了。";
+			set 'piano_got,getcharid(0);
+			mapannounce 'second_map$, strcharinfo(0) +" 获得了钢琴键。",bc_map,"0x00ff99",FW_NORMAL,12;
+			close;
+		}else{
+			mes "琴键断掉了，试试另一个吧。";
+			close;
+		}
+	}
+	mes "我们已经有一个钢琴键了。";
+	close;
+
+}
+
+2@antgm,166,95,0	script	药草堆#anightmare1	111,{
+	if ('main_event !=9){
+		end;
+	}
+
+	if ('herb_got == 0){
+			mes "你捡起了你能找到的最好的药草。";
+			set 'herb_got,getcharid(0);
+			mapannounce 'second_map$, strcharinfo(0) +" 获得了最优质药草。",bc_map,"0x00ff99",FW_NORMAL,12;
+			close;
+	}
+	mes "我们已经拿到药草了。";
+	close;
+
+}
+
+2@antgm,83,102,0	script	书架#anightmare1	111,{
+	if ('main_event !=9){
+		end;
+	}
+
+	if ('book_got == 0){
+			mes "你捡起了憎恨之书。";
+			mes "你突然感到非常虚弱。";
+			set 'book_got,getcharid(0);
+			mapannounce 'second_map$, strcharinfo(0) +" 获得了憎恨之书。",bc_map,"0x00ff99",FW_NORMAL,12;
+			percentheal -95,-100;
+			sc_start SC_CURSE,20000,0;
+			close;
+	}
+	mes "我们已经拿到书了。";
+	close;
+}
+
+2@antgm,45,182,0	script	水晶#anightmare1	10045,5,5,{
+	if ('main_event !=9){
+		end;
+	}
+	if ('crystal_got == 0){
+			mes "怪物出现的地方形成了一个水晶结构。";
+			next;
+			mes "你获得了憎恨水晶。";
+			set 'crystal_got,getcharid(0);
+			mapannounce 'second_map$, strcharinfo(0) +" 获得了憎恨水晶。",bc_map,"0x00ff99",FW_NORMAL,12;
+			percentheal -95,-100;
+			sc_start SC_CURSE,20000,0;
+			disablenpc instance_npcname("水晶#anightmare1");
+			close;
+	}
+	end;
+
+
+OnTouch:
+	if ('main_event !=9){
+		end;
+	}
+	if ('touch_crystal == 0){
+		set 'touch_crystal,1;
+		set .@crystal_spawn$,instance_npcname("水晶#anightmare1")+"::OnCrystalSpawn";
+		areamonster 'second_map$,40,187,50,176,"憎恨残影",3401,5,.@crystal_spawn$;
+		areamonster 'second_map$,40,187,50,176,"憎恨载体",3402,3,.@crystal_spawn$;
+		areamonster 'second_map$,40,187,50,176,"憎恨阴影",3403,2,.@crystal_spawn$;
+		mapannounce 'second_map$,"赫拉：那不是我干的！是你自己走进去的。",bc_map,"0xFF0000",FW_NORMAL,12;
+	
+	}
+	end;
+	
+OnCrystalSpawn:
+	set .@crystal_spawn$,instance_npcname("水晶#anightmare1")+"::OnCrystalSpawn";
+	if (mobcount('second_map$,.@crystal_spawn$) < 1) {
+		if ('touch_crystal == 1){
+			set 'touch_crystal,2;
+			areamonster 'second_map$,40,187,50,176,"憎恨残影",3401,2,.@crystal_spawn$;
+			areamonster 'second_map$,40,187,50,176,"憎恨载体",3402,2,.@crystal_spawn$;
+			areamonster 'second_map$,40,187,50,176,"憎恨阴影",3403,3,.@crystal_spawn$;
+			end;
+		}
+		if ('touch_crystal == 2){
+			hideoffnpc instance_npcname("水晶#anightmare1");
+		}
+	}
+	end;
+
+OnInstanceInit:
+	hideonnpc instance_npcname("水晶#anightmare1");
+	end;
+}
+
+2@antgm,147,33,0	script	液体瓶#anightmare1	111,{
+	if ('main_event !=9){
+		end;
+	}
+
+	if ('bottle_got == 0){
+			mes "你捡起了一个液体瓶。";
+			set 'bottle_got,getcharid(0);
+			mapannounce 'second_map$, strcharinfo(0) +" 获得了液体瓶。",bc_map,"0x00ff99",FW_NORMAL,12;
+			close;
+	}
+	mes "我们已经拿到液体瓶了。";
+	close;
+}
+
+2@antgm,153,24,3	script	死亡魔法师#anightmare1	792,{
+		set .@party_id,getcharid(1);
+		set .@char_id,getcharid(0);
+		//交付瓶子
+		if (.@char_id == 'bottle_got){
+			mes "[死亡法师]";
+			mes "哦耶！瓶子就在那里，我真傻！";
+			npctalk "死亡法师：哦耶！瓶子就在那里，我真傻！";
+			mapannounce 'second_map$, strcharinfo(0) +" 交付了液体瓶。",bc_map,"0x00ff99",FW_NORMAL,12;
+			set 'bottle_got,-1;
+			if (.@char_id == 'herb_got || .@char_id == 'piano_got || .@char_id == 'book_got || .@char_id == 'crystal_got){
+				next;
+				mes "[死亡法师]";
+				mes "还有别的吗？";
+				npctalk "死亡法师：还有别的吗？";
+				next;
+			}else{
+				close;
+			}
+		}
+		if (.@char_id == 'herb_got){
+			mes "[死亡法师]";
+			mes "那些只是勉强算优质药草，不过也行吧。";
+			npctalk "死亡法师：那些只是勉强算优质药草，不过也行吧。";
+			mapannounce 'second_map$, strcharinfo(0) +" 交付了最优质药草。",bc_map,"0x00ff99",FW_NORMAL,12;
+			set 'herb_got,-1;
+			if (.@char_id == 'piano_got || .@char_id == 'book_got || .@char_id == 'crystal_got){
+				next;
+				mes "[死亡法师]";
+				mes "还有吗？";
+				npctalk "死亡法师：还有吗？";
+				next;
+			}else{
+				close;
+			}
+		}
+		if (.@char_id == 'piano_got){
+			mes "[死亡法师]";
+			mes "一个钢琴键！";
+			npctalk "死亡法师：一个钢琴键！";
+			mapannounce 'second_map$, strcharinfo(0) +" 交付了钢琴键。",bc_map,"0x00ff99",FW_NORMAL,12;
+			set 'piano_got,-1;
+			if (.@char_id == 'book_got || .@char_id == 'crystal_got){
+				next;
+				mes "[死亡法师]";
+				mes "还有什么？";
+				npctalk "死亡法师：还有什么？";
+				next;
+			}else{
+				close;
+			}
+		}
+		if (.@char_id == 'book_got){
+			mes "[死亡法师]";
+			mes "抱歉让你拿着这本书，一定很痛苦吧。";
+			npctalk "死亡法师：抱歉让你拿着这本书，一定很痛苦吧。";
+			mapannounce 'second_map$, strcharinfo(0) +" 交付了憎恨之书。",bc_map,"0x00ff99",FW_NORMAL,12;
+			set 'book_got,-1;
+			if (.@char_id == 'crystal_got){
+				next;
+				mes "[死亡法师]";
+				mes "还有吗？";
+				npctalk "死亡法师：还有吗？";
+				next;
+			}else{
+				close;
+			}
+		}
+		if (.@char_id == 'crystal_got){
+			mes "[死亡法师]";
+			mes "嘿，你找到了一个。这个不错。";
+			npctalk "死亡法师：嘿，你找到了一个。这个不错。";
+			mapannounce 'second_map$, strcharinfo(0) +" 交付了憎恨水晶。",bc_map,"0x00ff99",FW_NORMAL,12;
+			set 'crystal_got,-1;
+			next;
+			mes "[死亡法师]";
+			mes "不是我不相信你们能找到，但是……";
+			npctalk "死亡法师：不是我不相信你们能找到，但是……";
+			close;
+		}
+		
+	if (getcharid(0) != getpartyleader(.@party_id,2)) {
+		mes "...";
+		close;
+	}
+	if ('main_event == 8){
+		if (anightmare_wakeup == 3){
+			mes "^FF0000系统消息^000000";
+			mes "是否跳过此对话？";
+			next;
+			if (select("否：是") == 2){
+				set 'main_event,9;
+				monster ('second_map$,112,179,"憎恨阴影",3403,1,"");
+				monster ('second_map$,119,179,"憎恨阴影",3403,1,"");
+				mapannounce 'second_map$, "赫拉：耶，收集任务！",bc_map,"0xff0000",FW_NORMAL,12;
+				npctalk "死亡法师：她又来了。";
+				close;
+			}
+			
+		}
+		mes "[死亡法师]";
+		mes "我从没见过你在这里。";
+		npctalk "死亡法师：我从没见过你在这里。";
+		next;
+		
+		mes "[死亡法师]";
+		mes "你在这里能有什么事。";
+		npctalk "死亡法师：你在这里能有什么事。";
+		select ("你有没有看到...");
+		unittalk 0,strcharinfo(0)+"：你有没有看到一个蓝头发穿裙子的女孩？";
+		next;
+		
+		mes "[死亡法师]";
+		mes "啊哈！所以，这就是你在这里的原因。";
+		npctalk "死亡法师：啊哈！所以，这就是你在这里的原因。";
+		select ("所以，你见过她？");
+		unittalk 0,strcharinfo(0)+"：所以，你见过她？";
+		next;
+		
+		mes "[死亡法师]";
+		mes "没有，但我知道她可能在哪里。";
+		npctalk "死亡法师：没有，但我知道她可能在哪里。";
+		select ("在哪里？");
+		unittalk 0,strcharinfo(0)+"：在哪里？";
+		next;
+		
+		mes "[死亡法师]";
+		mes "你必须穿过花园。";
+		npctalk "死亡法师：你必须穿过花园。";
+		next;
+		
+		mes "[死亡法师]";
+		mes "但通往那里的路可能被堵住了。";
+		npctalk "死亡法师：但通往那里的路可能被堵住了。";
+		next;
+		
+		mes "[死亡法师]";
+		mes "你必须移除魔法屏障。";
+		npctalk "死亡法师：你必须移除魔法屏障。";
+		select ("我们该怎么做？");
+		unittalk 0,strcharinfo(0)+"：我们该怎么做？";
+		next;
+		
+		mes "[死亡法师]";
+		mes "你将需要一颗破魔石。";
+		npctalk "死亡法师：你将需要一颗破魔石。";
+		select ("我在哪里可以拿到？");
+		unittalk 0,strcharinfo(0)+"：我在哪里可以拿到？";
+		next;
+		
+		mes "[死亡法师]";
+		mes "我可以为你制作。";
+		npctalk "死亡法师：我可以为你制作。";
+		next;
+		
+		mes "[死亡法师]";
+		mes "不过你需要帮我收集我需要的东西。";
+		npctalk "死亡法师：不过你需要帮我收集我需要的东西";
+		select ("你需要什么？");
+		unittalk 0,strcharinfo(0)+"：你需要什么？";
+		next;
+		
+		mes "[死亡法师]";
+		mes "我需要的物品就在这宅邸的某个地方。";
+		npctalk "死亡法师：我需要的物品就在这宅邸的某个地方。";
+		next;
+		
+		mes "[死亡法师]";
+		mes "我需要憎恨之书来施法。";
+		npctalk "死亡法师：我需要憎恨之书来施法。";
+		next;
+		
+		mes "[死亡法师]";
+		mes "它应该在客房的某个书架上。";
+		npctalk "死亡法师：它应该在客房的某个书架上。";
+		next;
+		
+		mes "[死亡法师]";
+		mes "还需要你能找到的最优质药草。";
+		npctalk "死亡法师：还需要你能找到的最优质药草。";
+		next;
+		
+		mes "[死亡法师]";
+		mes "应该有个箱子里放着一些药草。";
+		npctalk "死亡法师：应该有个箱子里放着一些药草。";
+		next;
+		
+		mes "[死亡法师]";
+		mes "一个钢琴键，一个液体瓶和憎恨水晶。";
+		npctalk "死亡法师：一个钢琴键，一个液体瓶和憎恨水晶。";
+		next;
+		
+		mes "[死亡法师]";
+		mes "钢琴键应该很明显，其他的我就不太确定了。";
+		npctalk "死亡法师：钢琴键应该很明显，其他的我就不太确定了。";
+		next;
+		
+		mes "[死亡法师]";
+		mes "就在宅邸里四处找找，你们最终会找到的。";
+		npctalk "死亡法师：就在宅邸里四处找找，你们最终会找到的。";
+		close2;
+		set 'main_event,9;
+		monster ('second_map$,112,179,"憎恨阴影",3403,1,"");
+		monster ('second_map$,119,179,"憎恨阴影",3403,1,"");
+		mapannounce 'second_map$, "赫拉：耶，收集任务！",bc_map,"0xff0000",FW_NORMAL,12;
+		npctalk "死亡法师：她又来了。";
+		end;
+		
+	}
+	
+	if ('main_event == 9){
+		set .@item_count,5;
+		if ('book_got == -1){.@item_count--;}
+		if ('bottle_got == -1){.@item_count--;}
+		if ('piano_got == -1){.@item_count--;}
+		if ('herb_got == -1){.@item_count--;}
+		if ('crystal_got == -1){.@item_count--;}
+		if (.@item_count != 0){
+			set .@how_many,0;
+			mes "[死亡法师]";
+			set .@message$,"还需要";
+			if ('book_got != -1){
+				set .@message$,.@message$+"憎恨之书";
+				.@item_count--;
+				.@how_many++;
+			}
+			if ('bottle_got != -1){
+				if (.@how_many != 0){if (.@item_count == 1){set .@message$,.@message$+"和";}else{set .@message$,.@message$+"，";}}
+				set .@message$,.@message$+"一个液体瓶";
+				.@item_count--;
+				.@how_many++;
+			}
+			if ('piano_got != -1){
+				if (.@how_many != 0){if (.@item_count == 1){set .@message$,.@message$+"和";}else{set .@message$,.@message$+"，";}}
+				set .@message$,.@message$+"一个钢琴键";
+				.@item_count--;
+				.@how_many++;
+			}
+			if ('herb_got != -1){
+				if (.@how_many != 0){if (.@item_count == 1){set .@message$,.@message$+"和";}else{set .@message$,.@message$+"，";}}
+				set .@message$,.@message$+"最优质药草";
+				.@item_count--;
+				.@how_many++;
+			}
+			if ('crystal_got != -1){
+				if (.@how_many != 0){if (.@item_count == 1){set .@message$,.@message$+"和";}else{set .@message$,.@message$+"，";}}
+				set .@message$,.@message$+"憎恨水晶";
+				.@item_count--;
+				.@how_many++;
+			}
+			mes .@message$+"。";
+			npctalk "死亡法师："+.@message$+"。";
+			close;
+		
+		
+		}else{
+			mes "[死亡法师]";
+			mes "你们拿到所有东西了。";
+			npctalk "死亡法师：你们拿到所有东西了。";
+			next;
+			
+			mes "[死亡法师]";
+			mes "好的，给我几分钟。";
+			npctalk "死亡法师：好的，给我几分钟。";
+			set 'main_event,10;
+			close;
+			
+		}
+	
+	}
+	if ('main_event == 10){
+	
+		if (anightmare_wakeup == 3){
+			mes "^FF0000系统消息^000000";
+			mes "是否跳过此对话？";
+			next;
+			if (select("否：是") == 2){
+				mes "你获得了破魔石。";
+				disablenpc instance_npcname("死亡魔法师#anightmare1");
+				mapannounce 'second_map$, strcharinfo(0) +" 获得了破魔石。",bc_map,"0x00ff99",FW_NORMAL,12;
+				set 'main_event,11;
+				close;
+			}
+			
+		}
+		
+		mes "[死亡法师]";
+		mes "请稍等片刻。";
+		npctalk "请稍等片刻。";
+		select ("这里到底发生了什么？");
+		unittalk 0,strcharinfo(0)+"：这里到底发生了什么？";
+		next;
+		
+		mes "[死亡法师]";
+		mes "哦没什么，只是赫拉又在玩游戏折磨死者而已。";
+		npctalk "死亡法师：哦没什么，只是赫拉又在玩游戏折磨死者而已。";
+		select ("我们没死。");
+		unittalk 0,strcharinfo(0)+"：我们没死。";
+		next;
+		
+		mes "[死亡法师]";
+		mes "这里是尼福尔海姆，你必须死了才能在这里。";
+		select ("我们是通过世界树之树来的。");
+		unittalk 0,strcharinfo(0)+"：我们是通过世界树之树来的。";
+		next;
+		
+		mes "[死亡法师]";
+		mes "啊哈，活人的特权。";
+		npctalk "死亡法师：啊哈，活人的特权。";
+		next;
+		
+		mes "[死亡法师]";
+		mes "嗯，那也改变不了多少。";
+		npctalk "死亡法师：嗯，那也改变不了多少。";
+		next;
+		
+		mes "[死亡法师]";
+		mes "你想帮助的那个女孩已经死了。";
+		npctalk "死亡法师：你想帮助的那个女孩已经死了。";
+		next;
+		
+		mes "[死亡法师]";
+		mes "所以，你真的不该插手。";
+		npctalk "死亡法师：所以，你真的不该插手。";
+		select ("爱丽丝没有死");
+		unittalk 0,strcharinfo(0)+"：爱丽丝没有死。";
+		next;
+		
+		mes "[死亡法师]";
+		mes "对于一个没死的人来说，她看起来非常迷茫。";
+		npctalk "死亡法师：对于一个没死的人来说，她看起来非常迷茫。";
+		next;
+		
+		mes "[死亡法师]";
+		mes "你是说她也通过树根来的？";
+		npctalk "死亡法师：你是说她也通过树根来的？";
+		select ("我不知道");
+		unittalk 0,strcharinfo(0)+"：我不知道。";
+		next;
+		
+		mes "[死亡法师]";
+		mes "嗯……你们继续做你们正在做的事吧。";
+		npctalk "死亡法师：嗯……你们继续做你们正在做的事吧。";
+		next;
+		
+		mes "[死亡法师]";
+		mes "我需要调查一些事情。";
+		npctalk "死亡法师：我需要调查一些事情。";
+		next;
+		
+		mes "[死亡法师]";
+		mes "给你，准备好了。";
+		npctalk "死亡法师：给你，准备好了。";
+		next;
+		
+		mes "[死亡法师]";
+		mes "用这个你可以移除楼梯处的屏障。";
+		npctalk "死亡法师：用这个你可以移除楼梯处的屏障。";
+		next;
+		
+		mes "[死亡法师]";
+		mes "去那里吧，我稍后会与你们会合。";
+		npctalk "死亡法师：去那里吧，我稍后会与你们会合。";
+		next;
+		mes "你获得了破魔石。";
+		disablenpc instance_npcname("死亡魔法师#anightmare1");
+		mapannounce 'second_map$, strcharinfo(0) +" 获得了破魔石。",bc_map,"0x00ff99",FW_NORMAL,12;
+		set 'main_event,11;
+		close;
+		
+		
+	}
+	
+	end;
+	//赫拉对话在这个NPC上
+OnTimer5000:
+	mapannounce 'second_map$,"赫拉：我保证不会再那样做了。",bc_map,"0xFF0000",FW_NORMAL,12;
+	end;
+OnTimer10000:
+	mapannounce 'second_map$,"赫拉：也许如果你们击败阴影守卫，我就会移除屏障，嗯哼。",bc_map,"0xFF0000",FW_NORMAL,12;
+	stopnpctimer;
+	end;
+
+}
+
+
+
+
+2@antgm,4,4,3	script	怪物生成器#anightmare1	792,{
+
+OnInstanceInit:
+	set .@npc_name$,instance_npcname("怪物生成器#anightmare1");
+	areamonster 'second_map$,12,187,53,151,"阿丽莎",1746,3,.@npc_name$+"::OnAlizaDead1";
+	areamonster 'second_map$,105,182,131,160,"阿丽莎",1746,2,.@npc_name$+"::OnAlizaDead2";
+	areamonster 'second_map$,76,103,116,67,"阿丽莎",1746,2,.@npc_name$+"::OnAlizaDead3";
+	areamonster 'second_map$,148,97,173,73,"阿丽莎",1746,1,.@npc_name$+"::OnAlizaDead4";
+	
+	areamonster 'second_map$,102,87,173,73,"憎恨残影",3401,4,.@npc_name$+"::OnGhostDead1";
+	areamonster 'second_map$,118,75,125,20,"憎恨残影",3401,3,.@npc_name$+"::OnGhostDead2";
+	areamonster 'second_map$,12,187,131,160,"憎恨残影",3401,5,.@npc_name$+"::OnGhostDead3";
+	
+	areamonster 'second_map$,102,87,173,73,"憎恨载体",3402,4,.@npc_name$+"::OnSkogulDead1";
+	areamonster 'second_map$,118,75,125,20,"憎恨载体",3402,3,.@npc_name$+"::OnSkogulDead2";
+	areamonster 'second_map$,12,187,131,160,"憎恨载体",3402,5,.@npc_name$+"::OnSkogulDead3";
+	set .aliza_count1,0;
+	set .aliza_count2,0;
+	set .aliza_count3,0;
+	set .aliza_count4,0;
+	set .ghost_count1,0;
+	set .ghost_count2,0;
+	set .ghost_count3,0;
+	
+	set .skogul_count1,0;
+	set .skogul_count2,0;
+	set .skogul_count3,0;
+	initnpctimer;
+	end;
+	
+OnTimer20000:
+	set .@npc_name$,instance_npcname("怪物生成器#anightmare1");
+	if (rand(1,3)==1){set .@randnumber,rand(0,.aliza_count1);
+		areamonster 'second_map$,12,187,53,151,"阿丽莎",1746,.@randnumber,.@npc_name$+"::OnAlizaDead1";
+		.aliza_count1 -= .@randnumber;}
+		
+	if (rand(1,3)==1){set .@randnumber,rand(0,.aliza_count2);
+		areamonster 'second_map$,105,182,131,160,"阿丽莎",1746,.@randnumber,.@npc_name$+"::OnAlizaDead2";
+		.aliza_count2 -= .@randnumber;}
+		
+	if (rand(1,3)==1){set .@randnumber,rand(0,.aliza_count3);
+		areamonster 'second_map$,76,103,116,67,"阿丽莎",1746,.@randnumber,.@npc_name$+"::OnAlizaDead3";
+		.aliza_count3 -= .@randnumber;}
+		
+	if (rand(1,4)==1){set .@randnumber,rand(0,.aliza_count4);
+		areamonster 'second_map$,148,97,173,73,"阿丽莎",1746,.@randnumber,.@npc_name$+"::OnAlizaDead4";
+		.aliza_count4 -= .@randnumber;}
+	end;
+	
+OnTimer21000:
+	set .@npc_name$,instance_npcname("怪物生成器#anightmare1");
+	if (rand(1,3)==1){set .@randnumber,rand(0,.ghost_count1);
+		areamonster 'second_map$,102,87,173,73,"憎恨残影",3401,.@randnumber,.@npc_name$+"::OnGhostDead1";
+		.ghost_count1 -= .@randnumber;}
+		
+	if (rand(1,3)==1){set .@randnumber,rand(0,.ghost_count2);
+		areamonster 'second_map$,118,75,125,20,"憎恨残影",3401,.@randnumber,.@npc_name$+"::OnGhostDead2";
+		.ghost_count2 -= .@randnumber;}
+		
+	if (rand(1,3)==1){set .@randnumber,rand(0,.ghost_count3);
+		areamonster 'second_map$,12,187,131,160,"憎恨残影",3401,.@randnumber,.@npc_name$+"::OnGhostDead3";
+		.ghost_count3 -= .@randnumber;}
+	end;
+	
+OnTimer22000:
+	set .@npc_name$,instance_npcname("怪物生成器#anightmare1");
+	
+	if (rand(1,3)==1){set .@randnumber,rand(0,.skogul_count1);
+	areamonster 'second_map$,102,87,173,73,"憎恨载体",3402,.@randnumber,.@npc_name$+"::OnSkogulDead1";
+	.skogul_count1 -= .@randnumber;}
+	
+	if (rand(1,3)==1){set .@randnumber,rand(0,.skogul_count2);
+	areamonster 'second_map$,118,75,125,20,"憎恨载体",3402,.@randnumber,.@npc_name$+"::OnSkogulDead2";
+	.skogul_count2 -= .@randnumber;}
+	
+	if (rand(1,3)==1){set .@randnumber,rand(0,.skogul_count3);
+	areamonster 'second_map$,12,187,131,160,"憎恨载体",3402,.@randnumber,.@npc_name$+"::OnSkogulDead3";
+	.skogul_count3 -= .@randnumber;}
+	set .@mobcount,mobcount('second_map$,"all");
+	stopnpctimer;
+	initnpctimer;
+	end;
+
+
+OnAlizaDead1:
+	.aliza_count1++;
+	end;
+OnAlizaDead2:
+	.aliza_count2++;
+	end;
+OnAlizaDead3:
+	.aliza_count3++;
+	end;
+OnAlizaDead4:
+	.aliza_count4++;
+	end;
+OnGhostDead1:
+	.ghost_count1++;
+	end;
+OnGhostDead2:
+	.ghost_count2++;
+	end;
+OnGhostDead3:
+	.ghost_count3++;
+	end;
+OnSkogulDead1:
+	.skogul_count1++;
+	end;
+OnSkogulDead2:
+	.skogul_count2++;
+	end;
+OnSkogulDead3:
+	.skogul_count3++;
+	end;
+
+}
+
+
+3@antgm,112,139,3	script	房间传送点#anightmare1	45,1,1,{
+OnHeraDead:
+	
+	end;
+OnTouch:
+	warp 'third_map$,49,149;
+	end;
+}
+3@antgm,52,149,3	script	房间传送点#anightmare2	45,1,1,{
+OnTouch:
+	warp 'third_map$,114,139;
+	end;
+}
+
+
+3@antgm,46,206,4	script	死亡魔法师#anightmare2	792,{
+	set .@party_id,getcharid(1);
+	if (getcharid(0) != getpartyleader(.@party_id,2)) {
+		end;
+	}
+	
+		if (anightmare_wakeup == 3){
+			mes "^FF0000系统消息^000000";
+			mes "是否跳过此对话？";
+			next;
+			if (select("否：是") == 2){
+				disablenpc instance_npcname("死亡魔法师#anightmare2");
+				enablenpc instance_npcname("最终#anightmare1");
+				close;
+			}
+			
+		}
+	mes "[死亡法师]";
+	mes "嗯……";
+	npctalk "死亡法师：嗯……";
+	select ("怎么了？");
+	unittalk 0,strcharinfo(0)+"：怎么了？";
+	next;
+	
+	mes "[死亡法师]";
+	mes "我的怀疑是对的。";
+	npctalk "死亡法师：我的怀疑是对的。";
+	next;
+	
+	mes "[死亡法师]";
+	mes "那个女孩正在做一个清醒的噩梦。";
+	npctalk "死亡法师：那个女孩正在做一个清醒的噩梦。";
+	select ("这意味着什么？");
+	unittalk 0,strcharinfo(0)+"：这意味着什么？";
+	next;
+
+	mes "[死亡法师]";
+	mes "只有她的灵魂在死者的世界。";
+	npctalk "死亡法师：只有她的灵魂在死者的世界。";
+	next;
+	
+	mes "[死亡法师]";
+	mes "这使她非常脆弱。";
+	npctalk "死亡法师：这使她非常脆弱。";
+	select ("我们能做什么？");
+	unittalk 0,strcharinfo(0)+"：我们能做什么？";
+	next;
+	
+	mes "[死亡法师]";
+	mes "她只需要醒来。";
+	npctalk "死亡法师：她只需要醒来。";
+	next;
+
+	mes "[死亡法师]";
+	mes "但我担心赫拉计划吞噬她的灵魂。";
+	npctalk "死亡法师：但我担心赫拉计划吞噬她的灵魂。";
+	next;
+	
+	mes "[死亡法师]";
+	mes "你们需要阻止她。";
+	npctalk "死亡法师：你们需要阻止她。";
+	next;
+
+	mes "[死亡法师]";
+	mes "请阻止赫拉。";
+	npctalk "死亡法师：请阻止赫拉。";
+	close2;
+	disablenpc instance_npcname("死亡魔法师#anightmare2");
+	enablenpc instance_npcname("最终#anightmare1");
+	end;
+	
+OnInstanceInit:
+	disablenpc instance_npcname("死亡魔法师#anightmare2");
+	end;
+	
+}
+
+
+3@antgm,123,139,2	script	爱丽丝#anightmare3	10013,8,14,{
+	end;
+OnTouch:
+	set .@party_id,getcharid(1);
+	if (getcharid(0) != getpartyleader(.@party_id,2)) {
+		end;
+	}
+	if ('main_event !=14){end;}
+	enablenpc instance_npcname("赫拉#anightmare2");
+	specialeffect 114;
+	mes "[^FF0000赫拉^000000]";
+	mes "哦不，你们不能把她带走。";
+	npctalk "赫拉：哦不，你们不能把她带走。",instance_npcname("赫拉#anightmare2");
+	next;
+	unitwalk getnpcid(0,instance_npcname("赫拉#anightmare2")),123,138;
+	mes "";
+	close2;
+	specialeffect 6;
+	disablenpc instance_npcname("赫拉#anightmare2");
+	disablenpc instance_npcname("爱丽丝#anightmare3");
+	enablenpc instance_npcname("死亡魔法师#anightmare2");
+	set 'main_event,15;
+	end;
+	
+
+}
+
+3@antgm,119,136,6	script	赫拉#anightmare2	3400,{
+OnInstanceInit:
+	disablenpc instance_npcname("赫拉#anightmare2");
+	end;
+
+}
+3@antgm,196,198,4	script	赫拉#anightmare3	3400,{
+	set .@party_id,getcharid(1);
+	if (getcharid(0) != getpartyleader(.@party_id,2)) {
+		end;
+	}
+	if ('main_event==16){
+		monster ('third_map$,196,198,"赫拉的怨恨",3400,1,instance_npcname("死亡魔法师#anightmare3")+"::OnHeraDead");
+		set 'hera_gid,$@mobid[0];
+		disablenpc instance_npcname("赫拉#anightmare3");
+		unittalk 'hera_gid,"赫拉：你会后悔来到这里的！";
+		set 'main_event,17;	
+	}
+
+}
+
+
+3@antgm,196,194,0	script	爱丽丝#anightmare4	1275,6,6,{
+	end;
+OnTouch:
+	set .@party_id,getcharid(1);
+	if (getcharid(0) != getpartyleader(.@party_id,2)) {
+		end;
+	}
+	mes "["+strcharinfo(0)+"]";
+	mes "爱丽丝，醒醒！";
+	unittalk 0,strcharinfo(0)+"：爱丽丝，醒醒！";
+	
+	next;
+	mes "[^0000FF爱丽丝^000000]";
+	mes "我做不到！";
+	npctalk "爱丽丝：我做不到！";
+	emotion ET_CRY;
+	next;
+	mes "[^0000FF爱丽丝^000000]";
+	mes "她在阻止我！";
+	npctalk "爱丽丝：她在阻止我！";
+	next;
+	mes "["+strcharinfo(0)+"]";
+	mes "什么？！";
+	unittalk 0,strcharinfo(0)+"：什么？！";
+	next;
+	mes "[^FF0000赫拉^000000]";
+	mes "哈哈哈！你们什么都做不了，无法让她醒来！";
+	npctalk "赫拉：哈哈哈！你们什么都做不了，无法让她醒来！",instance_npcname("赫拉#anightmare3");
+	next;
+	mes "[^FF0000赫拉^000000]";
+	mes "你的身体离得太远了，无法被驱散！";
+	npctalk "赫拉：你的身体离得太远了，无法被驱散！",instance_npcname("赫拉#anightmare3");
+	next;
+	mes "["+strcharinfo(0)+"]";
+	mes "你的意思是，有什么东西在物理上阻止她醒来？！";
+	unittalk 0,strcharinfo(0)+"：你的意思是，有什么东西在物理上阻止她醒来？！";
+	next;
+	mes "[^FF0000赫拉^000000]";
+	mes "我要吞噬你纯洁的灵魂，这将是一场盛宴！";
+	npctalk "赫拉：我要吞噬你纯洁的灵魂，这将是一场盛宴！",instance_npcname("赫拉#anightmare3");
+	next;
+	unitwalk 0,195,195;
+	mes "["+strcharinfo(0)+"]";
+	mes "离她远点！";
+	unittalk 0,strcharinfo(0)+"：离她远点！";
+	next;
+	set 'main_event,16;
+	delwall 'second_map$+"anightmare_walllist16";
+	delwall 'second_map$+"anightmare_walllist17";
+	delwall 'second_map$+"anightmare_walllist18";
+	delwall 'second_map$+"anightmare_walllist19";
+	unitwalk getnpcid(0,instance_npcname("爱丽丝#anightmare4")),196,185;
+	initnpctimer;
+	mes "";
+	next;
+	playBGMall "108",'third_map$,166,227,229,162;
+	initnpctimer instance_npcname("最终#anightmare1");
+	mes "[^FF0000赫拉^000000]";
+	mes "呃！别挡我的路！";
+	npctalk "赫拉：呃！别挡我的路！",instance_npcname("赫拉#anightmare3");
+	close2;
+	monster ('third_map$,196,198,"赫拉的怨恨",3400,1,instance_npcname("死亡魔法师#anightmare3")+"::OnHeraDead");
+	set 'hera_gid,$@mobid[0];
+	disablenpc instance_npcname("赫拉#anightmare3");
+	unittalk 'hera_gid,"赫拉：你会后悔来到这里的！";
+	set 'main_event,17;
+	end;
+	
+OnTimer1000:
+	stopnpctimer;
+	disablenpc instance_npcname("爱丽丝#anightmare4");
+	end;
+	
+}
+
+
+3@antgm,45,227,3	script	最终#anightmare1	45,1,1,{
+
+OnTimer1000:
+	stopnpctimer;
+	initnpctimer;
+	if ('main_event > 16 && 'main_event < 21){
+		playBGMall "108",'third_map$,166,227,229,162;
+	}
+	if ('main_event > 20){
+		playBGMall "28",'third_map$,166,227,229,162;
+	}
+	if ('main_event == 17){
+		getunitdata 'hera_gid,.@hera_hp;
+		if (.@hera_hp[UMOB_HP]<2494695){
+			unittalk 'hera_gid,"赫拉：你们非要插手毁掉一切！";
+			set 'main_event,18;
+		}
+		end;
+	}
+	if ('main_event == 18){
+		getunitdata 'hera_gid,.@hera_hp;
+		if (.@hera_hp[UMOB_HP]<2083803){
+			unittalk 'hera_gid,"赫拉：我会让你们知道绝望的含义！";
+			set 'main_event,19;
+		}
+		end;
+	}
+	if ('main_event == 19){
+		getunitdata 'hera_gid,.@hera_hp;
+		if (.@hera_hp[UMOB_HP]<1496817){
+			unittalk 'hera_gid,"赫拉：下地狱去吧！";
+			set 'main_event,20;
+		}
+		end;
+	}
+	end;
+OnInstanceInit:
+	disablenpc instance_npcname("最终#anightmare1");
+	end;
+OnTouch:
+	warp 'third_map$,197,183;
+	if ('main_event > 15 && 'main_event < 20){
+		playBGM "108";
+	}
+	end;
+}
+
+
+3@antgm,195,198,3	script	死亡魔法师#anightmare3	792,{
+	set .@party_id,getcharid(1);
+	if (getcharid(0) != getpartyleader(.@party_id,2)) {
+		end;
+	}
+	if ('main_event==22){
+		mes "[^0000ff爱丽丝^000000]";
+		mes "请到格拉斯特海姆找我。";
+		npctalk "爱丽丝：请到格拉斯特海姆找我。",instance_npcname("爱丽丝#anightmare5");
+		end;
+	}
+	mes "[死亡法师]";
+	mes "谢谢你阻止了赫拉。";
+	npctalk "死亡法师：谢谢你阻止了赫拉。",instance_npcname("死亡魔法师#anightmare3");
+	next;
+	
+	mes "[^0000ff爱丽丝^000000]";
+	mes "我要怎么醒来？";
+	npctalk "爱丽丝：我要怎么醒来？",instance_npcname("爱丽丝#anightmare5");
+	next;
+	
+	mes "[死亡法师]";
+	mes "很可能有人对你施了法术。";
+	npctalk "死亡法师：很可能有人对你施了法术。",instance_npcname("死亡魔法师#anightmare3");
+	next;
+	
+	mes "[死亡法师]";
+	mes "你只需要有人用^FF0000黄色宝石^000000和^0000FF圣水^000000来驱散你。";
+	npctalk "死亡法师：你只需要有人用黄色宝石和圣水来驱散你。",instance_npcname("死亡魔法师#anightmare3");
+	next;
+	
+	mes "[死亡法师]";
+	mes "幸运的是，你的救星属于你的世界。";
+	npctalk "死亡法师：幸运的是，你的救星属于你的世界。",instance_npcname("死亡魔法师#anightmare3");
+	next;
+	
+	mes "[死亡法师]";
+	mes "他们需要在现实世界中找到你并唤醒你。";
+	npctalk "死亡法师：他们需要在现实世界中找到你并唤醒你。",instance_npcname("死亡魔法师#anightmare3");
+	next;
+	
+	mes "[死亡法师]";
+	mes "你当时在哪里？";
+	npctalk "死亡法师：你当时在哪里？",instance_npcname("死亡魔法师#anightmare3");
+	next;
+	
+	mes "[^0000ff爱丽丝^000000]";
+	mes "格拉斯特海姆庭院。";
+	npctalk "爱丽丝：格拉斯特海姆庭院。",instance_npcname("爱丽丝#anightmare5");
+	next;
+	
+	mes "[死亡法师]";
+	mes "回到你的世界，然后前往格拉斯特海姆找到她。";
+	npctalk "死亡法师：回到你的世界，然后前往格拉斯特海姆找到她。",instance_npcname("死亡魔法师#anightmare3");
+	next;
+	mes "[死亡法师]";
+	mes "祝你好运，我在这里的时间结束了。";
+	npctalk "死亡法师：祝你好运，我在这里的时间结束了。",instance_npcname("死亡魔法师#anightmare3");
+	close2;
+	disablenpc instance_npcname("死亡魔法师#anightmare3");
+	if (anightmare_wakeup == 0 || anightmare_wakeup == 3){
+		set anightmare_wakeup,1;
+	}
+	initnpctimer instance_npcname("爱丽丝#anightmare5");
+	set 'main_event,22;
+	end;
+
+OnHeraDead:
+	playBGMall "28",'third_map$,166,227,229,162;
+	hideoffnpc instance_npcname("死亡魔法师#anightmare3");
+	hideoffnpc instance_npcname("爱丽丝#anightmare5");
+	set 'main_event,21;
+	end;
+
+OnInstanceInit:
+	hideonnpc instance_npcname("死亡魔法师#anightmare3");
+	end;
+
+}
+
+3@antgm,199,194,2	script	爱丽丝#anightmare5	10013,{
+	set .@party_id,getcharid(1);
+	if (getcharid(0) != getpartyleader(.@party_id,2)) {
+		end;
+	}
+	if ('main_event==22){
+		mes "[^0000ff爱丽丝^000000]";
+		mes "请到格拉斯特海姆找我。";
+		npctalk "爱丽丝：请到格拉斯特海姆找我。",instance_npcname("爱丽丝#anightmare5");
+		stopnpctimer;
+		initnpctimer;
+		end;
+	}
+	mes "[死亡法师]";
+	mes "谢谢你阻止了赫拉。";
+	npctalk "死亡法师：谢谢你阻止了赫拉。",instance_npcname("死亡魔法师#anightmare3");
+	next;
+	
+	mes "[^0000ff爱丽丝^000000]";
+	mes "我要怎么醒来？";
+	npctalk "爱丽丝：我要怎么醒来？",instance_npcname("爱丽丝#anightmare5");
+	next;
+	
+	mes "[死亡法师]";
+	mes "很可能有人对你施了法术。";
+	npctalk "死亡法师：很可能有人对你施了法术。",instance_npcname("死亡魔法师#anightmare3");
+	next;
+	
+	mes "[死亡法师]";
+	mes "你只需要有人用^FF0000黄色宝石^000000和^0000FF圣水^000000来驱散你。";
+	npctalk "死亡法师：你只需要有人用黄色宝石和圣水来驱散你。",instance_npcname("死亡魔法师#anightmare3");
+	next;
+	
+	mes "[死亡法师]";
+	mes "幸运的是，你的救星属于你的世界。";
+	npctalk "死亡法师：幸运的是，你的救星属于你的世界。",instance_npcname("死亡魔法师#anightmare3");
+	next;
+	
+	mes "[死亡法师]";
+	mes "他们需要在现实世界中找到你并唤醒你。";
+	npctalk "死亡法师：他们需要在现实世界中找到你并唤醒你。",instance_npcname("死亡魔法师#anightmare3");
+	next;
+	
+	mes "[死亡法师]";
+	mes "你当时在哪里？";
+	npctalk "死亡法师：你当时在哪里？",instance_npcname("死亡魔法师#anightmare3");
+	next;
+	
+	mes "[^0000ff爱丽丝^000000]";
+	mes "格拉斯特海姆庭院。";
+	npctalk "爱丽丝：格拉斯特海姆庭院。",instance_npcname("爱丽丝#anightmare5");
+	next;
+	
+	mes "[死亡法师]";
+	mes "回到你的世界，然后前往格拉斯特海姆找到她。";
+	npctalk "死亡法师：回到你的世界，然后前往格拉斯特海姆找到她。",instance_npcname("死亡魔法师#anightmare3");
+	next;
+	mes "[死亡法师]";
+	mes "祝你好运，我在这里的时间结束了。";
+	npctalk "死亡法师：祝你好运，我在这里的时间结束了。",instance_npcname("死亡魔法师#anightmare3");
+	close2;
+	disablenpc instance_npcname("死亡魔法师#anightmare3");
+	if (anightmare_wakeup == 0 || anightmare_wakeup == 3){
+		set anightmare_wakeup,1;
+	}
+	initnpctimer;
+	set 'main_event,22;
+	end;
+	
+OnTimer120000:
+	disablenpc instance_npcname("爱丽丝#anightmare5");
+	end;
+
+OnInstanceInit:
+	hideonnpc instance_npcname("爱丽丝#anightmare5");
+	end;
+}
+
+glast_01,166,215,6	script	爱丽丝#anightmare6	10013,{
+	if (anightmare_wakeup == 0){
+		mes "[^0000ff爱丽丝^000000]";
+		mes "...";
+		close;
+	}
+	if (anightmare_wakeup == 1){
+		mes "["+strcharinfo(0)+"]";
+		mes "她在那儿。";
+		unittalk 0,strcharinfo(0)+"：她在那儿。";
+		next;
+		if ((countitem (715)) == 0 || (countitem (523)) == 0){
+			mes "["+strcharinfo(0)+"]";
+			mes "但是我没有黄色宝石和圣水。";
+			unittalk 0,strcharinfo(0)+"：但是我没有黄色宝石和圣水。";
+			close;
+		}
+		delitem 715,1;
+		delitem 523,1;
+		mes "";
+		specialeffect 235;
+		next;
+		mes "";
+		specialeffect 86;
+		next;
+		mes "[^0000ff爱丽丝^000000]";
+		mes "嗯...";
+		npctalk "爱丽丝：嗯...";
+		next;
+		mes "[^0000ff爱丽丝^000000]";
+		mes "啊！";
+		emotion ET_SURPRISE;
+		npctalk "爱丽丝：啊！";
+		next;
+		mes "[^0000ff爱丽丝^000000]";
+		mes "*喘气*";
+		npctalk "爱丽丝：*喘气*";
+		next;
+		mes "[^0000ff爱丽丝^000000]";
+		mes "你救了我！";
+		npctalk "爱丽丝：你救了我！";
+		next;
+		emotion ET_CRY;
+		mes "[^0000ff爱丽丝^000000]";
+		mes "我以为我永远都醒不过来了！";
+		npctalk "爱丽丝：我以为我永远都醒不过来了！";
+		next;
+		mes "[^0000ff爱丽丝^000000]";
+		mes "她为什么要这样对我？";
+		npctalk "爱丽丝：她为什么要这样对我？";
+		select ("恶魔就是...");
+		unittalk 0,strcharinfo(0)+"：恶魔，他们不需要理由。";
+		next;
+		mes "[^0000ff爱丽丝^000000]";
+		mes "她特别刻薄。";
+		npctalk "爱丽丝：她特别刻薄。";
+		next;
+		mes "[^0000ff爱丽丝^000000]";
+		mes "但是你救了我！";
+		npctalk "爱丽丝：但是你救了我！";
+		emotion ET_OK;
+		next;
+		mes "[^0000ff爱丽丝^000000]";
+		mes "谢谢你！";
+		npctalk "爱丽丝：谢谢你！";
+		emotion ET_THANKS;
+		next;
+		mes "[^0000ff爱丽丝^000000]";
+		mes "爱丽丝：请接受这个作为我感激的象征";
+		npctalk "爱丽丝：请接受这个作为我感激的象征。";
+		close2;
+		hideonnpc "爱丽丝#anightmare6";
+		initnpctimer;
+		/*Reward*/
+		//在此处插入唤醒爱丽丝的奖励
+		//将任务设置为完成（下次执行副本时将重置。）
+		//所以这是可重复的
+		getitem 607,5; // 50个神秘箱子
+		getitem 12103,2; // 20个祝福的矿石
+		getitem 14592,1; // 15个时空之石
+		getitem 682,1; // 10个VIP礼包
+		getitem 2357,8; // 8个BOSS雷达
+		getitem 12208,8; // 8个高密度魔力之石
+		set anightmare_wakeup,2;
+		end;
+
+	}
+OnTimer300000:
+	hideoffnpc "爱丽丝#anightmare6";
+	stopnpctimer;
+	end;
+	
+	return;
+
+}	
+
+
+
+2@antgm,149,92,6	script	死亡剑士#anightmare1	796,{
+	if ('door_opened == 1){
+		mes "[死亡剑士]";
+		mes "嘿看哪，门开了！";
+		next;
+		mes "[死亡剑士]";
+		mes "要我说，真他妈是时候了。";
+		next;
+		mes "[死亡剑士]";
+		mes "但这只鸡他妈的不说话！";
+		specialeffect 102;
+		close;
+	}
+	mes "[死亡剑士]";
+	mes "那扇门总是锁着！";
+	mes "为什么总是锁着！？";
+	next;
+	mes "[死亡剑士]";
+	mes "这让我如此愤怒，我不知道为什么！要是我有把^FF0000钥匙^000000就好了。";
+	if (countitem(7026) < 1 && countitem(7027) < 1){
+		close;
+	}
+	next;
+	mes "[死亡剑士]";
+	mes "嘿，你有把^FF0000钥匙^000000……能给我吗？";
+	next;
+	switch (select("可以：不行")){
+		case 1:
+			mes "[死亡剑士]";
+			mes "嘿嘿嘿，谢谢！";
+			close2;
+				if (countitem(7026) > 0){
+					delitem 7026,1;
+				}else{
+					delitem 7027,1;
+				}
+			disablenpc instance_npcname("死亡剑士#anightmare1");
+			end;
+		case 2:
+			mes "[死亡剑士]";
+			mes "为什么不行？！";
+			close;
+			
+	}
+}
+
+2@antgm,152,92,2	script	小鸡#anightmare1	800,{
+	mes "[小鸡]";
+	mes "...";
+	close;
+}
+
+2@antgm,82,78,4	script	死人#anightmare1	849,{
+	mes "["+strcharinfo(0)+"]";
+	mes "他死了...";
+	next;
+	mes "[死人]";
+	mes "有些比其他人更死透一点。";
+	close;
+}
+
+
+2@antgm,79,98,5	script	困倦的人#anightmare1	795,{
+	mes "[困倦的人]";
+	mes "我好累，但是死了怎么睡觉呢？";
+	next;
+	mes "[困倦的人]";
+	mes "睡觉本来是一种生理需求。";
+	next;
+	mes "[困倦的人]";
+	mes "如果我不再有肉体了，为什么还会累？";
+	next;
+	mes "["+strcharinfo(0)+"]";
+	mes "也许你不是累了，也许是别的什么。";
+	next;
+	mes "[困倦的人]";
+	mes "也许你说得对。";
+	close;
+}
+
+3@antgm,45,43,5	script	园丁#anightmare1	791,{
+	if ('main_event > 13){
+		mes "[园丁]";
+		mes "你差点毁了花园。";
+		close;
+	}
+	if ('main_event == 13){
+		mes "[园丁]";
+		mes "请不要在花园里制造骚乱。";
+		close;
+	}
+
+	mes "[园丁]";
+	mes "欢迎来到花园。";
+	next;
+	mes "[困倦的人]";
+	mes "请不要把美丽的杂草拔出来。";
+	close;
+}
+
+2@antgm,37,174,3	script	女仆#anightmare1	791,{
+	mes "[女仆]";
+	mes "欢迎回来主人，";
+	mes "欢迎回来主人，";
+	mes "欢迎回来主人，";
+	mes "欢迎回来主人，";
+	mes "...";
+	close;
+
+}

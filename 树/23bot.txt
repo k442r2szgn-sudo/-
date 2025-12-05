@@ -1,0 +1,1486 @@
+//==============================================
+
+
+-	script	BotSystem	-1,{
+function	F_Bot_Run;
+function	F_Bot_Run_Dungeon;
+function	F_Bot_Sub;
+function	F_Bot_Mes;
+function	F_Bot_Vip;
+function	F_Bot_Mob;
+function	F_Bot_Check;
+function	F_Bot_Check_Dungeon;  // 添加这行
+
+OnBotStart:
+	F_Bot_Mes;
+	end;
+
+// 相关参数设置
+OnInit:
+	// 0 = 关闭所有附加功能
+	// 1 = 开启挂机玩家附加挂机称号功能
+	// 2 = 开启挂机玩家头饰外观变换功能
+	.Option = 1|2;
+
+	// 称号名称
+	.BotTitle$ = "挂机中";
+
+	// 头饰外观View编号
+	.BotView = 0;
+
+	// 每小时收费(已修改成ROB)
+	//.Cash = 600000;
+	
+	// 允许使用的HP恢复药水
+	setarray .Bot_HP_ID, 20183,536;
+	
+	// 允许使用的SP恢复药水
+	setarray .Bot_SP_ID, 20183,536;
+	
+	// 允许使用的状态类道具和使用间隔(分钟)
+	setarray .Bot_ZT_ID, 60040;
+	setarray .Bot_ZT_JG,    5;
+
+	// 原地检测时间间隔(毫秒)
+	.Bot_Check_XY = 15000;
+
+	// 人物被检测到站在原地几次后重置挂机
+	.Bot_Check_RE = 4;
+
+	// 禁止使用挂机功能的地图列表
+	setarray .BotBanMapList$, "prontera","1@mj2","1@mj3","1@mj4","1@mj5","1@mj6","1@mj7","1@mj8","1@mj9","1@mj10","1@mj11","1@mj12","1@mj13","1@mj14","room","room1","room2","room3","room4","room5","room51","room52","room53","room6","room7","room8","1@4win","xunlian","jianyuboss","smboss2","ysboss2","lzboss2","prontera","ysboss","smboss","lzboss","ssboss","s5boss","s6boss","jianyu","ba_lib","moro_cav","dic_dun02";
+	end;
+
+	// 初始对话页
+	function	F_Bot_Mes	{
+		.n$ = "「 挂机系统 」";
+		mes ""; clear;
+		mes .n$;
+		mes $ColourMes$;
+		mes "初次使用请先设置挂机参数.";	
+		mes $ColourMes$;
+		switch(select(is_bot() == 0 || is_bot() == 1?"[>] 野外挂机":"[-] 结束挂机",
+		              is_bot() == 0 || is_bot() == 1?"[>] 副本挂机":"[-] 结束挂机",
+		              "[!] 挂机设置")){
+			case 1: F_Bot_Check;
+			case 2: F_Bot_Check_Dungeon;
+			case 3: F_Bot_Sub;
+			
+		}
+		end;
+	}
+
+	// BOT启动参数
+	function	F_Bot_Run	{
+		// 记录挂机地图
+		BotMap$ = strcharinfo(3);
+
+		// 记录初始移速
+		PcSpeed = getunitstatus(getcharid(3),STATUS_SPEED);
+		
+		// 测试用
+		//BotSpeed = 50;
+
+		// 设置移动速度
+		//atcommand sprintf("@speed %d",BotSpeed);
+
+		// 连续技能模式
+		if(LxMode) bot_adduseskill(BotSkillLxId,BotSkillLxLv,0,1,always);
+
+		// 组合技能模式
+		if(ZhMode){
+			bot_adduseskill(BotSkillZhId1, BotSkillZhLv1, 0, 1, always);
+			bot_adduseskill(BotSkillZhId2, BotSkillZhLv2, 0, 2, afterskill, BotSkillZhId1);
+			bot_adduseskill(BotSkillZhId3, BotSkillZhLv3, 0, 3, afterskill, BotSkillZhId2);
+		}
+
+		// 技能辅助模式
+		if(Fzmode1) bot_adduseskill(BotSkillCyId1, BotSkillCyLv1, 1000, 1, myhpinrate, HpLow);
+		if(Fzmode2) bot_adduseskill(BotSkillCyId2, BotSkillCyLv2, 1000, 1, mobincount, 1, CyMobcount);
+		if(Fzmode3) bot_adduseskill(BotSkillCyId3, BotSkillCyLv3, 1000, 1, attackedgt, CyAttackedgt);
+
+		// 技能辅助状态
+		if(FzSkll1) bot_adduseskill(BotSkillFzId1, BotSkillFzLv1, 0, 1, mystatusoff, getskillsc(BotSkillFzId1));
+		if(FzSkll2) bot_adduseskill(BotSkillFzId2, BotSkillFzLv2, 0, 2, mystatusoff, getskillsc(BotSkillFzId2));
+		if(FzSkll3) bot_adduseskill(BotSkillFzId3, BotSkillFzLv3, 0, 3, mystatusoff, getskillsc(BotSkillFzId3));
+
+		// 技能模式
+		if(SkMode) bot_addmode BOT_SKILL_ATK;
+
+		// 普攻模式
+		if(AtMode) bot_addmode BOT_WEAPON_ATK;
+
+		// 离线模式
+		if(BotOff) bot_addmode BOT_OFFLINE;
+
+		// 仅攻击首领
+		if(BotAmr) bot_addmode BOT_ALWAYS_MASTER;
+
+		// 自动反击
+		if(BotCat) bot_addmode BOT_COUNTERATTACK;
+
+		// 定时瞬移
+		if(TmrFly) bot_adduseitem 601, TmrFly, 1;
+
+		// 自动吃血药
+		if(ItemHP) bot_adduseitem ItemHP, 0, 1, myhpinrate, MinHP;
+
+		// 自动吃蓝药
+		if(ItemSP) bot_adduseitem ItemSP, 0, 2, myspinrate, MinSP;
+
+		// 瞬移检测
+		bot_addevent "BotSystem::OnBotFly", 15000, 1, mobincount, 1;
+
+		// 物品状态
+		if(ItemSC1 != 0) bot_addevent "BotSystem::OnItemSC", ItemScMin, 1;
+
+		// 补给检测
+		bot_addevent "BotSystem::OnUseItemCheck", 5000, 1;
+
+		// 攻击魔物列表
+		for(.@i = 0; .@i < getarraysize(AtMobs); .@i++)
+		bot_addattackmob AtMobs[.@i];
+
+		// 挂机模式默认选项
+		bot_addmode(BOT_SUPPORT_SELF|BOT_IGNORE_TOUCH|BOT_ASTAR_WALK|BOT_IGNORE_SAME_ELE,0);
+
+		// 运行BOT并设置挂机时间
+		bot_run(0,BotRunTime);
+
+		// 检查人物移动状态,防止站在原地
+		addtimer .Bot_Check_XY,"BotSystem::OnBotCheck";
+
+		//if(.Option&1) settitleicon(getcharid(3),0,.BotTitle$);
+
+		//if(.Option&2) changelook LOOK_HEAD_BOTTOM,.BotView;
+	// 刷怪
+	//monster "prontera", 0, 0, "TEST", 1099, 100;
+		end;
+	}
+
+// 副本挂机启动函数
+function	F_Bot_Run_Dungeon	{
+	// 记录挂机地图
+	BotMap$ = strcharinfo(3);
+
+	// 记录初始移速
+	PcSpeed = getunitstatus(getcharid(3),STATUS_SPEED);
+	
+	// 使用副本挂机专用模式：禁止寻路失败自动瞬移
+	bot_addmode BOT_RANDOM_WALK;  // 随机移动模式
+	
+	// 连续技能模式
+	if(LxMode) bot_adduseskill(BotSkillLxId,BotSkillLxLv,0,1,always);
+
+	// 组合技能模式
+	if(ZhMode){
+		bot_adduseskill(BotSkillZhId1, BotSkillZhLv1, 0, 1, always);
+		bot_adduseskill(BotSkillZhId2, BotSkillZhLv2, 0, 2, afterskill, BotSkillZhId1);
+		bot_adduseskill(BotSkillZhId3, BotSkillZhLv3, 0, 3, afterskill, BotSkillZhId2);
+	}
+
+	// 技能辅助模式
+	if(Fzmode1) bot_adduseskill(BotSkillCyId1, BotSkillCyLv1, 1000, 1, myhpinrate, HpLow);
+	if(Fzmode2) bot_adduseskill(BotSkillCyId2, BotSkillCyLv2, 1000, 1, mobincount, 1, CyMobcount);
+	if(Fzmode3) bot_adduseskill(BotSkillCyId3, BotSkillCyLv3, 1000, 1, attackedgt, CyAttackedgt);
+
+	// 技能辅助状态
+	if(FzSkll1) bot_adduseskill(BotSkillFzId1, BotSkillFzLv1, 0, 1, mystatusoff, getskillsc(BotSkillFzId1));
+	if(FzSkll2) bot_adduseskill(BotSkillFzId2, BotSkillFzLv2, 0, 2, mystatusoff, getskillsc(BotSkillFzId2));
+	if(FzSkll3) bot_adduseskill(BotSkillFzId3, BotSkillFzLv3, 0, 3, mystatusoff, getskillsc(BotSkillFzId3));
+
+	// 技能模式
+	if(SkMode) bot_addmode BOT_SKILL_ATK;
+
+	// 普攻模式
+	if(AtMode) bot_addmode BOT_WEAPON_ATK;
+
+	// 仅攻击首领
+	if(BotAmr) bot_addmode BOT_ALWAYS_MASTER;
+
+	// 自动反击
+	if(BotCat) bot_addmode BOT_COUNTERATTACK;
+
+	// 自动吃血药
+	if(ItemHP) bot_adduseitem ItemHP, 0, 1, myhpinrate, MinHP;
+
+	// 自动吃蓝药
+	if(ItemSP) bot_adduseitem ItemSP, 0, 2, myspinrate, MinSP;
+
+	// 物品状态
+	if(ItemSC1 != 0) bot_addevent "BotSystem::OnItemSC", ItemScMin, 1;
+
+	// 补给检测
+	bot_addevent "BotSystem::OnUseItemCheck", 5000, 1;
+
+	// 攻击魔物列表
+	for(.@i = 0; .@i < getarraysize(AtMobs); .@i++)
+	bot_addattackmob AtMobs[.@i];
+
+	// 运行BOT（副本挂机不设置时间限制）
+	bot_run;
+
+	// 检查人物移动状态,防止站在原地
+	addtimer .Bot_Check_XY,"BotSystem::OnBotCheck";
+
+	end;
+}
+
+	// BOT运行前的条件检查（野外挂机）
+	function	F_Bot_Check	{
+		// 如果是挂机状态则结束挂机
+		if(is_bot() == 2){
+			dispbottom "[挂机系统]: 已为您结束了自动挂机系统.";
+			bonus_script_clear 1;
+			bot_stop();
+			close2;
+			end;
+		}
+		clear;
+		mes .n$;
+		// 瞬移道具检测
+		if(TmrFly && countitem(601) < 1){
+			mes "你没有携带苍蝇翅膀.";
+			end;
+		}else{
+			mes"检查角色瞬移道具 - [^008000√^000000]";
+		}
+		sleep2 100;
+		// 地图检测
+		if(inarray(.BotBanMapList$,strcharinfo(3)) != -1 && AuItem ==0){
+			mes "这张地图不允许使用挂机系统或者没有设定自动拾取.";
+			end;
+		}else{
+			mes"检查角色地图信息 - [^008000√^000000]";
+		}
+		sleep2 100;
+		// 复活道具检查
+		if(BotPcr && countitem(7621) < 1){
+			mes "没有检测到复活道具.";
+			end;
+		}else{
+			mes"检查角色复活道具 - [^008000√^000000]";
+		}
+		sleep2 100;
+		// 恢复品检查
+		if(!ItemHP && !ItemSP){
+			mes "未设置恢复类物品 - [^FF8C00!!^000000]";
+		}else if(!ItemHP){
+			mes "未设置生命恢复品 - [^FF8C00!!^000000]";
+		}else if(!ItemSP){
+			mes "未设置魔法恢复品 - [^FF8C00!!^000000]";
+		}else if(ItemHP !=0 && countitem(ItemHP) < 1 || ItemSP !=0 && countitem(ItemSP) < 1){
+			mes "恢复药品不能低于1个.";
+			end;
+		}else{
+			mes"检查恢复药品设置 - [^008000√^000000]";
+		}
+		sleep2 100;
+		// 负重检查
+		//if(Weight > (MaxWeight * 5) / 10){
+			//mes "角色负重超过了50%.";
+			//end;
+		//}else{
+			//mes"检查人物负重状态 - [^008000√^000000]";
+		//}
+		//sleep2 100;
+		// 单技能和组合技能检查
+		if(LxMode){
+			if(BotSkillLxId && !getskilllv(BotSkillLxId)){
+				mes "你设置了你并没有学会的技能.";
+				end;
+			}else if(BotSkillLxId && getskilllv(BotSkillLxId) < BotSkillLxLv){
+				mes "你设置的技能等级与记录中的不符.";
+				end;
+			}else{
+				mes"检查单一技能模式 - [^008000√^000000]";
+			}
+		}else if(ZhMode){
+			if(BotSkillZhId1 && !getskilllv(BotSkillZhId1) || BotSkillZhId2 && !getskilllv(BotSkillZhId2) || BotSkillZhId3 && !getskilllv(BotSkillZhId3)){
+				mes "你设置了你并没有学会的技能.";
+				end;
+			}else if(BotSkillZhId1 && getskilllv(BotSkillZhId1) < BotSkillZhLv1 || BotSkillZhId2 && getskilllv(BotSkillZhId2) < BotSkillZhLv2 || BotSkillZhId3 && getskilllv(BotSkillZhId3) < BotSkillZhLv3){
+				mes "你设置的技能等级与记录中的不符.";
+				end;
+			}else{
+				mes"检查组合技能模式 - [^008000√^000000]";
+			}
+		}
+		sleep2 100;
+		// 技能辅助模式检查
+		if(Fzmode1){
+			if(BotSkillCyId1 && !getskilllv(BotSkillCyId1)){
+				mes "你设置了你并没有学会的技能.";
+				end;
+			}else if(BotSkillCyId1 && getskilllv(BotSkillCyId1) < BotSkillCyLv1){
+				mes "你设置的技能等级与记录中的不符.";
+				end;
+			}else{
+				mes"检查辅助类技能一 - [^008000√^000000]";
+			}
+		}
+		sleep2 100;
+		// 技能辅助模式检查
+		if(Fzmode2){
+			if(BotSkillCyId2 && !getskilllv(BotSkillCyId2)){
+				mes "你设置了你并没有学会的技能.";
+				end;
+			}else if(BotSkillCyId2 && getskilllv(BotSkillCyId2) < BotSkillCyLv2){
+				mes "你设置的技能等级与记录中的不符.";
+				end;
+			}else{
+				mes"检查辅助类技能二 - [^008000√^000000]";
+			}
+		}
+		sleep2 100;
+		// 技能辅助模式检查
+		if(Fzmode3){
+			if(BotSkillCyId3 && !getskilllv(BotSkillCyId3)){
+				mes "你设置了你并没有学会的技能.";
+				end;
+			}else if(BotSkillCyId3 && getskilllv(BotSkillCyId3) < BotSkillCyLv3){
+				mes "你设置的技能等级与记录中的不符.";
+				end;
+			}else{
+				mes"检查辅助类技能三 - [^008000√^000000]";
+			}
+		}
+		sleep2 100;
+		// 辅助状态技能检查
+		if(FzSkll1){
+			if(BotSkillFzId1 && !getskilllv(BotSkillFzId1)){
+				mes "你设置了你并没有学会的技能.";
+				end;
+			}else if(BotSkillFzId1 && getskilllv(BotSkillFzId1) < BotSkillFzLv1){
+				mes "你设置的技能等级与记录中的不符.";
+				end;
+			}else{
+				mes"检查状态类技能一 - [^008000√^000000]";
+			}
+		}
+		sleep2 100;
+		// 辅助状态技能检查
+		if(FzSkll2){
+			if(BotSkillFzId2 && !getskilllv(BotSkillFzId2)){
+				mes "你设置了你并没有学会的技能.";
+				end;
+			}else if(BotSkillFzId2 && getskilllv(BotSkillFzId2) < BotSkillFzLv2){
+				mes "你设置的技能等级与记录中的不符.";
+				end;
+			}else{
+				mes"检查状态类技能二 - [^008000√^000000]";
+			}
+		}
+		sleep2 100;
+		// 辅助状态技能检查
+		if(FzSkll3){
+			if(BotSkillFzId3 && !getskilllv(BotSkillFzId3)){
+				mes "你设置了你并没有学会的技能.";
+				end;
+			}else if(BotSkillFzId3 && getskilllv(BotSkillFzId3) < BotSkillFzLv3){
+				mes "你设置的技能等级与记录中的不符.";
+				end;
+			}else{
+				mes"检查状态类技能三 - [^008000√^000000]";
+			}
+		}
+		sleep2 100;
+		mes "挂机时长为."+RunTime+"小时";
+		//mes "需扣除."+RunTime * .Cash+"Zeny";
+		mes "检查完成,是否开始挂机.";
+		if (select("- 确定:- 取消") == 2) close;
+		//if(Zeny < RunTime * .Cash){
+			//clear;
+			//mes .n$;
+			//mes $ColourMes$;
+			//mes "你没有足够的Zeny.";
+			//mes $ColourMes$;
+			//close;
+		//}
+		// 扣除Cash
+		//set Zeny,Zeny - RunTime * .Cash;
+		//dispbottom "Zeny已扣除,开始挂机";
+		//close2;
+		close2;
+		F_Bot_Run;
+		end;
+	}
+
+	// 副本挂机检查函数
+	function	F_Bot_Check_Dungeon	{
+		// 如果是挂机状态则结束挂机
+		if(is_bot() == 2){
+			dispbottom "[挂机系统]: 已为您结束了自动挂机系统.";
+			bonus_script_clear 1;
+			bot_stop();
+			close2;
+			end;
+		}
+		clear;
+		mes .n$;
+		// 实例地图检测 - 副本挂机只能在实例地图内进行
+		if(!getmapflag(strcharinfo(3), MF_INSTANCE)){
+			mes "副本挂机模式只能在实例地图内使用.";
+			mes "请先进入副本后再尝试使用副本挂机功能.";
+			close2;
+			end;
+		}else{
+			mes"检查实例地图状态 - [^008000√^000000]";
+		}
+		sleep2 100;
+		// 地图检测
+		if(inarray(.BotBanMapList$,strcharinfo(3)) != -1 && AuItem ==0){
+			mes "这张地图不允许使用挂机系统或者没有设定自动拾取.";
+			end;
+		}else{
+			mes"检查角色地图信息 - [^008000√^000000]";
+		}
+		sleep2 100;
+		// 复活道具检查
+		if(BotPcr && countitem(7621) < 1){
+			mes "没有检测到复活道具.";
+			end;
+		}else{
+			mes"检查角色复活道具 - [^008000√^000000]";
+		}
+		sleep2 100;
+		// 恢复品检查
+		if(!ItemHP && !ItemSP){
+			mes "未设置恢复类物品 - [^FF8C00!!^000000]";
+		}else if(!ItemHP){
+			mes "未设置生命恢复品 - [^FF8C00!!^000000]";
+		}else if(!ItemSP){
+			mes "未设置魔法恢复品 - [^FF8C00!!^000000]";
+		}else if(ItemHP !=0 && countitem(ItemHP) < 1 || ItemSP !=0 && countitem(ItemSP) < 1){
+			mes "恢复药品不能低于1个.";
+			end;
+		}else{
+			mes"检查恢复药品设置 - [^008000√^000000]";
+		}
+		sleep2 100;
+		mes "副本挂机模式";
+		mes "检查完成,是否开始挂机.";
+		if (select("- 确定:- 取消") == 2) close;
+		close2;
+		F_Bot_Run_Dungeon;
+		end;
+	}
+
+	// 挂机参数设定相关
+	function	F_Bot_Sub	{
+		// 如果是挂机状态
+		if(is_bot() == 2){
+			mes ""; clear;
+			mes .n$;	
+			mes $ColourMes$;
+			mes "挂机进行中不能更改任何设置.";	
+			mes $ColourMes$;
+			close;
+		}
+		mes ""; clear;
+		mes .n$;	
+		mes $ColourMes$;
+		mes "挂机相关设置.";	
+		mes $ColourMes$;
+		.@Config = select(
+			"自动挂机运行时长 ["+(BotRunTime<=32400000?"0"+BotRunTime/3600000+"小时":""+BotRunTime/3600000+"小时")+"]",
+			"设置挂机攻击模式 ["+(SkMode?"技能模式":""+(AtMode?"普攻模式":"^708090暂未设置^000000")+"")+"]",
+			"设置技能攻击模式 ["+(LxMode?"单技能连续攻击":""+(ZhMode?"多技能组合攻击":"^708090暂未设置^000000")+"")+"]",
+			"设置技能辅助模式 ["+(FzModeCont==1?"已开启一项":""+(FzModeCont==2?"已开启两项":""+(FzModeCont==3?"已开启三项":"^708090暂未设置^000000")+"")+"")+"]",
+			"设置辅助状态技能 ["+(FzStatusCont==1?"已开启一项":""+(FzStatusCont==2?"已开启两项":""+(FzStatusCont==3?"已开启三项":"^708090暂未设置^000000")+"")+"")+"]",
+			"设置辅助状态道具 ["+(ItemSC1 != 0?""+getitemname(ItemSC1)+"":"^708090暂未设置^000000")+"]",
+			"设置攻击魔物列表 ["+(AtMobs?"攻击指定魔物":"攻击所有魔物")+"]",
+			"设置挂机拾取物品 ["+(AuItem?"拾取指定物品":"^708090不会拾取物品^000000")+"]",
+			"设置生命恢复道具 "+(ItemHP?"["+getitemname(ItemHP)+"]["+MinHP+"%]":"^708090[暂未设置]^000000")+"",
+			"设置魔法恢复道具 "+(ItemSP?"["+getitemname(ItemSP)+"]["+MinSP+"%]":"^708090[暂未设置]^000000")+"",
+			"自动瞬移时间间隔 ["+(TmrFly?""+(TmrFly/1000)+"秒":"^708090暂未设置^000000")+"]",
+			"周围无怪是否瞬移 ["+(BotFly?"^008000是^000000":"^B22222否^000000")+"]",
+			"攻击首领无视小怪 ["+(BotAmr?"^008000是^000000":"^B22222否^000000")+"]",
+			"受到首领攻击瞬移 ["+(BotMaw?"^008000是^000000":"^B22222否^000000")+"]",
+			"受到攻击是否反击 ["+(BotCat?"^008000是^000000":"^B22222否^000000")+"]",
+			"开启离线挂机模式 ["+(BotOff?"^008000是^000000":"^B22222否^000000")+"]",
+			"使用不死之证复活 ["+(BotPcr?"^008000是^000000":"^B22222否^000000")+"]",
+			"设置完成返回主页");
+		// 挂机时长
+		if(.@Config == 1){
+			clear;
+			mes .n$;
+			mes $ColourMes$;
+			mes "请设置挂机持续运行的时间.";
+			mes "输入范围 1 - 999 [小时]";
+			//mes "每小时收费"+.Cash+"Zeny.";
+			mes $ColourMes$;
+			input RunTime, 1, 999;
+			// 计算挂机时间
+			BotRunTime = RunTime * 3600000;
+		}
+		// 攻击模式
+		if(.@Config == 2){
+			if(AtMode){
+				SkMode = 1;
+				AtMode = 0;
+			}else{
+				AtMode = 1;
+				SkMode = 0;
+			}
+		}
+		// 技能攻击模式
+		if(.@Config == 3){
+			// 获取技能列表
+			getskilllist;
+			mes ""; clear;
+			mes .n$;
+			mes $ColourMes$;
+			mes "请选择技能攻击模式.";
+			mes $ColourMes$;
+			.@SkillMode = select("单技能连续攻击 "+(LxMode?"[^008000当前模式^000000]":"")+"","多技能组合攻击 "+(ZhMode?"[^008000当前模式^000000]":"")+"","返回上级菜单");
+			if(.@SkillMode == 1){
+				for(.@i = 0; .@i < @skilllist_count; .@i++)
+				.@Skill$ = .@Skill$ + (sprintf(getskillinfo(11,@skilllist_id[.@i],@skilllist_lv) < 0 && getskillinfo(5,@skilllist_id[.@i]) != 0 || getskillinfo(11,@skilllist_id[.@i],@skilllist_lv) > 0 && getskillinfo(5,@skilllist_id[.@i]) != 0?"%s%s%s%-20s":"", "Lv", @skilllist_lv[.@i]<10? "0"+@skilllist_lv[.@i]+" ":""+@skilllist_lv[.@i]+" ", getskillinfo(3,@skilllist_id[.@i]), BotSkillLxId == @skilllist_id[.@i]?" [^008B8B当前选择^000000]":""))+":";
+				.@Select = select("^708090暂不设置^000000",.@Skill$);
+				if(.@Select == 1){
+					BotSkillLxId = 0;
+					LxMode = 0;
+				}else{
+					BotSkillLxId = @skilllist_id[.@Select - 2];
+					BotSkillLxLv = @skilllist_lv[.@Select - 2];
+					LxMode = 1;
+					ZhMode = 0;
+				}
+			}
+			if(.@SkillMode == 2){
+				do{
+					deletearray .@Skill$;
+					.@combo++;
+					for(.@i = 0; .@i < @skilllist_count; .@i++)
+					.@Skill$ = .@Skill$ + (sprintf(getskillinfo(11,@skilllist_id[.@i],@skilllist_lv) < 0 && getskillinfo(5,@skilllist_id[.@i]) != 0 || getskillinfo(11,@skilllist_id[.@i],@skilllist_lv) > 0 && getskillinfo(5,@skilllist_id[.@i]) != 0?"%s%s%+10s%+15s":"", "Lv", @skilllist_lv[.@i]<10? "0"+@skilllist_lv[.@i]+" ":""+@skilllist_lv[.@i]+" ", getskillinfo(3,@skilllist_id[.@i]), BotSkillZhId1 == @skilllist_id[.@i]?" [第一击]":""+(BotSkillZhId2 == @skilllist_id[.@i]?" [第二击]":""+(BotSkillZhId3 == @skilllist_id[.@i]?" [第三击]":"")+"")+""))+":";
+					.@Select = select("^708090暂不设置^000000",.@Skill$);
+					if(.@Select == 1){
+						ZhMode = 0;
+						BotSkillZhId1 = 0;
+						BotSkillZhId2 = 0;
+						BotSkillZhId3 = 0;
+						F_Bot_Sub;
+					}
+					if(.@combo == 1){BotSkillZhId1 = 0; BotSkillZhId1 = @skilllist_id[.@Select - 2]; BotSkillZhLv1 = @skilllist_lv[.@Select - 2];}
+					if(.@combo == 2){BotSkillZhId2 = 0; BotSkillZhId2 = @skilllist_id[.@Select - 2]; BotSkillZhLv2 = @skilllist_lv[.@Select - 2];}
+					if(.@combo == 3){BotSkillZhId3 = 0; BotSkillZhId3 = @skilllist_id[.@Select - 2]; BotSkillZhLv3 = @skilllist_lv[.@Select - 2];}
+				}while(.@combo < 3);
+				ZhMode = 1;
+				LxMode = 0;
+				BotSkillLxId = 0;
+			}
+		}
+		// 技能辅助模式
+		if(.@Config == 4){
+			if(FzModeCont == -1) FzModeCont = 0;
+			// 获取技能列表
+			getskilllist;
+			mes ""; clear;
+			mes .n$;
+			mes $ColourMes$;
+			mes "请设置次要技能释放模式";
+			mes $ColourMes$;
+			.@FzSelect = select("当生命值低于指定数值时释放 "+(Fzmode1?"^008000[已开启]^000000":"")+"",
+							  "视野魔物大于指定数量时释放 "+(Fzmode2?"^008000[已开启]^000000":"")+"",
+							  "被指定数量的魔物围攻时释放 "+(Fzmode3?"^008000[已开启]^000000":"")+"",
+							  "返回上级菜单");
+			if(.@FzSelect == 1){
+				clear;
+				mes .n$;
+				mes $ColourMes$;
+				mes "当生命值低于与阈值时释放.";
+				mes "范围1-99,输入0为取消.";
+				mes $ColourMes$;
+				input HpLow;
+				if(!HpLow){
+					clear;
+					mes .n$;
+					mes $ColourMes$;
+					mes "已取消.";
+					mes $ColourMes$;
+					FzModeCont-=1;
+					Fzmode1 = 0;
+					BotSkillCyId1 = 0;
+					next;
+					F_Bot_Sub;
+				}else if(HpLow > 99){
+					clear;
+					mes .n$;
+					mes $ColourMes$;
+					mes "输入的数值不正确.";
+					mes $ColourMes$;
+					next;
+					F_Bot_Sub;
+				}
+			}
+			if(.@FzSelect == 2){
+				clear;
+				mes .n$;
+				mes $ColourMes$;
+				mes "当视野内的可见魔物大于阈值时.";
+				mes "范围1-20,输入0为取消.";
+				mes $ColourMes$;
+				input CyMobcount;
+				if(!CyMobcount){
+					clear;
+					mes .n$;
+					mes $ColourMes$;
+					mes "已取消.";
+					mes $ColourMes$;
+					FzModeCont-=1;
+					Fzmode2 = 0;
+					BotSkillCyId2 = 0;
+					next;
+					F_Bot_Sub;
+				}else if(CyMobcount > 20){
+					clear;
+					mes .n$;
+					mes $ColourMes$;
+					mes "输入的数值不正确.";
+					mes $ColourMes$;
+					next;
+					F_Bot_Sub;
+				}
+			}
+			if(.@FzSelect == 3){
+				clear;
+				mes .n$;
+				mes $ColourMes$;
+				mes "当被超过阈值数量的魔物攻击时.";
+				mes "范围1-20,输入0为取消.";
+				mes $ColourMes$;
+				input CyAttackedgt;
+				if(!CyAttackedgt){
+					clear;
+					mes .n$;
+					mes $ColourMes$;
+					mes "已取消.";
+					mes $ColourMes$;
+					FzModeCont-=1;
+					Fzmode3 = 0;
+					BotSkillCyId3 = 0;
+					next;
+					F_Bot_Sub;
+				}else if(CyAttackedgt > 20){
+					clear;
+					mes .n$;
+					mes $ColourMes$;
+					mes "输入的数值不正确.";
+					mes $ColourMes$;
+					next;
+					F_Bot_Sub;
+				}
+			}
+			if(.@FzSelect == 4) F_Bot_Sub;
+			mes ""; clear;
+			mes .n$;
+			mes $ColourMes$;
+			mes "请选择要释放的技能.";
+			mes $ColourMes$;
+			for(.@i = 0; .@i < @skilllist_count; .@i++)
+			.@Skill$ = .@Skill$ + (sprintf(getskillinfo(11,@skilllist_id[.@i],@skilllist_lv) < 0 && getskillinfo(5,@skilllist_id[.@i]) != 0 || getskillinfo(11,@skilllist_id[.@i],@skilllist_lv) > 0 && getskillinfo(5,@skilllist_id[.@i]) != 0?"%-35s%s%d":"", getskillinfo(3,@skilllist_id[.@i]), "Lv", @skilllist_lv[.@i]))+":";
+			.@Select = select(.@Skill$);
+			if(.@FzSelect == 1){
+				if(!BotSkillCyId1) FzModeCont+=1;
+				Fzmode1 = 1;
+				BotSkillCyId1 = @skilllist_id[.@Select - 1];
+				BotSkillCyLv1 = @skilllist_lv[.@Select - 1];
+			}
+			if(.@FzSelect == 2){
+				if(!BotSkillCyId2) FzModeCont+=1;
+				Fzmode2 = 1;
+				BotSkillCyId2 = @skilllist_id[.@Select - 1];
+				BotSkillCyLv2 = @skilllist_lv[.@Select - 1];
+			}
+			if(.@FzSelect == 3){
+				if(!BotSkillCyId3) FzModeCont+=1;
+				Fzmode3 = 1;
+				BotSkillCyId3 = @skilllist_id[.@Select - 1];
+				BotSkillCyLv3 = @skilllist_lv[.@Select - 1];
+			}
+		}
+		// 辅助状态技能
+		if(.@Config == 5){
+			// 获取技能列表
+			getskilllist;
+			if(BotSkillFzId1) .@FzName1$ = getskillinfo(3,BotSkillFzId1);
+			if(BotSkillFzId2) .@FzName2$ = getskillinfo(3,BotSkillFzId2);
+			if(BotSkillFzId3) .@FzName3$ = getskillinfo(3,BotSkillFzId3);
+			mes ""; clear;
+			mes "请设置挂机辅助状态技能";
+			.@Status = select("挂机辅助状态技能一 ["+(BotSkillFzId1?"^FF4500"+.@FzName1$+"^000000":"^708090暂未设置^000000")+"]",
+							  "挂机辅助状态技能二 ["+(BotSkillFzId2?"^FF4500"+.@FzName2$+"^000000":"^708090暂未设置^000000")+"]",
+							  "挂机辅助状态技能三 ["+(BotSkillFzId3?"^FF4500"+.@FzName3$+"^000000":"^708090暂未设置^000000")+"]",
+							  "返回上级菜单");
+			if(.@Status == 4) F_Bot_Sub;
+			deletearray .@Skill$;
+			for(.@i = 0; .@i < @skilllist_count; .@i++)
+			.@Skill$ = .@Skill$ + (sprintf(getskillsc(@skilllist_id[.@i]) != -1 && getskillinfo(1,@skilllist_id[.@i]) == 2 && getskillinfo(17,@skilllist_id[.@i],@skilllist_lv[.@i]) > 10000 && @skilllist_id[.@i] != BotSkillFzId1 && @skilllist_id[.@i] != BotSkillFzId2 && @skilllist_id[.@i] != BotSkillFzId3?"%-35s%s%d":"", getskillinfo(3,@skilllist_id[.@i]), "Lv", @skilllist_lv[.@i]))+":";
+			.@Select = select("^708090暂不设置^000000",.@Skill$);
+			if(.@Select == 1){
+				if(.@Status == 1){ BotSkillFzId1 = 0; FzSkll1 = 0; } 
+				if(.@Status == 2){ BotSkillFzId2 = 0; FzSkll2 = 0; }
+				if(.@Status == 3){ BotSkillFzId3 = 0; FzSkll3 = 0; }
+				FzStatusCont-=1;
+				F_Bot_Sub;
+			}
+			if(.@Status == 1){
+				if(!BotSkillFzId1) FzStatusCont+=1;
+				FzSkll1 = 1;
+				BotSkillFzId1 = @skilllist_id[.@Select - 2];
+				BotSkillFzLv1 = @skilllist_lv[.@Select - 2];
+			}
+			if(.@Status == 2){
+				if(!BotSkillFzId2) FzStatusCont+=1;
+				FzSkll2 = 1;
+				BotSkillFzId2 = @skilllist_id[.@Select - 2];
+				BotSkillFzLv2 = @skilllist_lv[.@Select - 2];
+			}
+			if(.@Status == 3){
+				if(!BotSkillFzId3) FzStatusCont+=1;
+				FzSkll3 = 1;
+				BotSkillFzId3 = @skilllist_id[.@Select - 2];
+				BotSkillFzLv3 = @skilllist_lv[.@Select - 2];
+			}
+		}
+		// 辅助状态道具
+		if(.@Config == 6){
+			clear;
+			mes .n$;
+			mes $ColourMes$;
+			mes "请选择您要使用的状态补品.";
+			mes $ColourMes$;
+			for(.@i = 0; .@i < getarraysize(.Bot_ZT_ID); .@i++)
+			.@List$ = .@List$+(countitem(.Bot_ZT_ID[.@i])>=1?"^3CB371"+getitemname(.Bot_ZT_ID[.@i])+"("+countitem(.Bot_ZT_ID[.@i])+")^000000":"^778899"+getitemname(.Bot_ZT_ID[.@i])+"("+countitem(.Bot_ZT_ID[.@i])+")^000000")+":";
+			.@Select = select("返回并清除设置",.@List$);
+			if(.@Select == 1){
+				ItemSC1 = 0;
+				F_Bot_Sub;
+				end;
+			}
+			if(countitem(.Bot_ZT_ID[.@Select - 2]) < 1){
+				clear;
+				mes .n$;
+				mes $ColourMes$;
+				mes "你没有"+getitemname(.Bot_ZT_ID[.@Select - 2])+".";
+				mes $ColourMes$;
+				next;
+				F_Bot_Sub;
+				end;
+			}
+			clear;
+			mes .n$;
+			mes $ColourMes$;
+			mes "设置完成.";
+			mes $ColourMes$;
+			ItemSC1 = .Bot_ZT_ID[.@Select - 2];
+			ItemScMin = .Bot_ZT_JG[.@Select - 2] * 60000;
+			next;
+		}
+		// 攻击魔物列表
+		if(.@Config == 7){
+			F_Bot_Mob;
+		}
+		// 拾取物品
+		if(.@Config == 8){
+		Lro_lootconfig:
+			.@select = select("[T] 按道具类型拾取","[N] 按道具名称拾取","[D] 按掉落几率拾取","[<] 返回上级菜单");
+			switch(.@select){
+				case 1: goto Lro_aloottype;
+				case 2:	goto Lro_aloot;
+				case 3:	goto Lro_alootrate;
+				case 4: F_Bot_Sub;
+			}
+		Lro_aloottype:
+			.@select = select("[+] 增加拾取类型","[-] 删除拾取类型","[!] 查看拾取列表","[*] 清空拾取列表","[<] 返回上级菜单");
+			switch(.@select){
+				case 1:	
+					mes "增加拾取物品";
+					input .@input;
+				if(.@input > 10 || .@input == 1 || .@input == 9 ){mes "输入的类型不正确."; goto Lro_aloottype;}
+				atcommand "@aloottype" + " +"+.@input+"";
+				AuItem = 1;
+				goto Lro_aloottype;
+				break;	
+				case 2:
+					mes "删除拾取物品";
+					input .@input;
+					if(.@input > 10 || .@input == 1 || .@input == 9 ){mes "输入的类型不正确."; goto Lro_aloottype;}
+					atcommand "@aloottype" + " -"+.@input+"";
+					goto Lro_aloottype;
+					close;
+				case 3:
+					mes "查看拾取列表";
+					atcommand "@aloottype";
+					AuItem = 1;
+					goto Lro_aloottype;
+					break;
+				case 4:
+					mes "清空拾取列表";
+					atcommand "@aloottype" + " reset";
+					AuItem = 0;
+					goto Lro_aloottype;
+					break;
+				case 5:
+					goto Lro_lootconfig;
+					break;
+			}
+		Lro_aloot:
+			.@select = select("[+] 增加拾取物品","[-] 删除拾取物品","[!] 查看拾取列表","[*] 清空拾取列表","[<] 返回上级菜单");
+			switch(.@select){
+				case 1:
+					mes "增加拾取物品";
+					input .@aloot$;
+					atcommand "@alootid" + " +"+.@aloot$+"";
+					AuItem = 1;
+					goto Lro_aloot;
+				break;
+				case 2:
+					mes "删除拾取物品";
+					input .@aloot$;
+					atcommand "@alootid" + " -"+.@aloot$+"";
+					goto Lro_aloot;
+					break;
+				case 3:
+					mes "查看拾取列表";
+					atcommand "@alootid";
+					AuItem = 1;
+					goto Lro_aloot;
+					break;
+				case 4:
+					mes "清空拾取列表";
+					atcommand "@alootid" + " reset";
+					AuItem = 0;
+					goto Lro_aloot;
+					break;
+				case 5:
+					goto Lro_lootconfig;
+					break;
+			}
+		Lro_alootrate:
+			if (!AuItem){
+				message strcharinfo(0),"请设定自动捡取几率!";
+				while(1){
+					input .@count;
+					if(.@count < 1||.@count > 100) message strcharinfo(0),"请输入正确的数字编号!";
+					else break;
+				}
+				AuItem = 1;
+				atcommand "@autoloot "+.@count;	
+			} else {	
+				AuItem = 0;
+				atcommand "@autoloot 0";
+				atcommand "@alootid" + " reset";
+				atcommand "@aloottype" + " reset";
+				mes "几率拾取不可以与其它拾取共存";
+				mes "已关闭自动拾取.";
+				mes "重新设再次设定.";
+				goto Lro_aloottype;			
+			}		
+		}
+		// 生命恢复
+		if(.@Config == 9){
+			clear;
+			mes .n$;
+			mes $ColourMes$;
+			mes "选择挂机中使用的生命恢复品.";
+			mes $ColourMes$;
+			for(.@i = 0; .@i < getarraysize(.Bot_HP_ID); .@i++)
+			.@List$ = .@List$+(countitem(.Bot_HP_ID[.@i])>=1?"^3CB371"+getitemname(.Bot_HP_ID[.@i])+"("+countitem(.Bot_HP_ID[.@i])+")^000000":"^778899"+getitemname(.Bot_HP_ID[.@i])+"("+countitem(.Bot_HP_ID[.@i])+")^000000")+":";
+			.@Select = select("返回并清除设置",.@List$);
+			if(.@Select == 1){
+				ItemHP = 0;
+				F_Bot_Sub;
+				end;
+			}
+			if(countitem(.Bot_HP_ID[.@Select - 2]) < 1){
+				clear;
+				mes .n$;
+				mes $ColourMes$;
+				mes "你没有"+getitemname(.Bot_HP_ID[.@Select - 2])+".";
+				mes $ColourMes$;
+				next;
+				F_Bot_Sub;
+				end;
+			}
+			ItemHP =.Bot_HP_ID[.@Select - 2];
+			clear;
+			mes .n$;
+			mes $ColourMes$;
+			mesf "使用%s.", getitemname(ItemHP);
+			mes "血量低于百分之多少使用?";
+			mes $ColourMes$;
+			input MinHP,1,99;
+			next;
+		}
+		// 魔法恢复
+		if(.@Config == 10){
+			clear;
+			mes .n$;
+			mes $ColourMes$;
+			mes "选择挂机中使用的魔法恢复品.";
+			mes $ColourMes$;
+			for(.@i = 0; .@i < getarraysize(.Bot_SP_ID); .@i++)
+			.@List$ = .@List$+(countitem(.Bot_SP_ID[.@i])>=1?"^3CB371"+getitemname(.Bot_SP_ID[.@i])+"("+countitem(.Bot_SP_ID[.@i])+")^000000":"^778899"+getitemname(.Bot_SP_ID[.@i])+"("+countitem(.Bot_SP_ID[.@i])+")^000000")+":";
+			.@Select = select("返回并清除设置",.@List$);
+			if(.@Select == 1){
+				ItemSP = 0;
+				F_Bot_Sub;
+				end;
+			}
+			if(countitem(.Bot_SP_ID[.@Select - 2]) < 1){
+				clear;
+				mes .n$;
+				mes $ColourMes$;
+				mes "你没有"+getitemname(.Bot_SP_ID[.@Select - 2])+".";
+				mes $ColourMes$;
+				next;
+				F_Bot_Sub;
+				end;
+			}
+			ItemSP =.Bot_SP_ID[.@Select - 2];
+			clear;
+			mes .n$;
+			mes $ColourMes$;
+			mesf "使用%s.", getitemname(ItemSP);
+			mes "血量低于百分之多少使用?";
+			mes $ColourMes$;
+			input MinSP,1,99;
+			next;
+		}
+		// 自动瞬移
+		if(.@Config == 11){
+			clear;
+			mes .n$;
+			mes $ColourMes$;
+			mes "输入自动瞬移时间间隔.";
+			mes "范围1-60秒.";
+			mes "输入999为不使自动瞬移.";
+			mes $ColourMes$;
+			input .@Fly;
+			if(.@Fly == 999){
+				TmrFly = 0;
+			}else if(.@Fly < 1 || .@Fly > 60){
+				clear;
+				mes .n$;
+				mes $ColourMes$;
+				mes "你输入的时间间隔不正确.";
+				mes $ColourMes$;
+				next;
+			}else{
+				TmrFly = .@Fly * 1000;
+			}
+		}
+		// 强制瞬移
+		if(.@Config == 12){
+			if(BotFly){
+				BotFly = 0;
+			}else{
+				BotFly = 1;
+			}
+		}		
+		// 仅攻击首领无视首领召唤的小弟
+		if(.@Config == 13){
+			if(BotAmr){
+				BotAmr = 0;
+			}else{
+				BotAmr = 1;
+			}
+		}
+		// 被MVP攻击
+		if(.@Config == 14){
+			if(BotMaw){
+				BotMaw = 0;
+			}else{
+				BotMaw = 1;
+			}
+		}
+		// 自动反击
+		if(.@Config == 15){
+			if(BotCat){
+				BotCat = 0;
+			}else{
+				BotCat = 1;
+			}
+		}
+		// 离线模式
+		if(.@Config == 16){
+			if(BotOff){
+				BotOff = 0;
+			}else{
+				BotOff = 1;
+			}
+		}
+		// 自动复活
+		if(.@Config == 17){
+			if(BotPcr){
+				BotPcr = 0;
+			}else{
+				BotPcr = 1;
+			}
+		}
+		// 返回主菜单
+		if(.@Config == 18){
+			F_Bot_Mes;
+		}
+		// 返回设置页
+		F_Bot_Sub;
+		end;
+	}
+
+	// GM相关参数设置
+	function	F_Bot_Vip	{
+		clear;
+		mes .n$;
+		mes $ColourMes$;
+		mes "这是一个特殊模块,请联系脚本作者定制.";
+		mes "在会员功能选项中,每增加一项收费100元.";		
+		mes $ColourMes$;
+		close;
+	}
+
+	function	F_Bot_Mob	{
+		.@select = select("查看当前地图魔物信息","返回上级菜单");
+		switch(.@select){
+		case 1:
+			getmapinfo("this",6);
+			clear;
+			mes .n$;
+			mes $ColourMes$;
+			for(.@mid = 0; .@mid < getarraysize($@spawn_mobid); .@mid++)
+			mesf "ID %d %s", $@spawn_mobid[.@mid], getmonsterinfo($@spawn_mobid[.@mid],MOB_NAME);
+			mes $ColourMes$;
+			.@menu = select("攻击所有魔物","攻击指定魔物","返回上级菜单");
+			if(.@menu == 1){
+				deletearray AtMobs[0], getarraysize(AtMobs);
+				clear;
+				mes .n$;
+				mes $ColourMes$;
+				mes "已设定为攻击所有魔物.";
+				mes $ColourMes$;
+				next;
+			}
+			if(.@menu == 2){
+				L_reinput:
+				do{
+					input(.@MobList[.@i], 0, 90000);
+					if(strmobinfo(2, .@MobList[.@i]) == ""){
+						mes "您输入的魔物ID不正确.";
+						if(select("重新输入","取消")==1){
+							goto L_reinput;
+						}
+						break;
+					}
+					mes "增加魔物: ^FF0000"+ strmobinfo(2, .@MobList[.@i])+". ^000000 ";
+					if(select("继续输入","完成输入")==2){
+						copyarray(AtMobs[0], .@MobList[0], getarraysize(.@MobList));
+						break;
+					}
+					.@i++;
+				}while(.@i < 10);
+			}	
+			F_Bot_Sub;
+			end;
+		case 2:
+			F_Bot_Sub;
+			end;
+		}
+		end;
+	}
+
+// BOT开始事件
+OnBOTStartFilter:
+	BotRunIng = 1;
+	dispbottom "==================================================";
+	dispbottom "[挂机系统]: 自动挂机系统开始运行.";
+	dispbottom "[挂机系统]: 已纪录当前地图["+BotMap$+"]为挂机地图.";
+	dispbottom "[挂机系统]: 挂机运行时长为["+(BotRunTime/3600000)+"]小时.";
+	dispbottom "[挂机系统]: 挂机自动模式为["+(BotOff?"离线模式":"在线模式")+"].";
+	dispbottom "[挂机系统]: 挂机攻击模式为["+(SkMode?"技能模式":""+(AtMode?"普攻模式":"^708090暂未设置^000000")+"")+"].";
+	dispbottom "[挂机系统]: 技能释放模式为["+(LxMode?"单技能连续攻击":""+(ZhMode?"多技能组合攻击":"^708090暂未设置^000000")+"")+"].";
+	dispbottom "[挂机系统]: 攻击魔物列表为["+(AtMobs?"攻击指定魔物":"攻击所有魔物")+"].";
+	for(.@i = 0; .@i < getarraysize(AtMobs); .@i++){
+		dispbottom "                          "+strmobinfo(2,AtMobs[.@i])+"";
+	}
+	dispbottom "==================================================";
+	consolemes (MSG_DEBUG,"[挂机系统]: [%s]在地图[%s]开启了挂机,模式为[%s].", strcharinfo(0), BotMap$, BotOff?"离线模式":"在线模式");
+	//--掉宝判断开始
+		if (countitem(12210) < 1 ) {
+	dispbottom "未检测到[增加掉宝类道具],默认不使用.";}
+	if (sc_check (SC_ITEMBOOST) == 0 && countitem(12210) > 0 ) { 
+	sc_start SC_ITEMBOOST,1800000,100; delitem 12210,1;
+	dispbottom "检测到未处于[掉宝状态]并携带[增加掉宝类道具],自动使用.";}
+	if (sc_check (SC_ITEMBOOST) == 1 && countitem(12210) > 0 ) { 
+	dispbottom "检测到已处于[掉宝状态]并携带[增加掉宝类道具],30分钟后自动使用.";}
+	//--掉宝判断结束
+	//--毒药判断开始
+	//if (countitem(25106) > 0 && Class==Job_Assassin_Cross ) {
+	//sc_start SC_EDP,1800000,5;
+	//dispbottom "检测到携带[无限毒药瓶],自动使用.";}
+	//--毒药判断结束
+	//--神官魂判断开始
+	//if (countitem(25121) > 0 && Class==Job_High_Priest ) {
+	//skilleffect 454,5;
+	//sc_start4 SC_SPIRIT,300000,0,454,0,0;
+	//dispbottom "检测到携带[S]灵魂药水,自动使用.";}
+	//--神官魂判断结束
+	//--无限芦荟开始
+	//if (countitem(57005) > 0 ) {
+	//sc_start SC_PROVOKE,600000,1;
+	//dispbottom "检测到携带[秘制芦荟汁液],自动使用.";}
+	//--无限芦荟结束
+	end;
+
+// BOT结束事件
+OnBOTStopEvent:
+	if(.Option&1) changelook LOOK_HEAD_BOTTOM,0;
+	BotRunIng = 0;
+	// 恢复人物初始移动速度
+	atcommand sprintf("@speed %d", PcSpeed);
+	bonus_script_clear 1;
+
+	dispbottom "[挂机系统]: 自动挂机已结束.";
+	consolemes (MSG_DEBUG,"[挂机系统]: [%s] 结束了挂机系统.", strcharinfo(0));
+	end;
+
+// 强制瞬移
+OnBotFly:
+	if(BotFly){
+		warp BotMap$,0,0;
+		dispbottom "[挂机系统]: 您身边的魔物小于阈值,挂机系统自动瞬移.";
+		end;
+	}
+
+// 物品状态
+OnItemSC:
+	//if (countitem(25106) > 0 && Class==Job_Assassin_Cross ) {
+	//sc_start SC_EDP,1800000,5;
+	//dispbottom "检测到携带[无限毒药瓶],自动使用.";}
+	//--神官魂判断开始
+	//if (countitem(25121) > 0 && Class==Job_High_Priest ) {
+	//skilleffect 454,5;
+	//sc_start4 SC_SPIRIT,300000,0,454,0,0;
+	//dispbottom "检测到携带[S]灵魂药水,自动使用.";}
+	//--神官魂判断结束
+	//if (countitem(57005) > 0 ) {
+	//sc_start SC_PROVOKE,600000,1;
+	//dispbottom "检测到携带[秘制芦荟汁液],自动使用.";}
+if (sc_check (SC_ITEMBOOST) == 0 && countitem(12210) > 0 ) { 
+	sc_start SC_ITEMBOOST,1800000,100; delitem 12210,1;
+	dispbottom "检测到未处于[掉宝状态]并携带[增加掉宝类道具],自动使用.";}
+	if (sc_check (SC_ITEMBOOST) == 0 && countitem(12210) < 1 ) { 
+	dispbottom "掉宝道具不足！无法使用！";}
+	if(ItemSC1 != 0 && countitem(ItemSC1) >= 1){
+		runitemscript(ItemSC1,0);
+	//	delitem ItemSC1,1;
+	}else{
+		dispbottom "[挂机系统]: 状态道具使用失败,"+getitemname(ItemSC1)+"数量不足.";
+	}
+	end;
+
+// 检查补给
+OnUseItemCheck:
+	if(ItemHP != 0){
+		if(!countitem(ItemHP)){
+			// 如果是离线挂机模式则发送通知邮件
+			if(bot_hasmode(BOT_OFFLINE)){
+				mail getcharid(0),"离线挂机系统","挂机状态结束通知","生命恢复药水不足,系统已自动结束挂机状态.";
+			}
+			consolemes (MSG_STATUS, "[挂机系统]: [%s]生命恢复药水不足,系统已自动结束挂机状态.", strcharinfo(0));
+			dispbottom "[挂机系统]: 生命恢复药水不足,系统已自动结束挂机状态";
+			warp "SavePoint",0,0;
+			bonus_script_clear 1;
+			bot_stop();
+			
+		}
+	}
+	if(ItemSP != 0){
+		if(!countitem(ItemSP)){
+			// 如果是离线挂机模式则发送通知邮件
+			if(bot_hasmode(BOT_OFFLINE)){
+				mail getcharid(0),"离线挂机系统","挂机状态结束通知","魔法恢复药水不足,系统已自动结束挂机状态.";
+			}
+			consolemes (MSG_STATUS, "[挂机系统]: [%s]魔法恢复药水不足,系统已自动结束挂机状态.", strcharinfo(0));
+			dispbottom "[挂机系统]: 魔法恢复药水不足,系统已自动结束挂机状态";
+			warp "SavePoint",0,0;
+			bonus_script_clear 1;
+			bot_stop();
+		}
+	}
+	end;
+
+// 挂机状态检测
+OnBotCheck:
+	if(is_bot() == 2 && Weight > (MaxWeight * 9) / 10){
+		if(BotOff == 1){
+			mail getcharid(0),"BOT","挂机状态结束","由于您负重超过90%,所以结束了本次挂机.";
+		}
+		bonus_script_clear 1;
+		bot_stop();
+		warp "SavePoint",0,0;
+		dispbottom "[挂机系统]: 检查挂机状态,负重超过90%,结束挂机.";
+		consolemes (MSG_STATUS,"[BOT]:[%s]负重超过90,结束挂机.", strcharinfo(0));
+	}
+	if(is_bot() == 2){
+		deltimer "BotSystem::OnBotCheck";
+		getmapxy(.@m$, .@x, .@y, BL_PC);
+		if( @bot_m$ == "" && @bot_x == 0 && @bot_y == 0){
+			@bot_m$ = .@m$;
+			@bot_x = .@x;
+			@bot_y = .@y;
+			dispbottom "[挂机系统]: 记录人物坐标.";
+		}else if(@bot_m$ == .@m$ && @bot_x == .@x && @bot_y == .@y){
+			if(@bot_check_count < .Bot_Check_RE){
+				@bot_check_count++;
+				dispbottom "[挂机系统]: 原地坐标计数器,已第"+@bot_check_count+"次检测到人物站在原地.";
+			}else{
+				addtimer .Bot_Check_XY,"BotSystem::OnBotCheck";
+				@bot_check_count = 0;
+				@bot_m$ = "";
+				@bot_x = 0;
+				@bot_y = 0;
+				dispbottom "[挂机系统]: 由于人物长时间没有移动过,重置人物挂机状态.";
+			//	warp Bot_Map$,0,0;
+			//	bot_stop();
+			//	F_Bot_Run;
+			//	end;
+			}
+		}else{
+				@bot_m$ = .@m$;
+				@bot_x = .@x;
+				@bot_y = .@y;
+				@bot_check_count = 0;
+				dispbottom "[挂机系统]: 更新人物坐标";
+		}
+		addtimer .Bot_Check_XY,"BotSystem::OnBotCheck";
+	}
+	end;
+
+// 挂机状态检测
+OnBOTRecvActEvent:
+	if(@bot_recv_type == 0 && @bot_recv_logout == 1){
+		// 重置失败检测
+		@bot_recv_logout = 0;
+		// 获取寻路失败时的地图位置信息
+		getmapxy(.@Map$,.@x,.@y,BL_PC);
+		// 强制瞬移
+		warp BotMap$,0,0;
+		consolemes (MSG_DEBUG,"[挂机系统]: [%s]在地图[%s %s %s]寻路失败,系统强制瞬移.", strcharinfo(0), .@Map$, .@x, .@y);
+	}
+	if(@bot_recv_type == 0 && @bot_recv_logout == 2 || @bot_recv_type == 0 && @bot_recv_logout == 3){
+		// 检查负重状态
+		if(is_bot() == 2 && Weight >= (MaxWeight * 9) / 10){
+			// 如果是离线挂机模式则发送通知邮件
+			if(bot_hasmode(BOT_OFFLINE)){
+				mail getcharid(0),"离线挂机系统","挂机状态结束通知","由于您在挂机过程中负重超过了90%,所以挂机系统结束了本次挂机.";
+			}
+			// 提示信息
+			dispbottom "[挂机系统]: 挂机状态检测,你的负重超过90%,系统已自动结束挂机状态.";
+			// 控制台输出提示信息
+			consolemes (MSG_DEBUG, "[挂机系统]: [%s]负重超过90%,系统已自动结束挂机状态.", strcharinfo(0)); // map报错
+			// 重置失败检测
+			@bot_recv_logout = 0;
+			// 返回记录点
+			warp "SavePoint",0,0;
+			// 结束挂机
+			bonus_script_clear 1;
+			bot_stop();
+		}else{
+			// 提示信息
+			dispbottom "[挂机系统]: 挂机状态检测,技能连续失败次数过多,自动重置.";
+			// 控制台输出提示信息
+			consolemes (MSG_DEBUG, "[挂机系统]: [%s]技能连续失败次数过多,系统已自动重置.", strcharinfo(0)); // map报错
+			// 重置失败检测
+			//@bot_recv_logout = 0;
+			// 返回记录点
+			//warp "SavePoint",0,0;
+			// 结束挂机
+		//	bot_stop();
+		}
+	}
+	end;
+
+ // 角色死亡事件
+OnPCDieEvent:
+
+	if(is_bot() == 2 && countitem(7621) > 0 && BotPcr){
+		delitem 7621,1;
+		recovery 0,getcharid(0),4;
+		dispbottom "[挂机系统]: 使用了复活道具,继续挂机.";
+		consolemes (MSG_STATUS,"[挂机系统]: [%s]挂机中死亡,使用了复活道具,继续挂机.", strcharinfo(0));
+	}
+	
+				if(is_bot() == 2 && BotRunIng && !BotPcr  && #smbuff == 1){
+		if(bot_hasmode(BOT_OFFLINE)){
+		dispbottom "[挂机系统]: 您死亡了.";
+		}
+		// 提示信息
+			dispbottom "[沙漠之心]: 沙漠之心能力发动,20秒后自动复活！";
+		// 控制台输出提示信息
+		consolemes (MSG_STATUS,"[沙漠之心]:[%s] 沙漠之心能力发动,20秒后自动复活！", strcharinfo(0));
+		sleep2 20000;
+        atcommand "@alive";
+	}
+	
+	
+	
+	
+	if(is_bot() == 2 && countitem(7621) < 1 && BotPcr){
+		if(bot_hasmode(BOT_OFFLINE)){
+			dispbottom "[挂机系统]: 您死亡了.";
+		}
+		dispbottom "[挂机系统]: 由于您没有复活之证,无法立刻复活,180秒后自动复活.";
+		consolemes (MSG_STATUS,"[挂机系统]: [%s]挂机中死亡,没有复活道具了,180秒后自动复活.", strcharinfo(0));
+		sleep2 1800000;
+        atcommand "@alive";
+
+	}
+	if(is_bot() == 2 && BotRunIng && !BotPcr && #vipid == 3 && #smbuff == 0){
+		if(bot_hasmode(BOT_OFFLINE)){
+		dispbottom "[挂机系统]: 您死亡了.";
+		}
+		// 提示信息
+			dispbottom "[高级会员]: 由于您没有设置复活道具,无法立刻复活,60秒后自动复活.";
+		// 控制台输出提示信息
+		consolemes (MSG_STATUS,"[高级会员]:[%s] 挂机中死亡,没有设置复活道具,60秒后自动复活.", strcharinfo(0));
+		sleep2 60000;
+        atcommand "@alive";
+	}
+		if(is_bot() == 2 && BotRunIng && !BotPcr && #vipid == 2){
+		if(bot_hasmode(BOT_OFFLINE)){
+		dispbottom "[挂机系统]: 您死亡了.";
+		}
+		// 提示信息
+			dispbottom "[中级会员]: 由于您没有设置复活道具,无法立刻复活,120秒后自动复活.";
+		// 控制台输出提示信息
+		consolemes (MSG_STATUS,"[中级会员]:[%s] 挂机中死亡,没有设置复活道具,120秒后自动复活.", strcharinfo(0));
+		sleep2 120000;
+        atcommand "@alive";
+	}
+		if(is_bot() == 2 && BotRunIng && !BotPcr && #vipid < 2){
+		if(bot_hasmode(BOT_OFFLINE)){
+		dispbottom "[挂机系统]: 您死亡了.";
+		}
+		// 提示信息
+			dispbottom "[挂机系统]: 由于您没有设置复活道具,无法立刻复活,180秒后自动复活.";
+		// 控制台输出提示信息
+		consolemes (MSG_STATUS,"[挂机系统]:[%s] 挂机中死亡,没有设置复活道具,180秒后自动复活.", strcharinfo(0));
+		sleep2 180000;
+        atcommand "@alive";
+	}
+
+	end;
+
+
+
+// 被攻击事件
+OnPCAttackedFilter:
+	// 必须是挂机状态并开启了被MVP攻击瞬移选项和拥有BOT运行标记
+	if(is_bot() == 2 && BotMaw && BotRunIng){
+		setarray .@MvpIdList,
+		1511, // AMON RA
+		1647, // B_ERMES
+		1785, // ATROCE
+		1785, // ATROCE
+		1785, // ATROCE
+		1785, // ATROCE
+		1630, // BASCOJIN
+		1039, // BAPHOMET
+		2068, // BOITATA
+		2238, // B_CHEN
+		2240, // B_ALPHOCCIO
+		2236, // B_FLAMMEL
+		2253, // DAEHYON
+		1272, // DARK LORD
+		1719, // DETALE
+		1046, // DOPPELGANGER
+		1389, // DRACULA
+		1112, // DRAKE
+		1115, // EDDGA
+		1418, // EVIL SNAKE LORD
+		1871, // FALLEN BISHOP
+		1252, // GARM
+		2251, // GIOIA
+		1768, // GLOOMUNDERNIGHT
+		2165, // GOLDQUEENSCARABA
+		1086, // GTB
+		1885, // GOPINICH
+		2241, // B_TRENITI
+		1649, // B_MAGALETA
+		1651, // B_KATRIN
+		1832, // IFRIT
+		1492, // INCANTATION SAMURAI
+		2255, // KADES
+		1734, // KIEL
+		2442, // B_SUPERNOVICE
+		1251, // STORMY KNIGHT
+		2202, // KRAKKEN
+		1779, // KTULLANUX
+		1688, // LADY TANEE
+		2156, // LEAK
+		1646, // B_SEYREN
+		1373, // LORD OF DEATH
+		1147, // MAYA
+		1059, // MISTRESS
+		1150, // MOONLIGHTFLOWER
+		1087, // ORC HERO
+		1190, // ORC LORD
+		1038, // OSIRIS
+		2235, // B_RANDEL
+		1157, // PHAROAH
+		1159, // PHREEONI
+		2237, // B_CELIA
+		2249, // ANGRYSTUDENY PYURIEL
+		2087, // GOLDEN QUEEN SCARAB
+		1623, // RSX12312
+		1916, // SATAN MORROC
+		1650, // B_CECIL
+		2239, // B_GERTIE
+		1583, // TAOGUNKA
+		1708, // THANATOS
+		2441, // B_NOVICE
+		1312, // TURTLE GEN
+		1751, // RANDGRIS
+		1685, // VESPER
+		1648, // B_HOWARD
+		1917, // WOUNDED MORROC
+		1658; // B_YGNIZEM
+
+		// 如果被MVP魔物攻击则强制瞬移走
+		if(inarray(.@MvpIdList, dmg_mobid) != -1){
+			dispbottom "[挂机系统]: 你受到了MVP魔物的攻击,强制瞬移.";
+			warp BotMap$,0,0;
+		}
+	}
+	end;	
+}
+
+
+
+
+
+
+-	script	#abguaji	-1,{
+OnPCUseSkillFilter:
+if ( is_bot() == 2 && useskill_id == 271 ) { 
+bonus_script "{  bonus2 bSkillNoRequire,271,REQ_SPIRITSPHERECOST;   }",6000;
+bonus_script "{ bonus2 bSkillNoRequire,271,REQ_STATUS; }",6000;
+bonus_script "{bonus bDelayrate,200; }",6000;
+		announce "[挂机职业设置]：监测到您使用[阿修罗霸凰拳],取消[技能前置条件],技能延迟增加2.5秒.",Bc_self,0xFFB3FF;
+		end;
+	}
+	
+OnPCReviveFilter:
+if ( is_bot() == 2 && class == 4016 ) { 
+bonus_script "{  bonus2 bSkillNoRequire,271,REQ_SPIRITSPHERECOST;   }",6000;
+bonus_script "{ bonus2 bSkillNoRequire,271,REQ_STATUS; }",6000;
+bonus_script "{bonus bDelayrate,200; }",6000;
+announce "[挂机职业设置]：监测到状态异常！重置[阿修罗霸凰拳]所需前置,请耐心等待处理...",Bc_self,0xFFB3FF;
+		end;
+	}
+	
+	
+end;
+
+}

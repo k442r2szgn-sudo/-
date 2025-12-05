@@ -1,0 +1,246 @@
+//===== EinherjarRO 脚本 ================================== 
+//= 每日奖励系统
+//===== 作者: ============================================== 
+//= Stolao
+//===== 当前版本: ========================================= 
+//= 1.8C
+//===== 兼容版本: ========================================= 
+//= rAthena SVN
+//===== 功能描述: ========================================= 
+//= 为活跃玩家设计的奖励机制
+//===== 待办事项: =========================================
+//= 可能将.MinWait改为数组格式支持分/日/周/月/年;
+//= 实现下线后继续计时功能
+//= 分离计时器脚本实现灵活领取
+//= 移除sleep2用法
+//= 其他建议?
+//===== 附加说明: =========================================
+//= 旧版本参见历史存档
+//= 1.7C 新增自定义物品绑定模式 [Secretdataz]
+//= 1.7D 新增次日奖励立绘+指令
+//= 1.7E 新增IP校验
+//= 1.7F 将等待提示移至.MinWait检查后
+//= 1.80 为使用Gepard Shield用户添加MAC地址校验（默认关闭）
+//= 1.81 修正.MacCheck拼写
+//= 1.82 调整检查顺序防止奖励BUG
+//= 1.83 为绑定指令添加strnpcinfo(3)
+//= 1.84 重写部分配置说明
+//= 1.85 规范大写用法
+//= 1.86 优化缩进格式
+//= 1.87 更新奖励格式说明
+//= 1.88 新增'fixreward'指令修复负时间问题（待验证）
+//= 1.89 调整消息格式
+//= 1.8A 限定GM99可使用修复指令，其他需用'#fixreward'
+//= 1.8B 新增超重领取机制
+//= 1.8C 新增'@collectreward','@collectdaily','@dailyreward'@dailyreward指令
+//===== 联系方式: =========================================
+//= [Stolao] 
+//= 邮箱: Taingram11@gmail.com
+//========================================================
+-	script	LOGIN	-1,{
+OnWhisperGlobal:
+OnLoginCmnd:
+OnPCLoginEvent:
+	if(.IPCheck){
+		query_sql("SELECT last_ip FROM `login` WHERE account_id = "+getcharid(3)+"", .@LastIp$);
+		query_sql("SELECT account_id FROM `login` WHERE last_ip = '"+.@LastIp$+"'", .@AccountId);
+		if(getarraysize(.@AccountId) > .IPCheck){
+			message strcharinfo(0),"[每日奖励]: 每个IP限领"+.IPCheck+"次奖励";
+			end;
+		}
+	}
+	if(.MacCheck){
+		query_sql("SELECT last_unique_id FROM `login` WHERE account_id = "+getcharid(3)+"", .@last_unique_id$);
+		query_sql("SELECT account_id FROM `login` WHERE last_unique_id = '"+.@last_unique_id$+"'", .@AccountId2);
+		if(getarraysize(.@AccountId2) > .MacCheck){
+			message strcharinfo(0),"[每日奖励]: 每台电脑限领"+.MacCheck+"次奖励";
+			end;
+		}
+	}
+	.@i = (gettime(7) * 365 * 24 * 60) + (gettime(8) * 24 * 60) + (gettime(3) * 60) + gettime(2);
+	if(.@i >= (#LastDailyReward + .MinWait) && .Rest && !#DROverweight){
+		message strcharinfo(0),"[每日奖励]: 请保持在线"+.Rest+"分钟后再领取";
+		sleep2 1000 + .Rest * 60000;
+	}
+	if(.@i >= (#LastDailyReward + .MinWait)){
+		if(checkvending() & 2 && .Mode & 64){
+			message strcharinfo(0),"[每日奖励]: 摆摊状态无法领取奖励";
+			end;
+		}
+		if(.@i < #LastDailyReward + .MaxWait)
+			#DRewardCon += 1;
+		else	#DRewardCon = 1;
+		.@size = getarraysize(.Rewards$);
+		if(#DRewardCon >= .@size){
+			if(.Reset)
+				#DRewardCon = 1;
+			else	#DRewardCon = .@size-1;
+		}
+		explode(.@XT$,.Rewards$[#DRewardCon],",");
+		.@size = getarraysize(.@XT$);
+		for(.@x = 0; .@x < .@size; .@x++)
+			.@TT[.@x] = atoi(.@XT$[.@x]);
+		if(.Mode & 1 && .@TT[4] > 0){
+			.@size = getarraysize(.@TT);
+			for(.@x = 4; .@x <= .@size - 1 ; .@x += 2){
+				.@itms[.@y] = .@TT[.@x];
+				.@qnts[.@y] = .@TT[.@x + 1];
+				.@y++;
+			}
+			if(checkweight2(.@itms,.@qnts)){
+				for(.@x = 0; .@x < .@y; .@x++){
+					if(.Mode & 32)
+						getitembound  .@itms[.@x], .@qnts[.@x], .Bound_Mode;
+					else	getitem  .@itms[.@x], .@qnts[.@x];
+				}
+				#DROverweight = 0;
+			} else {
+				message strcharinfo(0),"[每日奖励]: 背包空间不足，请整理后使用@relog重新领取";
+				if(#DRewardCon) #DRewardCon -= 1;
+				#DROverweight = 1;
+				end;
+			}
+		}
+		if(.Mode & 16)
+			cutin .Cutins$[#DRewardCon],2;
+		if(.Mode & 2){
+			if(.@TT[0]){
+				zeny += .@TT[0];
+				message strcharinfo(0),"[每日奖励]: 获得"+ .@TT[0] +"Zeny";
+			}
+			if(.@TT[1]){
+				setd getd(.Points$[0]),getd(.Points$[0]) + .@TT[1];
+				message strcharinfo(0),"[每日奖励]: 获得"+ .@TT[1] +" "+.Points$[1];
+			}
+		}
+		if(.Mode & 4 && (.@TT[3] || .@TT[4]))
+			getexp .@TT[3], .@TT[4];
+		if(.Mode & 8){
+			.@size = getarraysize(.BuffInfo);
+			for(.@x = 0; .@x < .@size; .@x += 4){
+				if(#DRewardCon % .BuffInfo[.@x + 1] == 0)
+					sc_start .BuffInfo[.@x], .BuffInfo[.@x + 2] * 60000, .BuffInfo[.@x + 3];
+			}
+		}
+		message strcharinfo(0),"[每日奖励]: 已领取"+callfunc("F_InsertPlural",#DRewardCon,"日")+"连续奖励";
+		#LastDailyReward = (gettime(7) * 365 * 24 * 60) + (gettime(8) * 24 * 60) + (gettime(3) * 60) + gettime(2) - .Rest;
+		end;
+	}
+OnNextCmnd:
+	if(!.@i) .@i = (gettime(7) * 365 * 24 * 60) + (gettime(8) * 24 * 60) + (gettime(3) * 60) + gettime(2) - .Rest;
+	if(#LastDailyReward + .MinWait - .@i < 0){
+		message strcharinfo(0),"[每日奖励]: 现在可以领取奖励了";
+	} else {
+		.@days = (#LastDailyReward + .MinWait - .@i) / 60 / 24;
+		.@hours = ((#LastDailyReward + .MinWait - .@i) / 60) % 24;
+		.@mins = (#LastDailyReward + .MinWait - .@i) % 60;
+		message strcharinfo(0),"[每日奖励]: 剩余领取时间: "+ ((.@days) ? .@days +"天" : "") + ((.@hours) ? .@hours +"小时" : "") + ((.@mins) ? .@mins +"分钟" : "");
+		if(.Mode & 128){
+			set .@size,getarraysize(.Rewards$);
+			if(#DRewardCon + 1 >= .@size){
+				if(.Reset) .@g = 1;
+				else	   .@g = .@size-1;
+			} else		   .@g = #DRewardCon + 1;
+			cutin .Cutins$[.@g],2;
+		}
+	}
+	end;
+OnFixCmnd:
+	#LastDailyReward = (gettime(7) * 365 * 24 * 60) + (gettime(8) * 24 * 60) + (gettime(3) * 60) + gettime(2);
+	message strcharinfo(0),"[每日奖励]: 奖励时间已强制重置";
+	.@days = .MinWait / 60 / 24;
+	.@hours = .MinWait / 60 % 24;
+	.@mins = .MinWait % 60;
+	message strcharinfo(0),"[每日奖励]: 下次领取剩余: "+ ((.@days) ? .@days +"天" : "") + ((.@hours) ? .@hours +"小时" : "") + ((.@mins) ? .@mins +"分钟" : "");
+	end;
+OnInit:
+	// 基本设置
+	//   1:物品奖励 | 2:点数奖励 | 4:经验奖励  
+	//   8:连续登录获得BUFF 
+	//   16:显示立绘 | 32:绑定物品
+	//   64:摆摊状态不领取
+	//   128:显示次日奖励立绘
+	.Mode = 1|2|4|8|16|64;
+
+	// 同IP可领取次数
+	//   0=无限制
+	.IPCheck = 1;
+
+	// 同设备可领取次数
+	//   0=无限制
+	.MacCheck = 1;
+
+	// 物品绑定类型
+	//	 Bound_Account : 帐号绑定
+	//	 Bound_Guild   : 公会绑定
+	//	 Bound_Party   : 队伍绑定
+	//	 Bound_Char    : 角色绑定
+	.Bound_Mode = Bound_Account;
+	
+	// 要禁用@loginreward指令请注释以下内容
+	bindatcmd("relog",strnpcinfo(3)+"::OnLoginCmnd",0,99);
+	bindatcmd("collectreward",strnpcinfo(3)+"::OnLoginCmnd",0,99);
+	bindatcmd("dailyreward",strnpcinfo(3)+"::OnLoginCmnd",0,99);
+	bindatcmd("collectdaily",strnpcinfo(3)+"::OnLoginCmnd",0,99);
+	bindatcmd("nextreward",strnpcinfo(3)+"::OnNextCmnd",0,99);
+
+	// GM指令修复奖励时间异常
+	bindatcmd("fixreward",strnpcinfo(3)+"::OnFixCmnd",99,99);
+
+	// 最小领取间隔（分钟）
+	//   日奖励: 1320-1440
+	//   周奖励: 10080
+	.MinWait = 1;
+
+	// 连续奖励失效时间（分钟）
+	//   日奖励: 2880-3000
+	//   周奖励: 20160
+	.MaxWait = 3000;
+
+	// 奖励循环规则
+	//   [0]重复最后一天
+	//   [1]重新开始循环
+	.Reset = 1;
+
+	// 登录后需等待时间（分钟）
+	.Rest = 0;
+
+	// 点数类型设置
+	//   [0]点数变量
+	//   [1]点数名称
+	setarray .Points$,"#KAFRAPOINTS","K点";
+
+	// 连续登录BUFF配置
+	// 每组4个参数（最多32项）
+	// <BUFF类型>,<间隔天数>,<持续时间>,<强度>, // BUFF1
+	// <BUFF类型>,<间隔天数>,<持续时间>,<强度>, // BUFF2
+	setarray .BuffInfo	,260,2,360,1	// 每2天获得360分钟生命保险
+				,198,3,120,10	// 每3天+10%HP持续120分钟
+				,196,5,120,25	// 每5天+25闪避持续120分钟
+				,257,7,240,50;	// 每7天+50%经验持续240分钟
+
+	// 每日奖励配置（最多128天）：
+	setarray .Rewards$[1],
+		"0,0,0,0,27151,1,506,30",	// 第1天: 钻石の魂礼盒1个+绿色药水30个
+		"50000000",					// 第2天: 5QWZeny
+		"0,0,0,0,27151,1",		// 第3天: 铄金の魂礼盒1个
+		"0,0,0,0,503,5",	// 第4天: 时装附魔石箱2个 
+		"100000000",					// 第5天: 1EZeny
+		"0,0,0,0,501,5",		// 第6天: 红色药水5个
+		"100000000",					// 第7天: 1EZeny
+		"100000000",					// 第8天: 1EZeny
+		"0,0,0,0,503,5,506,5";	// 第9天: 白色药水5个+绿色药水5个
+
+	// 奖励立绘配置
+	setarray .Cutins$[1],
+			"kafra_01",
+			"kafra_02",
+			"kafra_03",
+			"kafra_04",
+			"kafra_05",
+			"kafra_06",
+			"kafra_07",
+			"kafra_08",
+			"kafra_09";
+end;
+}

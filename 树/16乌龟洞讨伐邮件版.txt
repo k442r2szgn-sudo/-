@@ -1,0 +1,764 @@
+//---------------------------------------------------------------------------------
+// 剧情：
+// 由于诸神之战魔族的失败，不甘心就这样沦为失败者的乌龟将军决心卷土重来，他用阴险的手段绑架了人类的国王并要求人类投降，
+// 大战以后同样元气大伤的人类目前也没有救出国王的实力，为此，王子发布了招募令，招募一支勇敢的小队去完成这个任务，可获得丰富的奖励
+/*
+  - Id: 207
+    Name: 乌龟洞讨伐
+    TimeLimit: 3600
+    Enter:
+      Map: 1@tur01
+      X: 145
+      Y: 262
+    AdditionalMaps:
+      1@tur02: true
+      1@tur03: true
+      1@tur04: true
+*/
+//---------------------------------------------------------------------------------
+
+1@pop3,65,47,3	script	乌龟洞讨伐登记处	852,{
+
+	if(Baselevel < .member_baselv){
+		mes "副本要求BaseLevel不低于"+.member_baselv+"级，目前你无法挑战此副本. ";
+		close;
+	}
+	.@md_name$ = "乌龟洞讨伐";
+	//.@quest_id = 30000;
+
+	// 检查副本冷却时间
+	if(otur_timer > 0){
+		.@remaining_time = otur_timer - gettimetick(2);
+		if(.@remaining_time > 0){
+			.@hours = .@remaining_time / 3600;
+			.@minutes = (.@remaining_time % 3600) / 60;
+			.@seconds = .@remaining_time % 60;
+			
+			mes "^FF0000[ 时间限制 ]^000000";
+			mes "你当前处于副本冷却时间中！";
+			mes "剩余时间：^FF0000" + .@hours + "^000000小时^FF0000" + .@minutes + "^000000分钟^FF0000" + .@seconds + "^000000秒";
+			mes "请等待冷却时间结束后再尝试进入副本。";
+			close;
+		}
+	}
+	
+
+	callfunc "F_oro_instance_welcome", 
+			.@md_name$,
+			.level,
+			.party_members,
+			.member_baselv,
+			.need_zeny,
+			strnpcinfo(0),
+			".win_item_id",
+			".win_point",
+			".win_zeny",
+			".need_item_id",
+			".need_item_num";
+
+	end;
+
+OnInit:
+//--------------------------------------基本配置--------------------------------------------
+	.level = 3;
+	.need_zeny = 10000;			//报名费用
+	.party_members = 1;			//队伍人数最小值
+	.member_baselv = 99;		//成员最低基本等级
+	.win_zeny = 2000000;		//奖励金钱
+	.win_point = 150;			//积分
+	setarray .win_item_id, 601; //39022, 40006, 40009, 40013, 40009, 64016, 64017, 64018, 64019, 64020, 64021, 64073, 64074, 64003, 64005, 50225, 50224, 50226, 50227;		//随机奖励物品
+	.win_item_count = 1;			//奖励物品种类1表示只随机或者一种，不是个数
+	.win_fixed_item_id = 603;		//固定奖励物品
+	setarray .need_item_id[0],601;		//入场道具编号
+	setarray .need_item_num[0],1;		//入场道具数量
+
+	setarray $@oro_tur01_mob_id, 1002;	//一层怪ID
+	setarray $@oro_tur01_mob_num, 30;		//一层怪数量对应
+	setarray $@oro_tur02_mob_id, 1002;	//二层怪ID
+	setarray $@oro_tur02_mob_num, 55;
+	setarray $@oro_tur03_mob_id, 1002;
+	setarray $@oro_tur03_mob_num, 1;
+	$@oro_tur01_boss_id = 1004;		//一层守将
+	setarray $@oro_tur02_boss_id, 1004;	//二层守将
+	setarray $@oro_tur02_boss_num, 2;
+	$@oro_tur03_boss_id = 1004;		//三层BOSS
+	end;
+
+
+}
+
+//-------------------------1F事件流程-------------------------
+1@tur01,0,0,0	script	E_oro_tur01	-1,{
+end;
+//-------------------------1F剧情对话-------------------------
+OnStart:
+	sleep 10000;
+	mapannounce instance_mapname(strnpcinfo(4)), "[一层]龟龟副尉 : 是谁闯了进来，你们几个快去检查一下！",bc_map,0xff0000;
+	sleep 2000;
+	mapannounce instance_mapname(strnpcinfo(4)), "[一层]乌龟探子 : 遵命！",bc_map,0xff0000;
+	sleep 2000;
+	mapannounce instance_mapname(strnpcinfo(4)), "[一层]乌龟探子 : 报告副尉，有几个人类不知道从哪里闯了进来！",bc_map,0xff0000;
+	sleep 2000;
+	mapannounce instance_mapname(strnpcinfo(4)), "[一层]乌龟副尉 : 弱小的人类，胆敢闯进来，看来是活够了，去把他们全部杀了！",bc_map,0xff0000;
+	sleep 2000;
+	mapannounce instance_mapname(strnpcinfo(4)), "[一层]乌龟探子 : 遵命！",bc_map,0xff0000;
+	sleep 2000;
+	mapannounce instance_mapname(strnpcinfo(4)), "乌龟大军即将赶来，请做好战斗准备！",bc_map,0xffff00;
+	sleep 2000;
+	donpcevent instance_npcname(strnpcinfo(0))+"::OnMyMobSummon";
+	end;
+
+//-------------------------1F刷怪开始-------------------------
+OnMyMobSummon:
+	//mapannounce instance_mapname(strnpcinfo(4)), "刷怪开始！",bc_map,0xff0000;		//测试用
+	callfunc "oro_summon",
+		1,						//当前楼层
+		instance_mapname(strnpcinfo(4)),			//地图名字
+		"$@oro_tur01_mob_id",				//怪物ID变量
+		"$@oro_tur01_mob_num",				//怪物数量变量
+		instance_npcname(strnpcinfo(0))+"::OnMyMobDead",	//事件标签
+		"[副本]";					//怪物名字前缀
+	end;
+//-------------------------------------------------------------
+OnMyMobDead:
+	.@mob_left = mobcount(instance_mapname(strnpcinfo(4)), instance_npcname(strnpcinfo(0))+"::OnMyMobDead");
+	if(.@mob_left > 0){
+		mapannounce instance_mapname(strnpcinfo(4)), "[提示] 敌军还剩下"+.@mob_left+"名，请小心应对...",bc_map,0x00ff00;
+	}else{
+		mapannounce instance_mapname(strnpcinfo(4)), "一层的乌龟大军已全部消灭干净，通往下一层的机关已出现！",bc_map,0xffff00;
+		//viewpoint 1,148,263,1,0xFF0000;
+		//mapannounce instance_mapname(strnpcinfo(4)), "[提示] 请前往小地图上所标记的位置查看...",bc_map,0x00ff00;
+		enablenpc instance_npcname("机关#1F");		//显示机关
+	}
+	end;
+
+OnInstanceInit:
+	donpcevent instance_npcname(strnpcinfo(0))+"::OnStart";
+	end;
+}
+
+//-------------------------1F传送点-------------------------
+1@tur01,147,265,0	script	warp_tur01	45,1,1,{
+
+	warp instance_mapname("1@tur02"),131,186;
+	end;
+
+OnInit:
+	disablenpc strnpcinfo(0);
+	end;
+
+OnInstanceInit:
+	disablenpc instance_npcname(strnpcinfo(0));
+	end;
+}
+
+//-------------------------1F机关-------------------------
+1@tur01,147,262,0	script	机关#1F	406,{
+
+	if (instance_id(IM_PARTY)){
+		if(getcharid(0) != getpartyleader(getcharid(1),2)){
+			mes "只有队长才可以操作！";
+			close;
+		}
+		if(.device == 1){
+			mes "已经开启过此机关了！";
+			close;
+		}
+		mes "开启机关后无法知道会发生什么事情，是否还要开启！";
+		switch (select("是","否")) {
+		default:
+		case 1:		
+			.device = 1;
+			if(rand(100) > 90){
+				donpcevent instance_npcname(strnpcinfo(0))+"::OnFinish";
+				mes "传送点打开了！";
+				close2;
+				disablenpc instance_npcname("机关#1F");
+				end;
+			}else{
+				donpcevent instance_npcname(strnpcinfo(0))+"::OnMyBossSummon";
+				mapannounce instance_mapname(strnpcinfo(4)), "糟糕，开启机关的时候惊动了乌龟副尉！",bc_map,0xffff00;
+				end;
+			}
+			break;
+		case 2:
+			break;
+		}
+	}else{
+		mes "通往下一层的人员名单里并没有你~";
+	}
+	mes "再见~";
+	close;
+
+OnMyBossSummon:
+	.@map$ = instance_mapname(strnpcinfo(4));
+	.@name_front$ = "[副本]";
+	.@mob_id = $@oro_tur01_boss_id;
+	.@mob_num = 1;
+	.@labs$ = instance_npcname(strnpcinfo(0))+"::OnMyBossDead";
+	monster(.@map$, 145, 255, .@name_front$+strmobinfo(2, .@mob_id), .@mob_id, .@mob_num, .@labs$);
+	end;
+
+OnMyBossDead:
+	mapannounce instance_mapname(strnpcinfo(4)), "本层怪物被消灭！",bc_map,0xffff00;
+	donpcevent instance_npcname(strnpcinfo(0))+"::OnFinish";
+	end;
+
+OnFinish:
+	mapannounce instance_mapname(strnpcinfo(4)), "传送点打开了！！",bc_map,0x00ff00;
+	enablenpc instance_npcname("warp_tur01");
+	donpcevent instance_npcname("E_oro_tur02")+"::OnStart";
+	disablenpc instance_npcname("机关#1F");
+	end;
+
+OnInit:
+	disablenpc strnpcinfo(0);
+	end;
+
+OnInstanceInit:
+	disablenpc instance_npcname(strnpcinfo(0));
+	end;
+}
+
+//-------------------------2F事件流程-------------------------
+1@tur02,0,0,0	script	E_oro_tur02	-1,{
+end;
+
+//-------------------------2F剧情对话-------------------------
+OnStart:
+	sleep 10000;
+	mapannounce instance_mapname(strnpcinfo(4)), "[二层]乌龟校尉 : 没想到你们居然能来到这里，看来是小瞧你们了！",bc_map,0xff0000;
+	sleep 2000;
+	mapannounce instance_mapname(strnpcinfo(4)), "[二层]乌龟校尉 : 听令，集结所有精英军队，我要让他们都死在这里！",bc_map,0xff0000;
+	sleep 2000;
+	mapannounce instance_mapname(strnpcinfo(4)), "[二层]乌龟精英 : 遵命，所有人都跟我来！",bc_map,0xff0000;
+	sleep 2000;
+	mapannounce instance_mapname(strnpcinfo(4)), "[BOSS]乌龟大将军 : 一群废物，把他们全部杀了！",bc_map,0xff0000;
+	sleep 2000;
+	mapannounce instance_mapname(strnpcinfo(4)), "看来乌龟大军要与我们拼个你死我活了，请小心应战！",bc_map,0xffff00;
+	sleep 2000;
+	donpcevent instance_npcname(strnpcinfo(0))+"::OnMyMobSummon";
+	end;
+
+
+//-------------------------2F刷怪开始-------------------------
+OnMyMobSummon:
+	//mapannounce instance_mapname(strnpcinfo(4)), "刷怪开始！",bc_map,0xff0000;		//测试用
+	callfunc "oro_summon",
+		1,						//当前楼层
+		instance_mapname(strnpcinfo(4)),			//地图名字
+		"$@oro_tur02_mob_id",				//怪物ID变量
+		"$@oro_tur02_mob_num",				//怪物数量变量
+		instance_npcname(strnpcinfo(0))+"::OnMyMobDead",	//事件标签
+		"[副本]";					//怪物名字前缀
+	end;
+//-------------------------------------------------------------
+OnMyMobDead:
+	.@mob_left = mobcount(instance_mapname(strnpcinfo(4)), instance_npcname(strnpcinfo(0))+"::OnMyMobDead");
+	if(.@mob_left > 0){
+		mapannounce instance_mapname(strnpcinfo(4)), "[提示] 敌军还剩下"+.@mob_left+"名，请小心应对...",bc_map,0x00ff00;
+	}else{
+		mapannounce instance_mapname(strnpcinfo(4)), "二层的乌龟大军已全部消灭干净！",bc_map,0xffff00;
+		sleep 3000;
+		mapannounce instance_mapname(strnpcinfo(4)), "不好，乌龟校尉和它的分身出现在地图的某个角落，从来没人见过它，它居然亲自上阵了，可能是一场苦战！",bc_map,0xffff00;
+		sleep 2000;
+		mapannounce instance_mapname(strnpcinfo(4)), "[二层]乌龟校尉：你们这群不知死活的人类，受死吧！",bc_map,0xff0000;
+		donpcevent instance_npcname(strnpcinfo(0))+"::OnMyBossSummon";	//召唤守将
+	}
+	end;
+
+
+OnMyBossSummon:
+	callfunc "oro_summon",
+		2,						//当前楼层
+		instance_mapname(strnpcinfo(4)),			//地图名字
+		"$@oro_tur02_boss_id",				//怪物ID变量
+		"$@oro_tur02_boss_num",				//怪物数量变量
+		instance_npcname(strnpcinfo(0))+"::OnMyBossDead",	//事件标签
+		"[副本]";					//怪物名字前缀
+	end;
+
+OnMyBossDead:
+	.@mob_left = mobcount(instance_mapname(strnpcinfo(4)), instance_npcname(strnpcinfo(0))+"::OnMyBossDead");
+	if(.@mob_left > 0){
+		mapannounce instance_mapname(strnpcinfo(4)), "[提示] 敌军还剩下"+.@mob_left+"名，请小心应对...",bc_map,0x00ff00;
+	}else{
+		mapannounce instance_mapname(strnpcinfo(4)), "本层怪物被消灭！",bc_map,0xffff00;
+		donpcevent instance_npcname(strnpcinfo(0))+"::OnFinish";
+	}
+	end;
+
+OnFinish:
+	mapannounce instance_mapname(strnpcinfo(4)), "传送点打开了！！",bc_map,0x00ff00;
+	enablenpc instance_npcname("warp_tur02");
+	donpcevent instance_npcname("E_oro_tur03")+"::OnStart";
+	end;
+
+}
+
+//-------------------------2F传送点-------------------------
+1@tur02,218,71,0	script	warp_tur02	45,1,1,{
+
+	warp instance_mapname("1@tur03"),100,16;
+	end;
+
+OnInit:
+	disablenpc strnpcinfo(0);
+	end;
+
+OnInstanceInit:
+	disablenpc instance_npcname(strnpcinfo(0));
+	end;
+}
+
+//-------------------------3F开始-------------------------
+1@tur03,99,25,3	script	受伤的刺客	697,{
+	mes "乌龟大将军就在里面... ";
+	mes "实在太强大了... ";
+	mes "全...全都死了... ";
+	mes "我们是为了救^362ED6国王和工匠^000000 ";
+	mes "哎...";
+	mes "你们赶紧逃吧！！";
+	close;
+OnInit:
+	disablenpc strnpcinfo(0);
+	end;
+
+OnInstanceInit:
+	disablenpc instance_npcname(strnpcinfo(0));
+	end;
+}
+
+//-------------------------------------------------------------
+1@tur03,69,35,3	script	死亡的友军#1	692,{
+end;
+OnInit:
+	disablenpc strnpcinfo(0);
+	end;
+
+OnInstanceInit:
+	disablenpc instance_npcname(strnpcinfo(0));
+	end;
+}
+
+//956 108
+1@tur03,104,98,3	script	国王#1	108,{
+
+OnInit:
+	disablenpc strnpcinfo(0);
+	end;
+
+OnInstanceInit:
+	disablenpc instance_npcname(strnpcinfo(0));
+	end;
+
+}
+//-------------------------------------------------------------
+
+1@tur03,145,27,3	duplicate(死亡的友军#1)	死亡的友军#2	694
+1@tur03,166,87,3	duplicate(死亡的友军#1)	死亡的友军#3	689
+1@tur03,146,152,3	duplicate(死亡的友军#1)	死亡的友军#4	687
+1@tur03,88,95,3	duplicate(死亡的友军#1)	死亡的友军#5	699
+
+//-------------------------------------------------------------
+1@tur03,0,0,0	script	E_oro_tur03	-1,{
+end;
+
+OnStart:
+	enablenpc instance_npcname("国王#1");
+	enablenpc instance_npcname("受伤的刺客");
+	enablenpc instance_npcname("死亡的友军#1");
+	enablenpc instance_npcname("死亡的友军#2");
+	enablenpc instance_npcname("死亡的友军#3");
+	enablenpc instance_npcname("死亡的友军#4");
+	initnpctimer;
+	donpcevent instance_npcname(strnpcinfo(0))+"::OnMyBossSummon";
+	mapannounce instance_mapname(strnpcinfo(4)), "国王 : 你们千万要小心啊，乌龟大将军5分钟后会变成暴走状态，几乎无敌！！！",bc_map,0x00ff00;
+	end;
+
+OnMyBossSummon:
+	.@map$ = instance_mapname(strnpcinfo(4));
+	.@name_front$ = "[终极BOSS]";
+	.@mob_id = $@oro_tur03_boss_id;
+	.@mob_num = 1;
+	.@labs$ = instance_npcname(strnpcinfo(0))+"::OnMyBossDead";
+	monster(.@map$, 100, 110, .@name_front$+strmobinfo(2, .@mob_id), .@mob_id, .@mob_num, .@labs$);
+	mapannounce .@map$, "乌龟大将军 : 都给我去死吧，拿命来！！！",bc_map,0xff0000;
+	end;
+
+OnTimer300000:
+	stopnpctimer;
+	mapannounce  instance_mapname(strnpcinfo(4)), "[BOSS]乌龟将军 : 就凭你们几个愚蠢的人类也想来挑战我，都去死吧！！！",bc_map,0xff0000;
+	sleep 2000;
+	script4each "atcommand @die;",1,instance_mapname(strnpcinfo(4));
+	instance_destroy();
+	end;
+
+OnMyBossDead:
+	stopnpctimer;
+	mapannounce instance_mapname(strnpcinfo(4)), "终极BOSS乌龟大将军被消灭！",bc_map,0xffff00;
+	sleep 2000;
+	mapannounce  instance_mapname(strnpcinfo(4)), "[BOSS]乌龟大将军 : 没想到我会败在你们这群愚蠢的人类手里！！！",bc_map,0xff0000;
+	sleep 2000;
+	mapannounce instance_mapname(strnpcinfo(4)), "国王 : 感谢你们，我亲爱的勇士们，我将给于你们特殊的奖励！！！",bc_map,0x00ff00;
+	enablenpc instance_npcname("奖励发放员#tur");
+	end;
+
+}
+
+1@tur03,93,98,5	script	奖励发放员#tur	718,{
+
+	callfunc "oro_reword_npc_instance", strnpcinfo(0);
+	end;
+
+OnInit:
+	disablenpc strnpcinfo(0);
+end;
+
+OnInstanceInit:
+	disablenpc instance_npcname(strnpcinfo(0));
+	end;
+}
+
+
+//-----------------------------刷怪函数--------------------------------
+function	script	oro_summon	{
+	.@level =  getarg(0);
+	.@map$ = getarg(1);
+	.@mob_id$ = getarg(2);
+	.@mob_num$ = getarg(3);
+	.@labs$ = getarg(4);
+	.@name_front$ = getarg(5);
+	.@i = 0;
+	do{
+		if(.@level == 1){
+			areamonster(.@map$, 0, 0, 300, 300, .@name_front$+strmobinfo(2, getd(.@mob_id$ + "[" + .@i + "]")), getd(.@mob_id$ + "[" + .@i + "]"), getd(.@mob_num$ + "[" + .@i + "]"), .@labs$);
+		}else{
+			monster(.@map$, 0, 0, .@name_front$+strmobinfo(2, getd(.@mob_id$ + "[" + .@i + "]")), getd(.@mob_id$ + "[" + .@i + "]"), getd(.@mob_num$ + "[" + .@i + "]"), .@labs$);
+		}
+		.@i++;
+	}while(.@i < getarraysize(getd(.@mob_id$)));
+	mapannounce .@map$, "开始战斗吧...",bc_map,0xffff00;
+	return;
+}
+//-------------------------------------------------------------
+
+
+
+//-----------------------------mapflag设定--------------------------------
+1@tur01	mapflag	nobranch
+1@tur01	mapflag	nomemo
+1@tur01	mapflag	noteleport
+1@tur01	mapflag	nowarp
+1@tur01	mapflag	nowarpto
+1@tur01	mapflag	nogo
+1@tur01	mapflag	nosave
+1@tur01	mapflag	restricted	7
+1@tur01	mapflag	monster_noteleport
+
+1@tur02	mapflag	nobranch
+1@tur02	mapflag	nomemo
+1@tur02	mapflag	noteleport
+1@tur02	mapflag	nowarp
+1@tur02	mapflag	nowarpto
+1@tur02	mapflag	nogo
+1@tur02	mapflag	nosave
+1@tur02	mapflag	restricted	7
+1@tur02	mapflag	monster_noteleport
+
+1@tur03	mapflag	nobranch
+1@tur03	mapflag	nomemo
+1@tur03	mapflag	noteleport
+1@tur03	mapflag	nowarp
+1@tur03	mapflag	nowarpto
+1@tur03	mapflag	nogo
+1@tur03	mapflag	nosave
+1@tur03	mapflag	restricted	7
+1@tur03	mapflag	monster_noteleport
+
+//-----------------------------副本时间限制函数--------------------------------
+function	script	F_oro_instance_lim_time	{
+	.@timer_var$ = getarg(0);		// 计时器变量名
+	.@time_limit = getarg(1);		// 时间限制（秒）
+	
+	// 检查是否已经设置过时间限制
+	if(getd(.@timer_var$) > 0){
+		.@remaining_time = getd(.@timer_var$) - gettimetick(2);
+		if(.@remaining_time > 0){
+			.@hours = .@remaining_time / 3600;
+			.@minutes = (.@remaining_time % 3600) / 60;
+			.@seconds = .@remaining_time % 60;
+			
+			mes "^FF0000[ 时间限制 ]^000000";
+			mes "你当前处于副本冷却时间中！";
+			mes "剩余时间：^FF0000" + .@hours + "^000000小时^FF0000" + .@minutes + "^000000分钟^FF0000" + .@seconds + "^000000秒";
+			mes "请等待冷却时间结束后再尝试进入副本。";
+			close;
+		}
+	}
+	
+	// 设置新的时间限制
+	setd .@timer_var$, gettimetick(2) + .@time_limit;
+	
+	mes "^00FF00[ 时间限制已设置 ]^000000";
+	mes "副本冷却时间已设置为^FF0000" + (.@time_limit / 3600) + "^000000小时。";
+	mes "在此期间你将无法再次进入此副本。";
+	close;
+}
+
+//-----------------------------副本奖励发放函数--------------------------------
+function	script	oro_reword_npc_instance	{
+	.@npc_name$ = getarg(0);		// NPC名称
+	
+	// 显示奖励界面
+	mes "^0055FF[ 副本奖励发放 ]^000000";
+	mes "恭喜你成功完成乌龟洞讨伐副本！";
+	mes "作为奖励，你将获得以下物品：";
+	
+	// 直接指定要发放的物品，不再依赖外部变量
+	set .@fixed_item_id, 603;		// 固定奖励物品ID
+	set .@random_item_id, 601;		// 随机奖励物品ID
+	set .@win_zeny, 2000000;		// 奖励金钱
+
+	
+	// 显示奖励内容
+	mes "- ^FF0000" + getitemname(.@fixed_item_id) + " x1^000000";
+	mes "- ^FF0000" + getitemname(.@random_item_id) + " x1^000000";
+	mes "- ^FF0000" + .@win_zeny + " Zeny^000000";
+
+	
+	mes "是否领取奖励？";
+	next;
+	
+	switch(select("领取奖励","取消")){
+		case 1:
+			set .@mail_sent, 0;
+			set .@success_count, 0;
+			
+			// 发放固定奖励
+			if(.@fixed_item_id > 0){
+				set .@result, callfunc("F_Turtle_SendRewardByMail", .@fixed_item_id, 1);
+				if (.@result > 0) {
+					set .@success_count, .@success_count + 1;
+					if (.@result == 2) set .@mail_sent, 1;
+				}
+			}
+			
+			// 发放随机奖励
+			if(.@random_item_id > 0){
+				set .@result, callfunc("F_Turtle_SendRewardByMail", .@random_item_id, 1);
+				if (.@result > 0) {
+					set .@success_count, .@success_count + 1;
+					if (.@result == 2) set .@mail_sent, 1;
+				}
+			}
+			
+			// 发放金钱奖励
+			if(.@win_zeny > 0){
+				Zeny = Zeny + .@win_zeny;
+				set .@success_count, .@success_count + 1;
+			}
+			
+			// 检查是否有奖励成功发放
+			if (.@success_count > 0) {
+				mes "^00FF00[ 奖励发放成功 ]^000000";
+				mes "所有奖励已发放！";
+				if (.@mail_sent == 1) {
+					mes "^FFA500注意：部分物品已通过邮件发送，请查收邮箱。^000000";
+				}
+				mes "感谢你为拯救国王做出的贡献！";
+			} else {
+				mes "^FF0000[ 错误 ]^000000";
+				mes "奖励发放失败，请联系管理员。";
+			}
+			
+			close2;
+			
+			
+			// 销毁副本
+			instance_destroy();
+			end;
+			
+		case 2:
+			mes "^777777[ 取消 ]^000000";
+			mes "你取消了奖励领取。";
+			close;
+	}
+	
+	return;
+}
+
+//========== 乌龟洞讨伐邮件发送奖励函数 ==========
+function	script	F_Turtle_SendRewardByMail	{
+	set .@item_id, getarg(0);
+	set .@item_amount, getarg(1);
+	
+	// 检查物品ID是否有效
+	if (.@item_id == 0) {
+		debugmes "错误: 物品ID为0";
+		return 0;
+	}
+	
+	set .@item_name$, getitemname(.@item_id);
+	if (.@item_name$ == "null") {
+		debugmes "错误: 无效的物品ID " + .@item_id;
+		return 0;
+	}
+	
+	set .@char_id, getcharid(0);
+	set .@char_name$, strcharinfo(0);
+	
+	debugmes "尝试发放物品: " + .@item_name$ + " (" + .@item_id + ") x" + .@item_amount;
+	
+	// 首先尝试直接给予物品
+	if (checkweight(.@item_id, .@item_amount) == 1) {
+		getitem .@item_id, .@item_amount;
+		debugmes "物品直接发放成功";
+		dispbottom "^00FF00[系统提示]^000000 获得 [" + .@item_name$ + " x" + .@item_amount + "]";
+		return 1; // 成功直接给予
+	} 
+	// 如果背包已满，尝试通过邮件发送
+	else {
+		debugmes "背包已满，尝试通过邮件发送";
+		
+		// 使用更简单的邮件发送方式
+		set .@mail_result, 0;
+		
+		// 方法1: 使用mail命令
+		mail .@char_id, "乌龟洞讨伐系统", "副本奖励", "您在乌龟洞讨伐副本中获得的奖励物品", 0, .@item_id, .@item_amount;
+		set .@mail_result, 1;
+		
+		// 方法2: 如果上面的方法不行，尝试使用query_sql直接插入邮件
+		if (.@mail_result == 0) {
+			query_sql "INSERT INTO `mail` (`send_name`, `dest_id`, `title`, `message`, `time`, `zeny`, `nameid`, `amount`, `identify`, `refine`, `attribute`, `card0`, `card1`, `card2`, `card3`) VALUES ('乌龟洞讨伐系统', '"+.@char_id+"', '副本奖励', '您在乌龟洞讨伐副本中获得的奖励物品', UNIX_TIMESTAMP(), 0, '"+.@item_id+"', '"+.@item_amount+"', 1, 0, 0, 0, 0, 0, 0)";
+			set .@mail_result, 1;
+		}
+		
+		if (.@mail_result == 1) {
+			debugmes "邮件发送成功";
+			dispbottom "^FF0000[系统提示]^000000 由于背包已满，您获得的 [" + .@item_name$ + " x" + .@item_amount + "] 已通过邮件发送，请查收邮箱。";
+			return 2; // 邮件发送成功
+		} else {
+			debugmes "邮件发送失败";
+			dispbottom "^FF0000[系统提示]^000000 奖励发放失败，背包已满且邮件发送失败，请联系管理员。";
+			return 0; // 发放失败
+		}
+	}
+	
+	return 0;
+}
+//-----------------------------副本欢迎函数--------------------------------
+function	script	F_oro_instance_welcome	{
+	.@md_name$ = getarg(0);		// 副本名称
+	.@level = getarg(1);			// 副本难度等级
+	.@party_members = getarg(2);		// 队伍人数要求
+	.@member_baselv = getarg(3);		// 成员最低等级
+	.@need_zeny = getarg(4);		// 报名费用
+	.@npc_name$ = getarg(5);		// NPC名称
+	.@win_item_id$ = getarg(6);		// 奖励物品变量名
+	.@win_point$ = getarg(7);		// 奖励积分变量名
+	.@win_zeny$ = getarg(8);		// 奖励金钱变量名
+	.@need_item_id$ = getarg(9);		// 入场道具变量名
+	.@need_item_num$ = getarg(10);	// 入场道具数量变量名
+	
+	// 显示副本欢迎界面
+	mes "^0055FF[ " + .@md_name$ + " ]^000000";
+	mes "欢迎来到乌龟洞讨伐副本！";
+	mes "副本难度：^FF0000" + .@level + "星^000000";
+	mes "队伍要求：至少^FF0000" + .@party_members + "^000000人组队";
+	mes "等级要求：BaseLevel ^FF0000" + .@member_baselv + "^000000级以上";
+	mes "报名费用：^FF0000" + .@need_zeny + "^000000 Zeny";
+	
+	// 检查队伍人数
+	if(getcharid(1) == 0){
+		mes "^FF0000[ 错误 ]^000000";
+		mes "你必须组队才能进入此副本！";
+		close;
+	}
+	
+	if(getpartymember(getcharid(1),1) < .@party_members){
+		mes "^FF0000[ 错误 ]^000000";
+		mes "队伍人数不足，需要至少^FF0000" + .@party_members + "^000000人！";
+		close;
+	}
+	
+	// 检查是否为队长
+	if(getcharid(0) != getpartyleader(getcharid(1),2)){
+		mes "^FF0000[ 错误 ]^000000";
+		mes "只有队长才能报名进入副本！";
+		close;
+	}
+	
+	// 检查金钱
+	if(Zeny < .@need_zeny){
+		mes "^FF0000[ 错误 ]^000000";
+		mes "你的金钱不足，需要^FF0000" + .@need_zeny + "^000000 Zeny！";
+		close;
+	}
+	
+	// 检查入场道具 - 修正部分
+	.@need_item_array_size = getarraysize(getd(.@need_item_id$));
+	for(.@i = 0; .@i < .@need_item_array_size; .@i++) {
+		.@need_item_id = getd(.@need_item_id$ + "[" + .@i + "]");
+		.@need_item_num = getd(.@need_item_num$ + "[" + .@i + "]");
+		
+		if(countitem(.@need_item_id) < .@need_item_num){
+			mes "^FF0000[ 错误 ]^000000";
+			mes "你需要^FF0000" + getitemname(.@need_item_id) + " x" + .@need_item_num + "^000000才能进入副本！";
+			close;
+		}
+	}
+	
+	// 确认进入副本
+	mes "是否确认进入副本？";
+	next;
+	
+	switch(select("确认进入","取消")){
+		case 1:
+			// 扣除金钱和道具 - 修正部分
+			Zeny = Zeny - .@need_zeny;
+			
+			// 扣除所有需要的道具
+			for(.@i = 0; .@i < .@need_item_array_size; .@i++) {
+				.@need_item_id = getd(.@need_item_id$ + "[" + .@i + "]");
+				.@need_item_num = getd(.@need_item_num$ + "[" + .@i + "]");
+				delitem .@need_item_id, .@need_item_num;
+			}
+			
+			// 创建副本
+			.@instance_id = instance_create(.@md_name$, IM_PARTY);
+			
+			if(.@instance_id <= 0){
+				mes "^FF0000[ 错误 ]^000000";
+				mes "副本创建失败，请稍后再试！";
+				// 返还金钱和道具
+				Zeny = Zeny + .@need_zeny;
+				for(.@i = 0; .@i < .@need_item_array_size; .@i++) {
+					.@need_item_id = getd(.@need_item_id$ + "[" + .@i + "]");
+					.@need_item_num = getd(.@need_item_num$ + "[" + .@i + "]");
+					getitem .@need_item_id, .@need_item_num;
+				}
+				close;
+			}
+			
+			mes "^00FF00[ 成功 ]^000000";
+			mes "副本创建成功！正在传送...";
+			close2;
+			
+			// 传送队伍成员到副本
+			getpartymember getcharid(1),2;
+			for(set .@i, 0; .@i < $@partymembercount; set .@i, .@i + 1){
+				if(attachrid($@partymemberaid[.@i])){
+					warp instance_mapname("1@tur01"), 146, 264;
+				}
+			}
+			end;
+			
+		case 2:
+			mes "^777777[ 取消 ]^000000";
+			mes "你取消了副本报名。";
+			close;
+	}
+	
+	return;
+}

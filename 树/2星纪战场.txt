@@ -1,0 +1,735 @@
+/*
+= 适合范围: BRa
+= <<特色战场>>
+============================================================
+= 更多定制副本创意可以联系作者编写
+= 请勿盗卖 转发他人 版本所有
+============================================================
+= 2021-09-30 by
+= * 添加死亡后返回战场的时间设定
+= * 添加限制指定技能使用次数
+============================================================
+= 2021-10-03 by
+= * 添加设置返场时间，每10分钟增加设定的秒数
+*/
+
+bat_b01	mapflag	battleground	2
+bat_b01	mapflag	tribe
+bat_b01	mapflag	nomemo
+bat_b01	mapflag	nosave	SavePoint
+bat_b01	mapflag	noteleport
+bat_b01	mapflag	nowarp
+bat_b01	mapflag	nowarpto
+bat_b01	mapflag	noreturn
+bat_b01	mapflag	nobranch
+bat_b01	mapflag	nopenalty
+bat_b01	mapflag	partylock
+bat_b01	mapflag	noloot
+bat_b01	mapflag	nopet
+
+bat_room	mapflag	nomemo
+bat_room	mapflag	nosave	SavePoint
+bat_room	mapflag	noteleport
+bat_room	mapflag	nowarp
+bat_room	mapflag	nowarpto
+bat_room	mapflag	noreturn
+bat_room	mapflag	nobranch
+bat_room	mapflag	nopenalty
+bat_room	mapflag	partylock
+bat_room	mapflag	noloot
+bat_room	mapflag	nopet
+
+//prontera,156,176,4	itemshop	战场兑换店	469,7432,8993:100,8701:105,20727:120,20737:120,30013:5,8998:1,22829:20,8601:100,7199:100,13620:15,20185:5,12412:5,24021:50,24023:50,24245:15,24244:15,24243:15,24022:15,30009:2,7308:3,6082:3,1072:3,7109:8,7020:8,658:8,22995:5,30003:2,30004:3,30005:5,12592:20,2204:20
+
+
+bat_room,159,150,4	script	星纪战场工作人员	736,{
+	mes "[星纪战场工作人员]";
+	next;
+	switch(select("返回首都:取消")) {
+		case 1:
+			mes "[星纪战场工作人员]";
+			mes "这就送你出去";
+			close2;
+			warp "prontera",155,152;
+			end;
+		case 2:
+			close;
+	}	
+OnInit:
+	.npcname$ = "[返回首都]";
+	while(1){
+		showscript "[ 返回首都 ]";
+		sleep 1000;
+	}	
+	end;
+}
+
+bat_b01,0,0,0	script	#开局计时	-1,{
+
+//OnTimer60000:
+OnTimer120000:
+	$@BG_time_minute++;
+	initnpctimer;
+	end;
+
+}
+
+
+bat_b01,0,0,0	script	#全局控制	-1,{
+	end;
+Onstoptimer:
+	stopnpctimer;
+	end;
+OnInit:
+	.annBlueColor = 0xB094F9;	
+	.annRedColor = 0xB094F9;	
+	.annKillColor = 0xB094F9;	
+	end;
+
+OnWallDied:
+	end;
+
+// OnPCDieEvent
+OnPCDieEvent:
+	getmapxy(.@mapname$, .@mapx, .@mapy, BL_PC);
+	if ( .@mapname$!= "bat_b01" ) end;
+	.@t = rand($@BG_back_time[0],$@BG_back_time[1]);
+	.@t = .@t + ($@BG_time_minute/10)*$@BG_back_time_add;
+	dispbottom "你将会在"+.@t+"秒后返场。";
+	addtimer .@t*1000,"#全局控制::OnEvBack";
+	end;
+
+OnEvBack:
+	if($@game_statr ==0)end;
+	getmapxy(.@mapname$, .@mapx, .@mapy, BL_PC);
+	if ( .@mapname$!= "bat_b01" ) end;
+	if (tribe_getteam() == $@Groupid_1) warp "bat_b01",313,225;
+	if (tribe_getteam() == $@Groupid_2) warp "bat_b01",86,74;
+	end;
+
+// OnPCUseSkillFilter
+OnPCUseSkillFilter:
+	getmapxy(.@mapname$, .@mapx, .@mapy, BL_PC);
+	if ( .@mapname$!= "bat_b01" ) end;
+	.@i = inarray($@BG_limit_skill_id,useskill_id);
+	if (.@i != -1)
+	{
+		@BG_limit_skill_count[.@i]++;
+		if (@BG_limit_skill_count[.@i] > $@BG_limit_skill_count[.@i])
+		{
+			dispbottom "技能 ["+getskillinfo(useskill_id,3)+"] 使用失败，限制次数为[" + $@BG_limit_skill_count[.@i] + "]，已使用次数为[" + @BG_limit_skill_count[.@i] +"]";
+			processhalt;
+		}
+	}
+	end;
+
+OnPCKillEvent:
+	getmapxy(.@mapname$, .@mapx, .@mapy, BL_PC);
+	if ( .@mapname$!= "bat_b01" ) end;
+	
+	callfunc "#title_sys","GVG战场";
+	
+	.@meslist = rand(1,10);
+	switch(.@meslist){
+			case 1:
+					.@message$ = "["+strcharinfo(0)+"] 秒杀了 ["+rid2name(killedrid)+"] ！";
+					mapannounce "bat_b01","星纪战场 : "+.@message$,bc_map,.annKillColor;
+					break;
+			case 2:
+					.@message$ = "["+strcharinfo(0)+"] 把 ["+rid2name(killedrid)+"] 送回了家！";
+					mapannounce "bat_b01","星纪战场 : "+.@message$,bc_map,.annKillColor;
+					break;		
+			case 3:
+					.@message$ = "["+strcharinfo(0)+"] 把 ["+rid2name(killedrid)+"] 按在地上摩擦！";
+					mapannounce "bat_b01","星纪战场 : "+.@message$,bc_map,.annKillColor;
+					break;				
+			case 4:
+					.@message$ = "["+strcharinfo(0)+"] 将 ["+rid2name(killedrid)+"] 送下地狱！";
+					mapannounce "bat_b01","星纪战场 : "+.@message$,bc_map,.annKillColor;
+					break;
+			case 5:
+					.@message$ = "["+strcharinfo(0)+"] 将 ["+rid2name(killedrid)+"] 送上天堂！";
+					mapannounce "bat_b01","星纪战场 : "+.@message$,bc_map,.annKillColor;
+					break;
+			case 6:
+					.@message$ = "["+strcharinfo(0)+"] 把 ["+rid2name(killedrid)+"] 折磨死了！";
+					mapannounce "bat_b01","星纪战场 : "+.@message$,bc_map,.annKillColor;
+					break;
+			case 7:
+					.@message$ = "["+strcharinfo(0)+"] 对 ["+rid2name(killedrid)+"] 进行万般羞辱";
+					mapannounce "bat_b01","星纪战场 : "+.@message$,bc_map,.annKillColor;
+					break;
+			case 8:
+					.@message$ = "["+strcharinfo(0)+"] 一不小心击杀了 ["+rid2name(killedrid)+"] ";
+					mapannounce "bat_b01","星纪战场 : "+.@message$,bc_map,.annKillColor;
+					break;
+			case 9:
+					.@message$ = "["+strcharinfo(0)+"] 对 ["+rid2name(killedrid)+"] 说 还有谁? ";
+					mapannounce "bat_b01","星纪战场 : "+.@message$,bc_map,.annKillColor;
+					break;
+			case 10:
+					.@message$ = "["+strcharinfo(0)+"] 对 ["+rid2name(killedrid)+"] 说 就你? ";
+					mapannounce "bat_b01","星纪战场 : "+.@message$,bc_map,.annKillColor;
+					break;
+					
+	}
+	
+	end;
+
+OnPCAttackFilter1:
+	if(dmg_skillid == 8205){
+		if(dmg_mobid == 1852){
+			processhalt;
+			set dmg_damage,0;
+		}
+	}
+	end;
+
+OnPCAttackFilter2:
+	if(dmg_skillid == 8205){
+		if(dmg_mobid == 1853){
+			processhalt;
+			set dmg_damage,0;
+		}
+	}
+	end;
+
+OnPCAttackFilter3:
+	if(dmg_skillid == 8205){
+		if(dmg_mobid == 1949){
+			processhalt;
+			set dmg_damage,0;
+		}
+	}
+	end;
+
+OnMobStart:
+	freeloop(1);
+	do {
+		.@id1 = $@BG_mob_id_1_list[$@BG_lane1_idx % getarraysize($@BG_mob_id_1_list)];
+		.@id2 = $@BG_mob_id_2_list[$@BG_lane2_idx % getarraysize($@BG_mob_id_2_list)];
+		for ( .@i=0; .@i<$@BG_mob_count; .@i++ ) {
+			if ( !$@mob_move ) end;
+			.@Mob_1 = tribe_monster($@Groupid_1,"bat_b01",323,150,"纪源阵营天使",.@id1,strnpcinfo(0)+"::OnMobReDie");
+			unit_Astart_walkto .@Mob_1,64,149,1;
+			
+			.@Mob_2 = tribe_monster($@Groupid_2,"bat_b01",62,150,"星光阵营恶魔",.@id2,strnpcinfo(0)+"::OnMobReDie");
+			unit_Astart_walkto .@Mob_2,329,150,1;
+			sleep 1000;
+		}
+		$@BG_lane1_idx++;
+		$@BG_lane2_idx++;
+		sleep $@BG_mob_ftime;
+	} while ( $@mob_move );
+	freeloop(0);
+	end;
+	
+OnMobReDie:
+	end;
+
+OnStart:
+//	bg_monster($@Groupid_1,"bat_b01",299,222,"",1906,strnpcinfo(0)+"::OnWallDied");	
+//	bg_monster($@Groupid_1,"bat_b01",299,223,"",1906,strnpcinfo(0)+"::OnWallDied");	
+//	bg_monster($@Groupid_1,"bat_b01",299,224,"",1906,strnpcinfo(0)+"::OnWallDied");	
+//	bg_monster($@Groupid_1,"bat_b01",299,225,"",1906,strnpcinfo(0)+"::OnWallDied");	
+//	bg_monster($@Groupid_1,"bat_b01",299,226,"",1906,strnpcinfo(0)+"::OnWallDied");	
+//	bg_monster($@Groupid_1,"bat_b01",299,227,"",1906,strnpcinfo(0)+"::OnWallDied");	
+//	bg_monster($@Groupid_1,"bat_b01",299,228,"",1906,strnpcinfo(0)+"::OnWallDied");	
+//	bg_monster($@Groupid_1,"bat_b01",299,229,"",1906,strnpcinfo(0)+"::OnWallDied");	
+
+
+//	bg_monster($@Groupid_2,"bat_b01",100,70,"",1906,strnpcinfo(0)+"::OnWallDied");	
+//	bg_monster($@Groupid_2,"bat_b01",100,71,"",1906,strnpcinfo(0)+"::OnWallDied");	
+//	bg_monster($@Groupid_2,"bat_b01",100,72,"",1906,strnpcinfo(0)+"::OnWallDied");	
+//	bg_monster($@Groupid_2,"bat_b01",100,73,"",1906,strnpcinfo(0)+"::OnWallDied");	
+//	bg_monster($@Groupid_2,"bat_b01",100,74,"",1906,strnpcinfo(0)+"::OnWallDied");	
+//	bg_monster($@Groupid_2,"bat_b01",100,75,"",1906,strnpcinfo(0)+"::OnWallDied");	
+//	bg_monster($@Groupid_2,"bat_b01",100,76,"",1906,strnpcinfo(0)+"::OnWallDied");	
+//	bg_monster($@Groupid_2,"bat_b01",100,77,"",1906,strnpcinfo(0)+"::OnWallDied");
+
+
+
+	
+	.crystal_group_2 = tribe_monster($@Groupid_2,"bat_b01",64,149,"星光阵营水晶",1914,strnpcinfo(0)+"::Oncrysta_2");	
+	
+	//自由添加数量星光阵营防御塔I
+	.flag2_1 = tribe_monster($@Groupid_2,"bat_b01",133,150,"星光阵营初级防御塔",1958,strnpcinfo(0)+"::Onflag_2");
+	.flag2_2 = tribe_monster($@Groupid_2,"bat_b01",113,150,"星光阵营中级防御塔",1958,strnpcinfo(0)+"::Onflag_2");	
+
+
+	//调试血量,,正式可以注释掉
+//	setunitdata .flag2_1,UMOB_MAXHP,1;
+//	setunitdata .flag2_2,UMOB_MAXHP,1;
+//	setunitdata .flag2_3,UMOB_MAXHP,1;
+//	setunitdata .flag2_4,UMOB_MAXHP,1;
+
+
+	.crystal_group_1 = tribe_monster($@Groupid_1,"bat_b01",329,150,"纪源阵营水晶",1915,strnpcinfo(0)+"::Oncrysta_1");
+	
+	//自由添加数量纪源阵营防御塔
+	.flag1_1 = tribe_monster($@Groupid_1,"bat_b01",262,150,"纪源阵营初级防御塔",1958,strnpcinfo(0)+"::Onflag_1");
+	.flag1_2 = tribe_monster($@Groupid_1,"bat_b01",286,150,"纪源阵营中级防御塔",1958,strnpcinfo(0)+"::Onflag_1");	
+
+
+	//调试血量,,正式可以注释掉	
+//	setunitdata .flag1_1,UMOB_MAXHP,1;
+//	setunitdata .flag1_2,UMOB_MAXHP,1;
+//	setunitdata .flag1_3,UMOB_MAXHP,1;
+//	setunitdata .flag1_4,UMOB_MAXHP,1;
+
+
+	
+	//.DEF2_1 = tribe_monster($@Groupid_2,"bat_b01",59,147,"守护的石",1958,strnpcinfo(0)+"::OnDEF1");	
+	//.DEF2_2 = tribe_monster($@Groupid_2,"bat_b01",59,151,"守护的石",1958,strnpcinfo(0)+"::OnDEF1");
+	//.DEF1_1 = tribe_monster($@Groupid_1,"bat_b01",335,153,"守护的石",1958,strnpcinfo(0)+"::OnDEF2");	
+	//.DEF1_2 = tribe_monster($@Groupid_1,"bat_b01",335,148,"守护的石",1958,strnpcinfo(0)+"::OnDEF2");
+	
+
+	setunitdata .crystal_group_2,UMOB_DMGIMMUNE,1;
+	setunitdata .crystal_group_1,UMOB_DMGIMMUNE,1;	
+	// setunitdata .DEF2_1,UMOB_DMGIMMUNE,1; // 已注释掉，变量未定义
+	// setunitdata .DEF2_2,UMOB_DMGIMMUNE,1; // 已注释掉，变量未定义
+	// setunitdata .DEF1_1,UMOB_DMGIMMUNE,1; // 已注释掉，变量未定义
+	// setunitdata .DEF1_2,UMOB_DMGIMMUNE,1; // 已注释掉，变量未定义
+
+	initnpctimer;
+	end;
+	
+OnTimer3600000:
+	mapannounce "bat_b01","星纪战场 : 1小时到了！双方平局",bc_map,.annKillColor;
+	$@winnergroup = 0;
+	goto Ondraw;
+	end;
+
+
+Onflag_2:
+	set .@mob_dead_num,mobcount("bat_b01",strnpcinfo(0)+"::Onflag_2");
+	if(.@mob_dead_num==0){
+	
+		 mapannounce "bat_b01","星纪战场 : 星光阵营 防御塔 已被 全部击破！可以向【主水晶】发动攻击 ",bc_map,.annRedColor;
+		 setunitdata .crystal_group_2,UMOB_DMGIMMUNE,0;
+		}
+	else {
+		if ( playerattached() ) mapannounce "bat_b01","星纪战场 : 星光阵营 防御塔 已被 "+strcharinfo(0)+" 击破！ 还剩下[ "+.@mob_dead_num+" ]个",bc_map,.annBlueColor;
+		.mob_lv1++;
+		donpcevent strnpcinfo(0)+"::OnMob_kill_1";
+				mapannounce "bat_b01","星纪战场 : 纪源阵营[特种兵]出动了(30秒刷新)",bc_map,.annBlueColor;
+		}	
+		
+	end;
+
+Onflag_3:
+	set .@mob_dead_num,mobcount("bat_b01",strnpcinfo(0)+"::Onflag_3");
+	if(.@mob_dead_num==0){
+	
+		 mapannounce "bat_b01","星纪战场 : 星光阵营 防御石 已被 全部击破！可以向【主水晶】发动攻击 ",bc_map,.annRedColor;
+		 setunitdata .crystal_group_2,UMOB_DMGIMMUNE,0;
+		}
+	else {
+		if ( playerattached() ) mapannounce "bat_b01","星纪战场 : 星光阵营 防御石 已被 "+strcharinfo(0)+" 击破！ 还剩下[ "+.@mob_dead_num+" ]个",bc_map,.annBlueColor;
+		.mob_lv1++;
+		donpcevent strnpcinfo(0)+"::OnMob_kill_1";
+				mapannounce "bat_b01","星纪战场 : 纪源阵营[特种兵]出动了(30秒刷新)",bc_map,.annBlueColor;
+		}	
+		
+	end;
+
+OnMob_kill_1:
+	freeloop(1);
+	do {
+		for ( .@i=0; .@i<.mob_lv1; .@i++ ) {
+			if ( !$@mob_move ) end;
+			
+			.@Mob_lv_1 = tribe_monster($@Groupid_1,"bat_b01",332,150,"纪源阵营特种兵",1949,strnpcinfo(0)+"::OnMobReDie");	//下方怪
+			unit_Astart_walkto .@Mob_lv_1,64,149,1;
+			sleep 1000;
+		}
+		sleep $@BG_mob_ftime;
+	} while ( $@mob_move );
+	freeloop(0);
+	end;
+
+
+	
+Onflag_1:
+	set .@mob_dead_num,mobcount("bat_b01",strnpcinfo(0)+"::Onflag_1");
+	if(.@mob_dead_num==0){
+	
+		 mapannounce "bat_b01","星纪战场 : 纪源阵营 防御塔 已被 全部击破！可以向【主水晶】发动攻击 ",bc_map,.annRedColor;
+		 setunitdata .crystal_group_1,UMOB_DMGIMMUNE,0;
+		}
+	else {
+		if ( playerattached() ) mapannounce "bat_b01","星纪战场 : 纪源阵营 防御塔 已被 "+strcharinfo(0)+" 击破！ 还剩下[ "+.@mob_dead_num+" ]个",bc_map,.annBlueColor;
+				.mob_lv2++;
+		donpcevent strnpcinfo(0)+"::OnMob_kill_2";
+		mapannounce "bat_b01","星纪战场 : 星光阵营[特种兵]出动了(30秒刷新)",bc_map,.annBlueColor;
+		}	
+		
+	end;
+
+Onflag_4:
+	set .@mob_dead_num,mobcount("bat_b01",strnpcinfo(0)+"::Onflag_4");
+	if(.@mob_dead_num==0){
+	
+		 mapannounce "bat_b01","星纪战场 : 纪源阵营 防御石 已被 全部击破！可以向【主水晶】发动攻击 ",bc_map,.annRedColor;
+		 setunitdata .crystal_group_1,UMOB_DMGIMMUNE,0;
+		}
+	else {
+		if ( playerattached() ) mapannounce "bat_b01","星纪战场 : 纪源阵营 防石 已被 "+strcharinfo(0)+" 击破！ 还剩下[ "+.@mob_dead_num+" ]个",bc_map,.annBlueColor;
+				.mob_lv2++;
+		donpcevent strnpcinfo(0)+"::OnMob_kill_2";
+		mapannounce "bat_b01","星纪战场 : 星光阵营[特种兵]出动了(30秒刷新)",bc_map,.annBlueColor;
+		}	
+		
+	end;	
+
+OnMob_kill_2:
+	freeloop(1);
+	do {
+		for ( .@i=0; .@i<.mob_lv2; .@i++ ) {
+			if ( !$@mob_move ) end;
+		
+			.@Mob_lv_2 = tribe_monster($@Groupid_2,"bat_b01",62,150,"星光阵营特种兵",1949,strnpcinfo(0)+"::OnMobReDie");	//上方怪
+			unit_Astart_walkto .@Mob_lv_2,329,150,1;
+			sleep 1000;
+		}
+		sleep $@BG_mob_ftime;
+	} while ( $@mob_move );
+	freeloop(0);
+	end;
+	
+Oncrysta_2:
+	$@mob_move = 0;
+	killmonster "bat_b01","#全局控制::OnMobReDie";
+	if ( playerattached() ) mapannounce "bat_b01","星纪战场 : 星光阵营【主水晶】已被 "+strcharinfo(0)+" 击破，本次星纪战场纪源阵营获胜！",bc_map,.annBlueColor;
+		else mapannounce "bat_b01","星纪战场 : 星光阵营【主水晶】已被纪源阵营 击破，本次星纪战场纪源阵营获胜！",bc_map,.annBlueColor;
+	$@winnergroup = $@Groupid_1;
+	goto Ondraw;
+	end;
+
+Oncrysta_1:
+	$@mob_move = 0;
+	killmonster "bat_b01","#全局控制::OnMobReDie";
+	if ( playerattached() ) mapannounce "bat_b01","星纪战场 : 纪源阵营【主水晶】已被 "+strcharinfo(0)+" 击破，本次星纪战场星光阵营获胜！",bc_map,.annRedColor;
+		else mapannounce "bat_b01","星纪战场 : 纪源阵营【主水晶】已被星光阵营 击破，本次星纪战场星光阵营获胜！",bc_map,.annRedColor;
+	$@winnergroup = $@Groupid_2;
+	goto Ondraw;
+	end;
+	
+OnQuit_1:
+	end;	
+OnDeath_1:
+	end;
+	
+OnQuit_2:
+	end;	
+OnDeath_2:
+	end;
+	
+Ondraw:
+	stopnpctimer;
+	stopnpctimer "#开局计时";
+	$@mob_move = 0;
+	killmonsterall "bat_b01";
+	$@game_statr = 0;
+	script4each strnpcinfo(0)+"::OnWarp",1,"bat_b01";
+	bg_destroy $@Groupid_1;
+	bg_destroy $@Groupid_2;
+	.mob_lv1 = 0;
+	.mob_lv2 = 0;
+	
+	end;
+	
+OnWarp:
+	dispbottom "触发OnWarp事件";
+	if ( $@winnergroup == 0 ) {
+			getitem $@draw_item_id,$@draw_count;  //平局奖励 		
+	} else {
+		if ( tribe_getteam() == $@winnergroup ) {
+		//称号增加
+		//callfunc "#title_sys","战场";
+			getitem $@win_item_id,$@win_count;  //胜出者奖励 
+		} else {
+			getitem $@los_item_id,$@los_count;	//失败者奖励 
+		}
+	}
+	tribe_setteam 0;
+	pc_has_join = 0;
+	sleep2 5000;
+	warp "prontera",153,98;
+	end;
+}
+
+
+prt_in,135,29,2	script	世界之树-online#2	966,{
+	mes "[星纪战场工作人员]";
+	mes "^ff0000每晚^000000晚上21：00开始报名";
+	mes "等级"+.need_baselvl+"以上";
+	mes "进入星纪战场前请先解散队伍";
+	mes .need_const+"rob报名费";	
+	mes "为防止恶意多开";
+	mes "^ff0000通行证^000000通过消耗品商店购买";
+	mes "有^ff000010分钟^000000报名时间";
+	mes "^ff000021：10^000000正式开始";
+	next;
+	switch(select($@game_statr==1?"我要报名":"","星纪战场介绍",getgmlevel()>=99?"^FF0000GM手动重新开启^000000":"")) {
+		case 1:
+			if ( BaseLevel < .need_baselvl ) {
+				mes "[星纪战场工作人员]";
+				mes "星纪战场需要等级大于"+.need_baselvl;
+				close;
+			}
+			if ( getcharid(1) ) {
+				mes "[星纪战场工作人员]";
+				mes "进入星纪战场前请先解散队伍";
+				close;
+			}
+			
+			if ( countitem(.need_ID) < 1 ) {
+				mes "[星纪战场工作人员]";
+				mes "需要携带邀请证件: ["+getitemname(.need_ID)+"]";
+				close;
+			}
+			
+			
+			if ( Zeny < .need_const ) {
+				mes "[星纪战场工作人员]";
+				mes "星纪战场报名费为: "+.need_const+"z";
+				close;
+			}
+			mes "[星纪战场工作人员]";
+			if(select("我要进入:取消")==2)end;
+			close2;
+			if ( Reg_fee != $Reg_fee) {
+				Zeny = Zeny-.need_const;
+				Reg_fee = $Reg_fee;
+			}
+			cleararray @BG_limit_skill_count,0,getarraysize($@BG_limit_skill_id);
+			if (ismounting()) setmounting();
+			callfunc "#IP_limit_map",2,"bat_room";
+			warp "bat_room",153,149;
+			end;
+		case 2:
+			mes "[星纪战场工作人员]";
+			mes "开启时间为：";
+			mes "^ff0000每天^000000晚上21：00";
+			mes "报名时间10分钟";
+			mes "21：10分正式开始";
+			mes "玩法：";
+			mes "击杀对面敌人，";
+			mes "推进兵线（30秒一波）";
+			mes "先摧毁【防御塔】x2";
+			mes "每摧毁一面旗帜,会出现【特种兵】";
+			mes "最后摧毁对方【水晶】就可以获得胜利";
+			mes "奖励如下";
+			mes "胜：10个战场积分袋子";
+			mes "败：5个战场积分袋子";
+			mes "和：2个战场积分袋子";
+
+			close;
+		case 3:
+
+			//if ( $@game_statr || $@mob_move ) {
+			//	mes "[星纪战场工作人员]";
+			//	mes "星纪战场已经开始了";
+			//	close;
+			//}
+			mes "[星纪战场工作人员]";
+			mes "现在手动重新开启吗？";
+			next;
+			if ( select("开启:取消") == 2 ) close;
+			stopnpctimer;
+			$@mob_move=0;
+			killmonsterall "bat_b01";
+			donpcevent "#全局控制::Onstoptimer";
+			areawarp "bat_b01",0,0,355,355,"prontera",157,161;
+			areawarp "bat_room",0,0,355,355,"prontera",157,161;				
+			close2;
+			donpcevent strnpcinfo(0)+"::OnApply";	
+			end;
+	}
+	end;
+
+
+	
+OnApply:
+	if ( $@game_statr || $@mob_move ) end;
+	$Reg_fee++;
+	//报名状态
+	$@game_statr = 1;
+	$@winnergroup = 0;
+	announce "[星纪战场报名开始]:报名时间为"+.delaytime/60000+"分钟",bc_all;
+	initnpctimer;
+	$@BG_time_minute = 0;
+	initnpctimer "#开局计时";
+	sleep .delaytime;
+	//sleep 3000;
+	//$@game_statr = 0;
+	//正在进行
+	$@game_statr = 2;
+	announce "星纪战场：报名已经停止,星纪战场正式开启。",bc_all;
+	$@mob_move = 1;
+	killmonsterall "bat_b01";
+	
+	bg_destroy $@Groupid_1;
+	bg_destroy $@Groupid_2;
+	$@Groupid_1 = bg_create("bat_b01",42,16,"#全局控制::OnQuit_1","#全局控制::OnDeath_1");	
+	$@Groupid_2 = bg_create("bat_b01",50,374,"#全局控制::OnQuit_2","#全局控制::OnDeath_2");	
+	.i=2;
+	script4each strnpcinfo(0)+"::Ongroup",1,"bat_room";
+	donpcevent "#全局控制::OnStart";
+	donpcevent "#全局控制::OnMobStart";
+	end;
+//以十分钟为基础计算的道计时
+OnTimer300000:
+	announce "星纪战场：报名时间剩下5分钟。",bc_all;	
+	end;
+OnTimer360000:
+	announce "星纪战场：基础复活时间为:【5-10】秒,每10分钟递增【15】秒",bc_all;	
+	end;
+OnTimer420000:
+	announce "星纪战场：报名时间剩下3分钟。",bc_all;	
+	end;
+OnTimer480000:
+	announce "星纪战场：击破敌方【旗帜】会派出特种兵,要攻击【水晶】要先击破【旗帜】",bc_all;	
+	end;
+OnTimer540000:
+	announce "星纪战场：报名还剩下1分钟。",bc_all;	
+	stopnpctimer;
+	end;
+	
+Ongroup:
+	.i++;
+	if(.i%2==0){
+		bg_join($@Groupid_1,"bat_b01",313,225,getcharid(0));	
+		tribe_setteam convertpcinfo(getcharid(0),CPC_ACCOUNT),$@Groupid_1;
+		pc_has_join = 1000;
+	}
+	else {
+		bg_join($@Groupid_2,"bat_b01",86,74,getcharid(0));
+		tribe_setteam convertpcinfo(getcharid(0),CPC_ACCOUNT),$@Groupid_2;
+		pc_has_join = 2000;
+	}
+
+	end;
+	
+
+
+//晚上9点开启时间
+OnClock2100:
+	if(gettime(DT_DAYOFWEEK)==0 || gettime(DT_DAYOFWEEK)==1 || gettime(DT_DAYOFWEEK)==3|| gettime(DT_DAYOFWEEK)==2|| gettime(DT_DAYOFWEEK)==4|| gettime(DT_DAYOFWEEK)==5|| gettime(DT_DAYOFWEEK)==6) {	
+		donpcevent strnpcinfo(0)+"::OnApply";	
+	}
+	end;
+
+OnInit:
+//=======入口相关设置==================
+	//报名时间:单位是毫秒()
+	.delaytime=600000;	// 10分钟，毫秒单位
+	//报名等级设置
+	.need_baselvl=99;	
+	//报名费用
+	.need_const=500000;
+	//报名入场证id
+	.need_ID=7350;	
+
+//=======战场相关魔物设置==================	
+	//设置下边出现魔物的ID
+	setarray $@BG_mob_id_1_list[0], 1638,1636,1635,1637;
+	//设置上边出现魔物的ID	
+	setarray $@BG_mob_id_2_list[0], 1638,1636,1635,1637;
+	//设置每波出兵魔物的数量
+	$@BG_lane1_idx = 3;
+	$@BG_lane2_idx = 3;
+	$@BG_mob_count=3;
+	//设置每波出兵魔物的时间间隔(毫秒)
+	$@BG_mob_ftime=60000;
+	
+//=======奖励相关魔物设置==================		
+	$@draw_item_id=7432;	//平局奖励道具id
+	$@draw_count=2;	//平局奖励道具数量	
+	$@win_item_id=7432;	//胜方奖励道具id
+	$@win_count=10;    //胜方奖励道具数量	
+	$@los_item_id=7432;	//败方奖励道具id
+	$@los_count=5;	   //败方奖励道具数量 
+
+	//死亡后返场时间随机最小值和最大值（秒）（必须大于0）
+	setarray $@BG_back_time,5,10;
+	//死亡后返场时间（开局每10分钟）增加的秒数
+	$@BG_back_time_add = 10;
+
+	//限制使用的技能ID池
+	setarray $@BG_limit_skill_id,117,119,121;
+	//限制使用的技能次数池（必须大于0）
+	setarray $@BG_limit_skill_count,200,200,200;
+    unitaura getnpcid(0),418;  
+	settitleicon(getnpcid(0),0,"指挥官-凌风");
+	while(1){
+		showscript "「星纪战场 - 21点开启」";
+        sleep 3000;
+    }
+	end;
+}
+
+
+
+-	script	bat_Recaller	-1,{
+	end;
+OnPCLoginEvent:
+	sleep2 100;
+	if ( $@game_statr==2 ){
+		if(pc_has_join ==1000){
+			bg_join($@Groupid_1,"bat_b01",313,225,getcharid(0));	
+			tribe_setteam convertpcinfo(getcharid(0),CPC_ACCOUNT),$@Groupid_1;
+			// 玩家复活直接出生在复活点，无需再次传送
+			end;
+		}
+		else if(pc_has_join ==2000){
+			bg_join($@Groupid_2,"bat_b01",86,74,getcharid(0));
+			tribe_setteam convertpcinfo(getcharid(0),CPC_ACCOUNT),$@Groupid_2;
+			// 玩家复活直接出生在复活点，无需再次传送
+			end;
+		}
+		else end;
+	}
+	else{
+		if(pc_has_join){
+		pc_has_join = 0;
+		tribe_setteam 0;
+		}
+	}
+	end;
+
+}
+//
+//bat_room,159,145,2	script	klle	86,{
+//donpcevent "战场报名（周日）::OnApply";	
+//end;
+//}
+
+function	script	#IP_limit_map	{
+	// 参数：每个IP允许的角色数量，目标地图名称
+	.@limit = getarg(0, 1);
+	.@map$ = getarg(1, strcharinfo(3));
+	if (.@limit <= 0) .@limit = 1;
+	if (.@map$ == "") .@map$ = strcharinfo(3);
+	// 获取当前玩家的IP
+	.@ip$ = getcharip(getcharid(0));
+	// 枚举目标地图上的玩家
+	getmapunits(BL_PC, .@map$, .@accid);
+	.@count = 0;
+	for (.@i = 0; .@i < getarraysize(.@accid); .@i++) {
+		attachrid(.@accid[.@i]);
+		if (getcharip(getcharid(0)) == .@ip$) .@count++;
+		detachrid;
+	}
+	// 如果超过限制则拒绝
+	if (.@count >= .@limit) {
+		mes "[星纪战场工作人员]";
+		mes "该地图每个IP仅允许 " + .@limit + " 个角色同时在场。";
+		mes "你的IP已达到上限，请稍后再试。";
+		close;
+		end;
+	}
+	return;
+}
