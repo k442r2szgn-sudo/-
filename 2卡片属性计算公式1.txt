@@ -1,0 +1,34 @@
+卡片总战力 =
+ (Str+Agi+Vit+Int+Dex+Luk)×220 + AllStats×220
+ + MaxHP×1.0 + MaxHPrate×60 + MaxSP×2.0 + MaxSPrate×60
+ + HPrecovRate×40 + SPrecovRate×30 + HPGainValue×50 + SPGainValue×55
+ + BaseAtk×30 + bMatk×30 + Hit×12 + Critical×28 + CritAtkRate×20
+ + LongAtkRate×25 + DoubleRate×26 + SplashRange×35 + AspdRate×40
+ + Σ(SkillAtk×18) + Σ(SkillUseSP 减少值 ×15)
+ + Def×12 + Mdef×14 + Flee×10 + Flee2×20
+ + LongAtkDef×80 + MagicAtkDef×15
+ + (UnbreakableArmor?10:0) + (UnbreakableWeapon?12:0)
+ + Σ(AddEle×30) + (AtkEle?50:0) + Σ(SubEle×25) + (DefEle?70:0)
+ + Σ(AddRace×25) + Σ(AddSize×22) + Σ(AddClass×26)
+ + Σ(SubRace×22) + Σ(SubSize×20)
+ + MatkRate×22 + abs(Castrate)×30 + abs(VariableCastrate)×18
+ + (NoCastCancel?80:0) + (NoGemStone?45:0)
+ + (UseSPrate≥0?-UseSPrate×16:abs(UseSPrate)×18)
+ + Σ(主动技能等级 ×32)
+ + Σ(AutoSpell 等级 × 触发几率 ×20) + Σ(AutoSpellWhenHit 等级 × 触发几率 ×22)
+ + Σ(AddEff 触发几率 ×2) + Σ(AddEffWhenHit 触发几率 ×3) + Σ(AddEff2 触发几率 ×3) + Σ(AddEffWhenHit2 触发几率 ×3)
+ + Σ(ResEff×0.2) + Σ(HPDrainRate 数值 ×30) + Σ(SPDrainRate 数值 ×25)
+ + SpeedRate×50 + (NoWalkDelay?30:0) + (NoKnockback?40:0)
+ + (RestartFullRecover?65:0) + MagicDamageReturn×15 + ShortWeaponDamageReturn×14
+ + Σ(AddMonsterDropItem 几率 ×1.5) + Σ(AddMonsterDropItem (带种族) 几率 ×1.8)
+ + Σ(AddItemGroupHealRate×65) + 精炼加成战力 + Σ(autobonus 触发几率 × 持续时间 ×0.15)
+ + Σ(装备触发技能等级 × 触发几率 ×20)
+ + bLongAtkRate×25 + bDoubleRate×260 + bSplashRange×35
+ + Σ(AddDamageClass×26) + Σ(AddDefMonster×25) + Σ(SPDrainValue×25)
+ + bAspd×40 + bHealPower×20 + Σ(AddItemHealRate×65)
+ + Σ(SkillAtk×18) + Σ(SPVanishRate×15) + Σ(AddSkillBlow×20)
+ + Σ(AddRace2×25) + Σ(HPLossRate×30) + Σ(GetZenyNum×0.1)
+ + ClassChange×50 + Σ(HPRegenRate×20) + Σ(SPRegenRate×20)
+ + Σ(BreakWeaponRate×0.5) + Σ(BreakArmorRate×0.5) + abs(DelayRate)×30
+ + bCriticalLong×28 + bAtk×30
+ + Σ(skill×320)

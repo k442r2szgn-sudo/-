@@ -1,0 +1,36 @@
+武器总战力 = 
+(Str + Agi + Vit + Int + Dex + Luk) × 220  
++ AllStats × 6 × 1220  
++ MaxHP × 6 + MaxSP × 6 
++ (MaxHPrate + MaxSPrate) × 60
++ BaseAtk × 25 + Matk × 25 
++ (AtkRate + MatkRate + LongAtkRate) × 12
++ Critical × 25 + CritAtkRate × 12 + DoubleRate × 12  
++ AspdRate × 35 + DelayRate × 18 + Castrate × 25 
++ (如果有NoCastCancel则+12)  
++ Hit × 60 + ShortWeaponDamageReturn × 12  
++ (Def + Mdef) × 180 + Def2Rate × 12 + LongAtkDef × 12
++ Flee × 10 + Flee2 × 18 + (如果有NoKnockback则+100) 
++ Σ(SubEle × 25) + Σ(SubRace × 18) 
++ Σ(ResEff ÷ 8)  
++ Σ(自动施法技能等级 × 触发几率 × 60)  
++ Σ(技能加成值 × 12) + Σ(技能治疗效果加成值 × 18)  
++ Σ(技能施法时间减少百分比 × 25) 
++ HPrecovRate × 12 + SPrecovRate × 18
++ HPGainValue × 25 + SPGainValue × 35  
++ MagicHPGainValue × 30 + MagicSPGainValue × 45  
++ Σ(吸血几率 × 数值 × 12) + Σ(吸魔几率 × 数值 × 18)  
+- Σ(损血几率 × 数值 × 25)
++ Σ(AddEle × 30) + Σ(AddRace × 25) + Σ(MagicAddRace × 30)  
++ Σ(不损坏属性数量 × 60) 
++ (SpeedRate + SpeedAddRate) × 50  
++ HealPower × 25 + Healpower2 × 30 + AddItemHealRate × 18 
+- UseSPrate × 35 
+- (如果有NoRegen,1则-12) - (如果有NoRegen,2则-100)  
++ (如果有NoGemStone则+60) + (如果有NoWalkDelay则+35)  
++ MagicDamageReturn × 12  
++ Σ(攻击附加异常几率 × 12) + Σ(被攻击附加异常几率 × 10) 
++ Σ(autobonus几率 × 持续时间(秒) × 0.6) 
++ Σ(阶级伤害加成值 × 35) + Σ(阶级减伤值 × 30)  
++ Σ(无视阶级魔法防御百分比 × 40)  
++ WeaponLevel × 50 

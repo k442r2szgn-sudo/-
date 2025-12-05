@@ -1,0 +1,20 @@
+防具总战力 = 
+(Str×220 + Agi×220 + Vit×220 + Int×220 + Dex×220 + Luk×220 + AllStats×1320)  
++ (BaseAtk×25 + Matk×25 + MatkRate×18 + AtkRate×18)  
++ Σ(技能伤害加成×14×技能系数)  
++ Σ(种族伤害加成×12 + 阶级伤害加成×15)  
++ Σ(无视防御率×30 + 无视魔防率×30)  
++ (Critical×22 + CritAtkRate×25)  
++ (Def×10 + Mdef×12 + DefRate×12 + MdefRate×14) 
++ (MaxHP×2 + MaxSP×3 + HPrecovRate×8 + SPrecovRate×12) 
++ (HPDrainRate×50 - HPLossRate×80 ± UseSPrate×40/80)  
++ Σ(伤害减免×40-60) 
++ (Aspd×35 + AspdRate×30 + Hit×10 + PerfectHitRate×40 + Flee×8 + Flee2×18)  
++ Σ(技能等级×24×技能系数) 
++ Σ(自动施法等级×触发几率×40-60)  
++ (HealPower×80)  
++ Σ(附加异常几率×40 + 抵抗效果×2) 
++ Σ(自动触发几率×持续时间×2)  
++ (装备不损坏×60 + 武器不损坏×70) 
++ 精炼加成战力  
+
