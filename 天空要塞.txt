@@ -1,0 +1,1082 @@
+//===== Alayne Scripts =======================================
+//= 天空要塞副本
+//===== By: ================================================== 
+//= Alayne
+//===== Current Version: ===================================== 
+//= 1.0
+//===== Compatible With: ===================================== 
+//= rAthena SVN
+//= hercules SVN
+//===== Description: ========================================= 
+//= 官方天空要塞副本脚本转录
+//===== Todo Remaining: ======================================
+//
+//===== Additional Comments: =================================
+//
+//
+//============================================================
+
+prt_q,248,79,3	script	科学家 度妍::alasfscd	4_M_MAYOR,{
+OnStart:
+	set .@party_id, getcharid(1);
+	set .@sf_leader, ( getcharid(0) == getpartyleader(.@party_id,2) );
+
+	//RATHENA
+	set .@has_instance, $instance_sf_id == getcharid(1);
+	//HERCULES
+	//set .@has_instance, has_instance(.map$[0], $instance_sf_id);
+	
+	set .@instance_delay, ( instance_delay_skyf - gettimetick(2) );
+
+	set .@npcname$, "[科学家 度妍]";
+	mes .@npcname$;
+	mes "你是否听说过天空要塞，";
+	mes "那里被认为是世界上所有瘟疫的源头...";
+	next;
+	switch( select( 
+		(( .@party_id && .@sf_leader && !.@has_instance )?"创建 " + .instance_name$:""),
+		(( .@party_id && .@sf_leader && .@has_instance )?"销毁 " + .instance_name$:""),
+	"算了。"
+		)){
+	case 1:
+		if( .@instance_delay > 0 )
+		{
+			mes "你需要等待: ^FF0000"+.@instance_delay+" 秒。^000000";
+			close;
+		}
+		getpartymember .@party_id,2;
+		if( .min_party_member >= 1 ){
+			set .@origin, getcharid(3);
+			set .@gettimetick, gettimetick(2);
+			for( set .@i, 0; .@i < $@partymembercount; set .@i, .@i+1 )
+				if( attachrid( $@partymemberaid[.@i] ) ){
+					set .@member_count, .@member_count + 1;
+					if( BaseLevel < .base_level[0] || BaseLevel > .base_level[1] ) set .@fail, .@fail|1;
+					if( Zeny < .instance_zeny ) set .@fail, .@fail|2;
+					if( instance_delay_skyf > .@gettimetick ) set .@fail, .@fail|4;
+					if( .@fail ){
+						set .@name$, strcharinfo(0);
+						break;
+					}
+				}
+			attachrid( .@origin );
+		}
+		
+		//检查是否已有其他队伍在副本内
+		for(set .@i,0; .@i<getarraysize(.map$); set .@i,.@i+1)
+		{
+			if (.map$[.@i] != "" && getmapusers(instance_mapname(.map$[.@i], -1)) > 0) {
+				mes "另一支队伍已经在" + .instance_name$ + "内了。抱歉，我无法传送你们进去。";
+				close;
+			}
+		}
+		
+		//清理任何先前残留的副本
+		if($sf_instance != -1)
+		{
+			instance_destroy $sf_instance;
+			set $sf_instance, -1;
+			set $instance_sf_id, -1;
+		}
+		
+		if( .@name$ != "" && .@fail ){
+			mes "^FF0000[ 失败 ]^000000";
+			mes "^0055FF"+.@name$+"^000000，你现在无法加入。";
+			mes " ";
+			mes "^FF0000[ 原因: ]^000000";
+			if( .@fail & 1 ) mes "^777777你的等级必须在"+.base_level[0]+" - "+.base_level[1]+"之间^000000";
+			if( .@fail & 2 ) mes "^777777你需要"+ .instance_zeny +" Zeny^000000";
+			if( .@fail & 4 ) mes "^777777你的副本冷却时间还未结束。^000000";
+			break;
+		}
+		
+		getpartymember getcharid(1),0;
+		if (instance_check_party(.@party_id, .min_party_member, .base_level[0], .base_level[1]) == 0) {
+			mes "^0055FF[ "+.instance_name$+" ]^000000";
+			mes "请组建或加入一个至少"+.min_party_member+"人的队伍，并且等级在" +.base_level[0] + "到" + .base_level[1] + "之间，然后重试。";
+		}
+		else{	
+			//RATHENA
+			set $sf_instance, instance_create( .instance_name$ );
+			//HERCULES
+			//set $sf_instance, instance_create( .instance_name$, .@party_id, IOT_PARTY );
+			if( $sf_instance < 0 ) {
+				npctalk .instance_name$ + " 预约失败。";
+				mes "^0000FF"+ .instance_name$ +" ^000000 - 预约失败！";
+				close;
+			}
+			mes "^0055FF[ "+.instance_name$+" ]^000000";
+			mes "^0000FF"+.instance_name$+" ^000000 - 已预约";
+			set .@gettimetick, gettimetick(2);
+			getpartymember .@party_id,2;
+			for( set .@i, 0; .@i < $@partymembercount; set .@i, .@i+1 )
+				if( attachrid( $@partymemberaid[.@i] ) ){
+					set instance_delay_skyf, ( .@gettimetick + ( .instance_delay ));
+					set Zeny, Zeny - .instance_zeny;
+					dispbottom "["+.instance_name$+"] -"+ .instance_zeny +" Zeny 并且副本冷却时间已应用。";
+				}
+			attachrid( .@origin );
+			npctalk .instance_name$ + " 已为队伍 - " + getpartyname( .@party_id ) + " 生成。";
+			
+			set $instance_sf_id, getcharid(1);
+			
+			//HERCULES
+			//for( set .@i, 0; .@i < getarraysize(.map$); set .@i,.@i+1 )
+			//{
+			//	if( instance_attachmap( .map$[.@i],$sf_instance ) == "" ){
+			//		setmapflag .map$[.@i],mf_zone,"Memorial Dungeon";
+			//		npctalk .instance_name$ + " 由于地图附加失败，预约失败。";
+			//		mes "- ^FF0000预约失败！^000000";
+			//		instance_destroy( $sf_instance );
+			//		set $sf_instance, -1;
+			//		set $instance_sf_id, -1;
+			//		close;
+			//	}
+			//}
+			//instance_set_timeout .instance_delay,300,$sf_instance;
+			//instance_init($sf_instance);
+			
+			//暂时禁用未使用的NPC
+			disablenpc instance_npcname( "sfwarp#1", $sf_instance );
+			disablenpc instance_npcname( "sfwarp#2", $sf_instance );
+			
+			next;
+			mes "^0055FF[ "+.instance_name$+" ]^000000";
+			mes "前往传送门，进入" + .instance_name$ + "。";
+ 		}
+		break;
+	case 2:
+		next;
+		mes .instance_name$ + " 已销毁。";
+		instance_destroy $sf_instance;
+		set $instance_sf_id, -1;
+		set $sf_instance, -1;
+		break;
+	default: 
+		break;
+}
+close;
+
+OnInit:
+	setarray .base_level[0],145,175;
+	setarray .map$[0],"1@sthb", "1@sthd", "1@sthc";
+	set .map_size, getarraysize( .map$ );
+	set .min_party_member, 1;
+	set .instance_zeny, 0;
+	set .instance_delay, 7200;
+	set $sf_timer_delay, 3600; //1小时后清理副本
+	set .instance_name$, "天空要塞";
+	set $sf_instance, -1;
+	set $instance_sf_id, -1;
+	end;
+}
+
+prt_q,243,74,3	script	次元装置::alasfdd	PORTAL,{
+	if( $instance_sf_id != getcharid(1)){
+		mes "这个装置似乎无法运作。你无法进入。";
+		close;
+	}
+	else{
+		//RATHENA
+		getmapxy(.@map$, .@x, .@y, UNITTYPE_PC);
+		save .@map$, .@x, .@y;
+		switch(instance_enter(.instance_name$)) {
+			default:
+				mes "发生了未知错误。";
+				close;
+			case 2:
+				mes "纪念副本 " + .instance_name$ + " 不存在。";
+				mes "队长尚未生成副本。";
+				close;
+			case 1:
+				mes "组建队伍后才能进入副本。";
+				close;
+			case 0:
+				instance_announce $sf_instance, "来自队伍 " +getpartyname( .@party_id )+" 的" +strcharinfo(0)+"，正在进入副本，"+.instance_name$+"。",bc_map,"0x00ff99",FW_NORMAL,12;
+				end;
+		}
+		
+		//HERCULES
+		//if( has_instance( .map$[0] ) == "" ){
+		//	mes .instance_name$ + " 对于队伍 - "+getpartyname( .@party_id )+" 不存在。";
+		//}
+		//else{
+		//	warp .map$[0],56,68;
+		//	instance_announce $sf_instance, getpartyname(getcharid(1))+" 进入了"+.instance_name$+"！",bc_map,"0x00ff99";
+		//}
+	}
+	end;
+
+OnInit:
+	set .instance_name$, "天空要塞";
+	setarray .map$[0],"1@sthb", "1@sthd", "1@sthc";
+	end;
+}
+
+1@sthd,101,107,4	script	sky_fortress	HIDDEN_WARP_NPC,2,2,{
+function summon_normal;
+function summon_doormob;
+function summon_guardian;
+end;
+
+OnInstanceInit:
+	set .@map$, strnpcinfo(4);
+	set .@npc_name$, instance_npcname( strnpcinfo(0), $sf_instance );
+	
+	//应用地图标记
+	setmapflag .@map$,mf_nomobloot;
+	setmapflag .@map$,mf_nomvploot;
+	
+	set 'instance_sf_level, 0;
+	set .randomPop, 0;
+	set .max_sf_level, 4;
+
+	set 'doorOpened, -1;
+	set 'warpPoint, -1;
+	set 'ldEntryX, -1;
+	set 'ldEntryY, -1;
+	
+	set .stephanId, -1;
+	deletearray .stephanData[0], getarraysize(.@stephanData);
+	deletearray .stephanFollower[0], getarraysize(.stephanFollower);
+	set .eQCount, -1;
+	set .maxStephanServant, 10;
+	
+	set 'sfKeyId, 6960;
+	
+	set .timerCount, 0;
+	initnpctimer;
+	end;
+
+function	summon_normal	{
+	set .@map$, getarg(0);
+	set .@npcname$, getarg(1);
+	set .@increaseFloor, getarg(2);
+	
+	if(.@increaseFloor == 1)
+	{
+		'instance_sf_level++;
+	}
+	setarray .@coordinate,77,158,122,47;
+	
+	switch( 'instance_sf_level ){
+		case 1:
+			//不朽的僵尸士兵
+			setarray .@monster,3476;
+			setarray .@amount,6;
+			setarray .@coordinate,45,77,67,58;
+
+			set .@clabel$, .@npcname$ + "::OnNormalDied";
+			areamonster .@map$,.@coordinate[0],.@coordinate[1],.@coordinate[2],.@coordinate[3],"--ja--",.@monster[0],.@amount[0],.@clabel$;
+			break;
+		case 2:
+			set .@clabel$, .@npcname$ + "::OnNormalDied";
+			
+			setarray .@monster,3477;
+			setarray .@amount,3;
+			setarray .@coordinate,43,89,69,83;
+			set .@monster_size, getarraysize( .@monster );
+			for( set .@i, 0; .@i < .@monster_size; set .@i,.@i+1 ){				
+				areamonster .@map$,.@coordinate[0],.@coordinate[1],.@coordinate[2],.@coordinate[3],"--ja--",.@monster[.@i],.@amount[.@i],.@clabel$;
+			}
+			
+			setarray .@monster,3477, 3479;
+			setarray .@amount,3, 1;
+			setarray .@coordinate,41,55,34,81;
+			set .@monster_size, getarraysize( .@monster );
+			for( set .@i, 0; .@i < .@monster_size; set .@i,.@i+1 ){				
+				areamonster .@map$,.@coordinate[0],.@coordinate[1],.@coordinate[2],.@coordinate[3],"--ja--",.@monster[.@i],.@amount[.@i],.@clabel$;
+			}
+			
+			setarray .@monster,3480;
+			setarray .@amount,1;
+			setarray .@coordinate,34,54,41,46;
+			set .@monster_size, getarraysize( .@monster );
+			for( set .@i, 0; .@i < .@monster_size; set .@i,.@i+1 ){				
+				areamonster .@map$,.@coordinate[0],.@coordinate[1],.@coordinate[2],.@coordinate[3],"--ja--",.@monster[.@i],.@amount[.@i],.@clabel$;
+			}
+			
+			setarray .@monster,3477,3478;
+			setarray .@amount,2,1;
+			setarray .@coordinate,87,54,81,99;
+			set .@monster_size, getarraysize( .@monster );
+			for( set .@i, 0; .@i < .@monster_size; set .@i,.@i+1 ){				
+				areamonster .@map$,.@coordinate[0],.@coordinate[1],.@coordinate[2],.@coordinate[3],"--ja--",.@monster[.@i],.@amount[.@i],.@clabel$;
+			}
+			
+			setarray .@monster,3478,3480,3477;
+			setarray .@amount,1,2,1;
+			setarray .@coordinate,79,99,24,92;
+			set .@monster_size, getarraysize( .@monster );
+			for( set .@i, 0; .@i < .@monster_size; set .@i,.@i+1 ){				
+				areamonster .@map$,.@coordinate[0],.@coordinate[1],.@coordinate[2],.@coordinate[3],"--ja--",.@monster[.@i],.@amount[.@i],.@clabel$;
+			}
+			
+			setarray .@monster,3477,3478,3480;
+			setarray .@amount,3,1,2;
+			setarray .@coordinate,24,91,31,36;
+			set .@monster_size, getarraysize( .@monster );
+			for( set .@i, 0; .@i < .@monster_size; set .@i,.@i+1 ){				
+				areamonster .@map$,.@coordinate[0],.@coordinate[1],.@coordinate[2],.@coordinate[3],"--ja--",.@monster[.@i],.@amount[.@i],.@clabel$;
+			}
+			
+			setarray .@monster,3477,3478,3480;
+			setarray .@amount,3,1,2;
+			setarray .@coordinate,97,43,32,36;
+			set .@monster_size, getarraysize( .@monster );
+			for( set .@i, 0; .@i < .@monster_size; set .@i,.@i+1 ){				
+				areamonster .@map$,.@coordinate[0],.@coordinate[1],.@coordinate[2],.@coordinate[3],"--ja--",.@monster[.@i],.@amount[.@i],.@clabel$;
+			}
+			
+			setarray .@monster,3477,3480;
+			setarray .@amount,2,1;
+			setarray .@coordinate,90,44,97,69;
+			set .@monster_size, getarraysize( .@monster );
+			for( set .@i, 0; .@i < .@monster_size; set .@i,.@i+1 ){				
+				areamonster .@map$,.@coordinate[0],.@coordinate[1],.@coordinate[2],.@coordinate[3],"--ja--",.@monster[.@i],.@amount[.@i],.@clabel$;
+			}
+
+			break;
+		case 3:
+			set .@clabel$, .@npcname$ + "::OnNormalDied";
+			
+			setarray .@monster,3477;
+			setarray .@amount,2,1;
+			setarray .@coordinate,217,77,206,34;
+			set .@monster_size, getarraysize( .@monster );
+			for( set .@i, 0; .@i < .@monster_size; set .@i,.@i+1 ){				
+				areamonster .@map$,.@coordinate[0],.@coordinate[1],.@coordinate[2],.@coordinate[3],"--ja--",.@monster[.@i],.@amount[.@i],.@clabel$;
+			}
+			
+			setarray .@monster,3477,3478,3479,3480;
+			setarray .@amount,2,1,1,2;
+			setarray .@coordinate,205,34,140,41;
+			set .@monster_size, getarraysize( .@monster );
+			for( set .@i, 0; .@i < .@monster_size; set .@i,.@i+1 ){				
+				areamonster .@map$,.@coordinate[0],.@coordinate[1],.@coordinate[2],.@coordinate[3],"--ja--",.@monster[.@i],.@amount[.@i],.@clabel$;
+			}
+			
+			setarray .@monster,3477,3478,3480;
+			setarray .@amount,3,1,2;
+			setarray .@coordinate,140,43,147,97;
+			set .@monster_size, getarraysize( .@monster );
+			for( set .@i, 0; .@i < .@monster_size; set .@i,.@i+1 ){				
+				areamonster .@map$,.@coordinate[0],.@coordinate[1],.@coordinate[2],.@coordinate[3],"--ja--",.@monster[.@i],.@amount[.@i],.@clabel$;
+			}
+			
+			setarray .@monster,3477,3479,3478;
+			setarray .@amount,3,2,1;
+			setarray .@coordinate,148,97,203,90;
+			set .@monster_size, getarraysize( .@monster );
+			for( set .@i, 0; .@i < .@monster_size; set .@i,.@i+1 ){				
+				areamonster .@map$,.@coordinate[0],.@coordinate[1],.@coordinate[2],.@coordinate[3],"--ja--",.@monster[.@i],.@amount[.@i],.@clabel$;
+			}
+			
+			setarray .@monster,3477,3479,3478;
+			setarray .@amount,3,2,1;
+			setarray .@coordinate,148,97,203,90;
+			set .@monster_size, getarraysize( .@monster );
+			for( set .@i, 0; .@i < .@monster_size; set .@i,.@i+1 ){				
+				areamonster .@map$,.@coordinate[0],.@coordinate[1],.@coordinate[2],.@coordinate[3],"--ja--",.@monster[.@i],.@amount[.@i],.@clabel$;
+			}
+			
+			setarray .@monster,3477,3479,3478,3480;
+			setarray .@amount,2,2,1,2;
+			setarray .@coordinate,203,88,196,44;
+			set .@monster_size, getarraysize( .@monster );
+			for( set .@i, 0; .@i < .@monster_size; set .@i,.@i+1 ){				
+				areamonster .@map$,.@coordinate[0],.@coordinate[1],.@coordinate[2],.@coordinate[3],"--ja--",.@monster[.@i],.@amount[.@i],.@clabel$;
+			}
+			
+			setarray .@monster,3477,3479,3478;
+			setarray .@amount,2,2,1;
+			setarray .@coordinate,195,44,150,51;
+			set .@monster_size, getarraysize( .@monster );
+			for( set .@i, 0; .@i < .@monster_size; set .@i,.@i+1 ){				
+				areamonster .@map$,.@coordinate[0],.@coordinate[1],.@coordinate[2],.@coordinate[3],"--ja--",.@monster[.@i],.@amount[.@i],.@clabel$;
+			}
+			
+			setarray .@monster,3477,3479,3480;
+			setarray .@amount,3,1,2;
+			setarray .@coordinate,150,53,157,87;
+			set .@monster_size, getarraysize( .@monster );
+			for( set .@i, 0; .@i < .@monster_size; set .@i,.@i+1 ){				
+				areamonster .@map$,.@coordinate[0],.@coordinate[1],.@coordinate[2],.@coordinate[3],"--ja--",.@monster[.@i],.@amount[.@i],.@clabel$;
+			}
+			
+			setarray .@monster,3477,3478,3480;
+			setarray .@amount,2,1,2;
+			setarray .@coordinate,158,87,193,79;
+			set .@monster_size, getarraysize( .@monster );
+			for( set .@i, 0; .@i < .@monster_size; set .@i,.@i+1 ){				
+				areamonster .@map$,.@coordinate[0],.@coordinate[1],.@coordinate[2],.@coordinate[3],"--ja--",.@monster[.@i],.@amount[.@i],.@clabel$;
+			}
+			
+			setarray .@monster,3477,3480;
+			setarray .@amount,2,3;
+			setarray .@coordinate,193,78,186,58;
+			set .@monster_size, getarraysize( .@monster );
+			for( set .@i, 0; .@i < .@monster_size; set .@i,.@i+1 ){				
+				areamonster .@map$,.@coordinate[0],.@coordinate[1],.@coordinate[2],.@coordinate[3],"--ja--",.@monster[.@i],.@amount[.@i],.@clabel$;
+			}
+			break;
+		case 4:
+			//不朽的僵尸士兵
+			setarray .@monster,3480;
+			setarray .@amount,5;
+			setarray .@coordinate,93,110,117,82;
+
+			set .@clabel$, .@npcname$ + "::OnNormalDied";
+			//RATHENA
+			areamonster .@map$,.@coordinate[0],.@coordinate[1],.@coordinate[2],.@coordinate[3],"--ja--",.@monster[0],.@amount[0],.@clabel$;
+			copyarray .stephanFollower, $@mobId[0], .@amount;
+			//HERCULES
+			//set .stephanFollower, areamonster(.@map$,.@coordinate[0],.@coordinate[1],.@coordinate[2],.@coordinate[3],"--ja--",.@monster[0],.@amount[0],.@clabel$);			
+			break;
+	}
+	return;
+}
+
+function	summon_doormob	{
+	set .@map$, getarg(0);
+	set .@npcname$, getarg(1);
+
+	set .@map$, instance_mapname( "1@sthc" );
+	killmonster .@map$, "All";
+
+	switch('warpPoint)
+	{
+		case 0:
+			setarray .@coordinate,106,88,125,137;
+			setarray .@monster,3481,3482;
+			setarray .@amount,5,3;
+			setarray .@label$[0], "OnDoorMobDied", "OnDoorMobDied";
+
+			areamonster .@map$,115,130,116,129,"--ja--",2288,1,.@npcname$ + "::OnDoorMobDied";
+			break;
+		case 1:
+			setarray .@coordinate,75,55,56,6;
+			setarray .@monster,3482,3483;
+			setarray .@amount,3,4;
+			setarray .@label$[0], "OnDoorMobDied", "OnDoorMobDied";
+
+			areamonster .@map$,65,48,66,47,"--ja--",2288,1,.@npcname$ + "::OnDoorMobDied";
+			break;
+		case 2:
+			setarray .@coordinate,56,88,75,137;
+			setarray .@monster,3481,3483;
+			setarray .@amount,5,2;
+			setarray .@label$[0], "OnDoorMobDied", "OnDoorMobDied";
+
+			areamonster .@map$,65,130,66,129,"--ja--",2288,1,.@npcname$ + "::OnDoorMobDied";
+			break;
+		case 3:
+			setarray .@coordinate,6,6,25,55;
+			setarray .@monster,3481,3482,3483;
+			setarray .@amount,3,3,3;
+			setarray .@label$[0], "OnDoorMobDied", "OnDoorMobDied", "OnDoorMobDied";
+			break;
+		case 4:
+			setarray .@coordinate,6,88,24,135;
+			setarray .@monster,3481,3483;
+			setarray .@amount,6,5;
+			setarray .@label$[0], "OnDoorMobDied", "OnDoorMobDied";
+			break;
+	}
+
+	set .@monster_size, getarraysize( .@monster );
+	for( set .@i, 0; .@i < .@monster_size; set .@i,.@i+1 ){	
+		set .@clabel$, .@npcname$ + "::" + .@label$[.@i];			
+		areamonster .@map$,.@coordinate[0],.@coordinate[1],.@coordinate[2],.@coordinate[3],"--ja--",.@monster[.@i],.@amount[.@i],.@clabel$;
+	}
+	return;
+}
+
+
+function	summon_guardian	{
+	set .@map$, getarg(0);
+	set .@npcname$, getarg(1);
+	set .@label$, .@npcname$ + "::OnGuardianDied";
+			
+	if('instance_sf_level == 2)
+	{
+		//MVP 或 宝箱
+
+		switch('warpPoint)
+		{
+
+			case 3:
+				setarray .@coordinate,14,51,17,48;
+				setarray .@monster,rand(3474,3475);
+				setarray .@amount,1;
+				setarray .@label$, .@npcname$ + "::OnDoorGuardianDied";
+				break;
+			case 4:
+				setarray .@coordinate,13,134,18,129;
+				setarray .@monster,rand(3474,3475);
+				setarray .@amount,1;
+				setarray .@label$, .@npcname$ + "::OnDoorGuardianDied";
+				break;
+		}
+	}
+	else
+	{
+		switch( 'instance_sf_level ){
+			case 1:
+				//弱化的MVP
+				setarray .@monster,3473;
+				setarray .@coordinate,61,69,61,69;
+				break;
+			case 4:
+				//斯特凡
+				setarray .@monster,3484;
+				setarray .@coordinate,103,114,103,114;
+				break;
+			default: 
+				instance_announce $sf_instance, "[ 天空要塞 ] : 已通关！！恭喜！！",bc_map,0x00FF99;
+				return;
+		}
+	}
+	set .@monster_size, getarraysize( .@monster );
+	for( set .@i, 0; .@i < .@monster_size; set .@i,.@i+1 ){
+		if('instance_sf_level == .max_sf_level)
+		{
+			//RATHENA
+			areamonster(.@map$,.@coordinate[0],.@coordinate[1],.@coordinate[2],.@coordinate[3],"--ja--",.@monster[.@i],1,.@label$);
+			set 'stefanId, $@mobId[0];
+			//HERCULES
+			//set 'stefanId, monster(.@map$,.@coordinate[0],.@coordinate[1],"--ja--",.@monster[.@i],1,.@label$);
+		}
+		else
+		{
+			areamonster .@map$,.@coordinate[0],.@coordinate[1],.@coordinate[2],.@coordinate[3],"--ja--",.@monster[.@i],1,.@label$;
+		}
+	}
+	return;
+}
+
+OnDoorMobDied:
+	//无操作，用于清理
+	end;
+	
+OnDoorGuardianDied:
+	//无操作，用于清理
+	end;
+
+OnNormalDied:
+	if('instance_sf_level == .max_sf_level)
+	{
+		set .@map$, instance_mapname( "1@sthd" );
+	}
+	else
+	{
+		set .@map$, instance_mapname( "1@sthb" );
+	}
+	set .@npc_name$, instance_npcname( strnpcinfo(0), $sf_instance ) ;
+	set .@mob_dead_num, mobcount(.@map$,.@npc_name$+"::OnNormalDied" );
+	set .@mvp_dead_num, mobcount(.@map$,.@npc_name$+"::OnGuardianDied" );
+	if( .@mob_dead_num == 0 ){	
+		if('instance_sf_level == 1)
+		{
+			if(.@mvp_dead_num == 0)
+			{
+				enablenpc instance_npcname( "alasfshew", $sf_instance );
+				donpcevent instance_npcname( "alasfshew", $sf_instance ) + "::OnTalkEnabled";
+			}
+			else
+			{
+				summon_normal( .@map$, .@npc_name$, 0 );
+			}
+		}
+	}
+	end;
+	
+OnGuardianDied:
+	if('instance_sf_level == .max_sf_level)
+	{
+		set .@map$, instance_mapname( "1@sthd" );
+	}
+	else
+	{
+		set .@map$, instance_mapname( "1@sthb" );
+	}
+	set .@npc_name$, instance_npcname( strnpcinfo(0), $sf_instance );
+	set .@mob_dead_num, mobcount(.@map$,.@npc_name$+"::OnNormalDied" );
+	set .@mvp_dead_num, mobcount(.@map$,.@npc_name$+"::OnGuardianDied" );
+	set .@party_id, getcharid(1);
+	
+	if( .@mvp_dead_num == 0 ){	
+		if('instance_sf_level == 1)
+		{
+			if(.@mob_dead_num == 0)
+			{
+				enablenpc instance_npcname( "alasfshew", $sf_instance );
+				donpcevent instance_npcname( "alasfshew", $sf_instance ) + "::OnTalkEnabled";
+			}
+		}
+		else if ('instance_sf_level == .max_sf_level)
+		{
+			instance_announce $sf_instance, "[ 斯特凡·J·E·沃尔夫 ] : 死了...我...不会死的...", bc_map, 0x0000FF;
+			sleep2 1500;
+			instance_announce $sf_instance, "[ 斯特凡·J·E·沃尔夫 ] : 回来吧...比尤的力量...永恒的身体...再次！", bc_map, 0x0000FF;
+			sleep2 1500;
+
+			set .randomPop, 0;
+			killmonster instance_mapname( "1@sthd" ), "All";
+			
+			//启用传送门
+			enablenpc instance_npcname( "alasfdeo", $sf_instance );
+		
+			sleep2 15000;
+			instance_destroy $sf_instance;
+			set $instance_sf_id, -1;
+			set $sf_instance, -1;
+			end;
+		}
+	}
+	end;
+	
+OnTimer10000:
+	stopnpctimer;
+	//每10秒，增加计时器
+	set .timerCount, .timerCount + 10;
+	if(.timerCount == $sf_timer_delay)
+	{
+		instance_announce $sf_instance, "[ 天空要塞 ] 次元崩溃了！我必须把你们带离那里！", bc_map, 0xFF0000;
+		sleep 5000;
+		instance_destroy $sf_instance;
+		set $instance_sf_id, -1;
+		set $sf_instance, -1;
+		stopnpctimer;
+	}
+	if(.randomPop == 1)
+	{
+		if(.eQCount >= 0)
+		{
+			set .eQCount, .eQCount + 1;
+		}
+		set .@map$, instance_mapname( "1@sthd" );
+		set .@npc_name$, instance_npcname( strnpcinfo(0), $sf_instance );
+		set .@mob_dead_num, mobcount(.@map$,.@npc_name$+"::OnNormalDied" );
+		if(.@mob_dead_num == 0 || .@mob_dead_num < .maxStephanServant)
+		{
+			summon_normal( .@map$,.@npc_name$, 0 );
+		}
+
+		getpartymember $instance_sf_id,2;
+		set .@continue, 1;
+		for( set .@i, 0; .@i < $@partymembercount && .@continue == 1; set .@i, .@i+1 )
+		{
+			if( attachrid( $@partymemberaid[.@i] ) ){
+				if(strcharinfo(3) == instance_mapname( "1@sthd" ))
+				{
+					//RATHENA
+					if(unitexists('stefanId))
+					{
+						getunitdata('stefanId, .@stephanData);
+					}
+					set .@mvpHp, .@stephanData[2] <= .@stephanData[3] / 3;
+					//HERCULES
+					//set .@hp, getunitdata('stefanId, UDT_HP);
+					//set .@mhp, getunitdata('stefanId, UDT_MAXHP);
+					//set .@mvpHp, .@hp <= .@mhp / 3;
+					
+					//如果MVP生命值低于1/3，并且在过去一分钟内没有地震发生，且随机数符合
+					if(.@mvpHp == 1 && .eQCount >= 6 && rand(0,1) == 1)
+					{
+						set .eQCount, 0;
+						addtimer 3000, strnpcinfo(3) + "::OnEarthquakePop";
+						set .@continue, 0;
+					}
+				}
+
+			}
+		}
+	}
+	initnpctimer;
+	end;
+	
+OnEarthquakePop:
+	set .@map$, strnpcinfo(4);
+	set .@npc_name$, instance_npcname( strnpcinfo(0), $sf_instance );
+	for(set .@i, 0; .@i<getarraysize(.stephanFollower); set .@i,.@i+1)
+	{
+		//对所有怪物使用地震术
+		if(unitexists(.stephanFollower[.@i]))
+		{
+			unitskilluseid .stephanFollower[.@i], 653, 10;
+		}
+		else
+		{
+			deletearray .stephanFollower[.@i], 1;
+		}
+	}	
+	end;
+	
+OnFirstFloorOn:
+	set .@map$, instance_mapname( "1@sthb" );
+	set .@npc_name$, instance_npcname( strnpcinfo(0), $sf_instance );
+	//生成MVP + 怪物波次
+	summon_normal( .@map$, .@npc_name$, 1 );
+	summon_guardian( .@map$, .@npc_name$ );
+	end;
+	
+OnSecondFloorOn:
+	set .@map$, instance_mapname( "1@sthb" );
+	set .@npc_name$, instance_npcname( strnpcinfo(0), $sf_instance );
+	//怪物波次
+	summon_normal( .@map$, .@npc_name$, 1 );
+	end;	
+	
+OnDoorOpen:
+	set .@map$, instance_mapname( "1@sthc" );
+	set .@npc_name$, instance_npcname( strnpcinfo(0), $sf_instance );
+	//怪物波次	
+	summon_doormob( .@map$, .@npc_name$, 0 );	
+	end;
+
+OnDevicePoped:
+	set .@map$, instance_mapname( "1@sthc" );
+	set .@npc_name$, instance_npcname( strnpcinfo(0), $sf_instance );
+	//生成MVP
+	summon_guardian( .@map$, .@npc_name$ );	
+	end;
+
+OnThirdFloorOn:
+	set .@map$, instance_mapname( "1@sthb" );
+	set .@npc_name$, instance_npcname( strnpcinfo(0), $sf_instance );
+	//怪物波次
+	summon_normal( .@map$, .@npc_name$, 1 );	
+	end;	
+	
+OnLastFloorOn:
+	set .@map$, instance_mapname( "1@sthd" );
+	set .@npc_name$, instance_npcname( strnpcinfo(0), $sf_instance );
+	//生成MVP
+	set .randomPop, 1;
+	set .eQCount, 0;
+	summon_normal( .@map$, .@npc_name$, 1 );
+	summon_guardian( .@map$, .@npc_name$ );	
+	end;	
+}
+
+1@sthb,61,69,3	script	斯特凡·J·E·沃尔夫::alasfshew	3484,2,2,{
+	end;
+
+OnTouch:
+	if(.talking == 0)
+	{
+		set 'sfTalking, getcharid(3);
+		set .talking, 1;
+		if('instance_sf_level == 0)
+		{
+			charcommand "#me " + strcharinfo(0) + " 这就是导致普隆德拉被入侵的原因吗？在天空要塞内部？";
+			
+			cutin "stephan_j_e_w", 2;
+			sleep2 1500;
+			npctalk "入侵者...在天空要塞内部";
+			instance_announce $sf_instance, "入侵者...在天空要塞内部", bc_map, 0x0000FF;
+			sleep2 1500;
+			npctalk "比尤...命令我消灭入侵者！";
+			instance_announce $sf_instance, "比尤...命令我消灭入侵者！", bc_map, 0x0000FF;
+			sleep2 1500;
+			npctalk "渺小的...人类...菜鸟...滚开！";
+			instance_announce $sf_instance, "渺小的...人类...菜鸟...滚开！", bc_map, 0x0000FF;
+			
+			cutin "", 255;
+			disablenpc strnpcinfo(3);
+			donpcevent instance_npcname( "sky_fortress", $sf_instance ) + "::OnFirstFloorOn";
+		}
+		else if('instance_sf_level == 1)
+		{
+			npctalk "哼！";
+			cutin "stephan_j_e_w", 2;
+			instance_announce $sf_instance, "哼！", bc_map, 0x0000FF;
+			sleep2 1500;
+			
+			npctalk "多么烦人的...虫子！";
+			instance_announce $sf_instance, "多么烦人的...虫子！", bc_map, 0x0000FF;
+			sleep2 1500;
+						
+			attachrid 'sfTalking;
+			charcommand "#me " + strcharinfo(0) + " 我相信那个巨大的魔像在这里扮演着重要角色...";
+			
+			npctalk "天空要塞的仆从们...阻止他们...比尤的命令！";
+			instance_announce $sf_instance, "天空要塞的仆从们...阻止他们...比尤的命令！", bc_map, 0x0000FF;
+			sleep2 1500;
+			
+			cutin "", 255;
+			
+			specialeffect 96;
+			
+			disablenpc strnpcinfo(3);
+			enablenpc instance_npcname( "sfwarp#1", $sf_instance );
+			enablenpc instance_npcname( "sfwarp#2", $sf_instance );
+			enablenpc instance_npcname( "alasfshew2", $sf_instance );
+			donpcevent instance_npcname( "sky_fortress", $sf_instance ) + "::OnSecondFloorOn";
+		}
+	}
+	end;
+	
+OnTalkEnabled:
+	set .talking, 0;	
+	end;
+	
+OnInstanceInit:
+OnInit:
+	enablenpc strnpcinfo(3);
+	set .talking, 0;
+	end;
+}
+
+1@sthb,208,93,3	script	斯特凡·J·E·沃尔夫::alasfshew2	3484,5,5,{
+	end;
+
+OnTouch:
+	if(.talking == 0)
+	{
+		set 'sfTalking, getcharid(3);
+		set .talking, 1;
+		npctalk "哼！";
+		instance_announce $sf_instance, "哼！", bc_map, 0x0000FF;
+		sleep2 1500;
+		
+		npctalk "肮脏的人类！阻止他们！守卫...神圣的要塞！";
+		instance_announce $sf_instance, "肮脏的人类！阻止他们！守卫...神圣的要塞！", bc_map, 0x0000FF;
+		sleep2 1500;
+		
+		attachrid 'sfTalking;
+		charcommand "#me " + strcharinfo(0) + " 它极其警惕...";
+		sleep2 1500;
+		charcommand "#me " + strcharinfo(0) + " 我想一定有什么东西";
+		sleep2 1500;
+		charcommand "#me " + strcharinfo(0) + " 如果我们跟随那些魔像的踪迹。";
+		sleep2 1500;
+
+		disablenpc strnpcinfo(3);
+		donpcevent instance_npcname( "sky_fortress", $sf_instance ) + "::OnThirdFloorOn";
+	}
+	end;
+	
+OnTalkEnabled:
+	set .talking, 0;	
+	end;
+	
+OnInstanceInit:
+OnInit:
+	disablenpc strnpcinfo(3);
+	set .talking, 0;
+	end;
+}
+
+1@sthb,34,85,3	script	上锁的门#7::alasfld	4_ENERGY_RED,{
+	getmapxy(.@map$, .@x, .@y, UNITTYPE_NPC);
+
+	//debugmes "entry: [" + .@x + "," + .@y + "] / [" + 'ldEntryX + "," + 'ldEntryY + "]";
+	sleep2 200;
+
+	if(countitem('sfKeyId) > 0 && .@x != 'ldEntryX && .@y != 'ldEntryY)
+	{
+		mes "[上锁的门]";
+		mes "你想要打开这扇门吗？";
+		if(select("是","否") == 1)
+		{
+			delitem 'sfKeyId, 1;
+			set 'ldEntryX, .@x;
+			set 'ldEntryY, .@y;
+			set 'warpPoint, rand(0,4);
+			switch('warpPoint)
+			{
+				case 0:
+					setarray .entry[0], 115, 92;
+					break;
+				case 1:
+					setarray .entry[0], 66, 10;
+					break;
+				case 2:
+					setarray .entry[0], 66, 92;
+					break;
+				case 3:
+					setarray .entry[0], 16, 9;
+					break;
+				case 4:
+					setarray .entry[0], 15, 93;
+					break;
+			}
+
+			getpartymember getcharid(1),2;
+			for( set .@i, 0; .@i < $@partymembercount; set .@i, .@i+1 )
+				if( attachrid( $@partymemberaid[.@i] ) ){
+					if(strcharinfo(3) == instance_mapname( "1@sthb" ))
+					{
+						warp instance_mapname( "1@sthc" ), .entry[0], .entry[1];
+					}
+				}
+
+			donpcevent instance_npcname( "sky_fortress", $sf_instance ) + "::OnDoorOpen";
+		}
+	}
+	else if('ldEntryX != 0 && 'ldEntryY != 0)
+	{
+		if(.@x == 'ldEntryX && .@y == 'ldEntryY)
+		{
+			switch('warpPoint)
+			{
+				case 0:
+					setarray .entry[0], 115, 92;
+					break;
+				case 1:
+					setarray .entry[0], 66, 10;
+					break;
+				case 2:
+					setarray .entry[0], 66, 92;
+					break;
+				case 3:
+					setarray .entry[0], 16, 9;
+					break;
+				case 4:
+					setarray .entry[0], 15, 93;
+					break;
+			}
+
+			getpartymember getcharid(1),2;
+			for( set .@i, 0; .@i < $@partymembercount; set .@i, .@i+1 )
+				if( attachrid( $@partymemberaid[.@i] ) ){
+					if(strcharinfo(3) == instance_mapname( "1@sthb" ))
+					{
+						warp instance_mapname( "1@sthc" ), .entry[0], .entry[1];
+					}
+				}
+		}
+	}
+	end;
+	
+OnInstanceInit:
+OnInit:
+	set .opened, 0;
+	end;
+}
+
+1@sthc,16,6,3	script	warp::alasfow	WARPNPC,2,2,{
+	end;
+
+OnTouch:
+	warp instance_mapname( "1@sthb" ), 'ldEntryX, 'ldEntryY;
+	end;
+}
+
+1@sthb,189,55,3	script	warp::alasfli	WARPNPC,2,2,{
+	end;
+
+OnTouch:
+	warp instance_mapname( "1@sthd" ), 105, 72;
+	enablenpc instance_npcname( "alasfshew3" );
+	end;
+}
+
+1@sthd,103,114,3	script	斯特凡·J·E·沃尔夫::alasfshew3	3484,5,5,{
+	end;
+
+OnTouch:
+	if(.talking == 0)
+	{
+		set 'sfTalking, getcharid(3);
+		set .talking, 1;
+		charcommand "#me " + strcharinfo(0) + " 那么这终于到了最后了...我猜他一定是普隆德拉入侵的元凶，对吧？";
+		sleep2 1500;
+		
+		cutin "stephan_j_e_w", 2;
+		npctalk "冒险者们...一群愚蠢的菜鸟！";
+		instance_announce $sf_instance, "[沃尔夫] 冒险者们...一群愚蠢的菜鸟！", bc_map, 0x0000FF;
+		sleep2 1500;
+
+		npctalk "我必须服从命令...来自比尤的命令！";
+		instance_announce $sf_instance, "[杰克] 我必须服从命令...来自比尤的命令！", bc_map, 0x0000FF;
+		sleep2 1500;
+
+		charcommand "#me " + strcharinfo(0) + " 比尤？所以那个魔像仅仅是这里的守卫吗？就是这样吗？";
+		sleep2 1500;
+
+		npctalk "咆哮！";
+		instance_announce $sf_instance, "[斯特凡] 咆哮！", bc_map, 0x0000FF;
+		sleep2 1500;
+
+		npctalk "肮脏的虫子...无法按预期引导生命。不朽的力量...我的身体...";
+		instance_announce $sf_instance, "[欧内斯特] 肮脏的虫子...无法按预期引导生命。不朽的力量...我的身体...", bc_map, 0x0000FF;
+		sleep2 1500;
+
+		charcommand "#me " + strcharinfo(0) + " 我最好先打败它。";
+		sleep2 1500;
+
+		npctalk "士兵们...比尤的要塞...把他们全部砍倒...我会亲自出马...我要杀了他们...全部。";
+		instance_announce $sf_instance, "[斯特凡·J·E·沃尔夫] 士兵们...比尤的要塞...把他们全部砍倒...我会亲自出马...我要杀了他们...全部", bc_map, 0x0000FF;
+		sleep2 1500;
+
+		disablenpc strnpcinfo(3);
+		cutin "", 255;
+		donpcevent instance_npcname( "sky_fortress" ) + "::OnLastFloorOn";
+	}
+	end;
+	
+OnInstanceInit:
+OnInit:
+	disablenpc strnpcinfo(3);
+	set .talking, 0;
+	end;
+}
+
+1@sthc,66,6,3	duplicate(alasfow)	warp::alasfow2	WARPNPC,2,2
+1@sthc,15,88,3	duplicate(alasfow)	warp::alasfow3	WARPNPC,2,2
+1@sthc,66,88,3	duplicate(alasfow)	warp::alasfow4	WARPNPC,2,2
+1@sthc,115,88,3	duplicate(alasfow)	warp::alasfow5	WARPNPC,2,2
+
+1@sthc,15,51,3	script	奇怪的装置#0::alasfsd	HIDDEN_NPC,{
+	mes "[奇怪的装置]";
+	mes "你想要激活这个装置吗？";
+	if(select("是","否") == 1)
+	{
+		if(.used == 0)
+		{
+			donpcevent instance_npcname( "sky_fortress", $sf_instance ) + "::OnDevicePoped";
+			set .used, 1;
+		}
+		else
+		{
+			next;
+			mes "[奇怪的装置]";
+			mes "什么也没有发生。";
+		}
+	}
+	close;
+
+OnInit:
+OnInstanceInit:
+	set .used, 0;
+	end;
+}
+
+1@sthd,103,95,3	script	次元装置::alasfdeo	PORTAL,{
+	mes "[次元装置]";
+	mes "你想要离开吗？";
+	if(select("是","否") == 1)
+	{
+		warp "SavePoint", 0, 0;
+	}
+	close;
+
+OnInstanceInit:
+OnInit:
+	disablenpc strnpcinfo(3);
+	end;
+}
+
+1@sthc,15,133,3	duplicate(alasfsd)	奇怪的装置#2::alasfsd3	HIDDEN_NPC
+
+1@sthb,83,99,3	duplicate(alasfld)	上锁的门#1::alasfld2	4_ENERGY_BLUE
+1@sthb,24,40,3	duplicate(alasfld)	上锁的门#2::alasfld3	4_ENERGY_YELLOW
+1@sthb,206,79,3	duplicate(alasfld)	上锁的门#3::alasfld4	4_ENERGY_BLACK
+1@sthb,147,86,3	duplicate(alasfld)	上锁的门#4::alasfld5	4_ENERGY_WHITE
+1@sthb,179,51,3	duplicate(alasfld)	上锁的门#5::alasfld6	4_ENERGY_RED
+
+1@sthb,73,70	warp	sfwarp#1	2,2,1@sthb,73,75
+1@sthb,93,74	warp	sfwarp#2	2,2,1@sthb,210,98

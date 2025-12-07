@@ -1,0 +1,1172 @@
+payon,164,229,5	script	桑柳长老#illusion_moonlight	1_F_ORIENT_04,{
+	if(BaseLevel < 100){
+		mes "[桑柳长老]";
+		mes "嗯，我感觉到有不好的事情要发生了。";
+		mes "希望你能够更强一些。那样的话，我就能告诉你了。";
+		next;
+		mes "^0000FF你必须达到100级以上才能执行此任务。";
+		close;
+	}
+	if(illusion_moonlight == 0){
+		mes "[慈谦]";
+		mes "这件事现在已经超出我们的掌控了。";
+		mes "我们不能让情况继续这样下去。";
+		next;
+		mes "[桑柳长老]";
+		mes "我们现在就等^0000FF无妍^000000的消息吧。";
+		mes "她的安全比什么都重要。";
+		next;
+		if(select("打扰一下。"))
+		mes "[桑柳长老]";
+		mes "嗯？你是位冒险者。";
+		mes "你碰巧听到我们的谈话了吗？";
+		next;
+		mes "[桑柳长老]";
+		mes "我明白了。";
+		mes "也许你听到我们的谈话是种缘分。";
+		next;
+		mes "[桑柳长老]";
+		mes "在斐扬后方的弓箭手村附近有一个洞穴。";
+		mes "那是个闹鬼的洞穴，所以我们定期在那里举行仪式和驱邪。";
+		next;
+		mes "[桑柳长老]";
+		mes "但九尾狐灵魂的愤怒超出了我们的想象。";
+		mes "每次有人试图对狐珠举行仪式时，他们都会做噩梦。";
+		npctalk "就好像灵魂被他们激怒了一样。","慈谦长老#illusion_moonlight",bc_self;
+		next;
+		mes "[桑柳长老]";
+		mes "而这一次，她完全失去了理智，进入了洞穴。";
+		mes "所以我们很担心她。";
+		next;
+		if(select("是关于无妍吗？"))
+		npctalk "也许我们应该派别人去。","慈谦长老#illusion_moonlight",bc_self;
+		mes "[桑柳长老]";
+		mes "是的。她是定期执行仪式的灵魂连接者。";
+		mes "我们已经请了一名士兵去找她。";
+		mes "他们现在一定已经在洞穴附近了。";
+		next;
+		mes "[慈谦]";
+		mes "你能替我们去看看^0000FF无妍^000000吗？";
+		next;
+		npctalk "是的，可以吗？","",bc_self;
+		if(select("当然，我会去的。:抱歉，我怕鬼。") == 2){
+			mes "[桑柳长老]";
+			mes "嗯？我们没提到鬼啊。还是我们说了？";
+			close;
+		}
+		mes "[慈谦]";
+		mes "我希望士兵能在她深入废弃村庄之前找到她。";
+		next;
+		mes "[慈谦]";
+		mes "请去洞穴那里，看看无妍和士兵是否已经出来了。";
+		mes "有个年轻的学者跟着士兵去了，但她看起来完全不可靠。";
+		next;
+		mes "[慈谦]";
+		mes "和那个学者谈谈，也许他能告诉你一些情况。";
+		setquest 7776;
+		illusion_moonlight = 1;
+		end;
+    }
+	if(illusion_moonlight == 1){
+		mes "[桑柳长老]";
+		mes "请去弓箭手村的洞穴入口。";
+		mes "问问那里的年轻学者关于无妍的下落。";
+		close;
+	}
+	if(illusion_moonlight < 6){
+		mes "[桑柳长老]";
+        mes "希望一切都会顺利。";
+        mes "嗯？我说的是后面的洞穴。";
+        mes "我很担心那里发生的事情。";
+        close;	
+	}
+
+OnInit:
+	questinfo 7776,QTYPE_QUEST2;
+	setquestinfo_level 7776,100,175;
+	end;
+}
+payon,167,229,3	script	慈谦长老#illusion_moonlight	4_M_HUOLDARMY,{
+	if(BaseLevel < 100){
+		mes "[慈谦]";
+		mes "希望一切都会顺利。";
+		mes "既然你是冒险者，我想你应该熟悉^0000FF斐扬洞穴^000000。";
+		mes "小心点，里面正在发生不好的事情。";
+		next;
+		mes "^0000FF你必须达到100级以上才能执行此任务。";
+		close;
+	}
+	if(illusion_moonlight == 0){
+		mes "[慈谦]";
+		mes "这件事现在已经超出我们的掌控了。";
+		mes "我们不能让情况继续这样下去。";
+		next;
+		mes "[桑柳长老]";
+		mes "我们现在就等^0000FF无妍^000000的消息吧。";
+		mes "她的安全比什么都重要。";
+		next;
+		if(select("打扰一下。"))
+		mes "[桑柳长老]";
+		mes "嗯？你是位冒险者。";
+		mes "你碰巧听到我们的谈话了吗？";
+		next;
+		mes "[桑柳长老]";
+		mes "我明白了。";
+		mes "也许你听到我们的谈话是种缘分。";
+		next;
+		mes "[桑柳长老]";
+		mes "在斐扬后方的弓箭手村附近有一个洞穴。";
+		mes "那是个闹鬼的洞穴，所以我们定期在那里举行仪式和驱邪。";
+		next;
+		mes "[桑柳长老]";
+		mes "但九尾狐灵魂的愤怒超出了我们的想象。";
+		mes "每次有人试图对狐珠举行仪式时，他们都会做噩梦。";
+		npctalk "就好像灵魂被他们激怒了一样。","慈谦长老#illusion_moonlight",bc_self;
+		next;
+		mes "[桑柳长老]";
+		mes "而这一次，她完全失去了理智，进入了洞穴。";
+		mes "所以我们很担心她。";
+		next;
+		if(select("是关于无妍吗？"))
+		npctalk "也许我们应该派别人去。","慈谦长老#illusion_moonlight",bc_self;
+		mes "[桑柳长老]";
+		mes "是的。她是定期执行仪式的灵魂连接者。";
+		mes "我们已经请了一名士兵去找她。";
+		mes "他们现在一定已经在洞穴附近了。";
+		next;
+		mes "[慈谦]";
+		mes "你能替我们去看看^0000FF无妍^000000吗？";
+		next;
+		npctalk "是的，可以吗？","",bc_self;
+		if(select("当然，我会去的。:抱歉，我怕鬼。") == 2){
+			mes "[桑柳长老]";
+			mes "嗯？我们没提到鬼啊。还是我们说了？";
+			close;
+		}
+		mes "[慈谦]";
+		mes "我希望士兵能在她深入废弃村庄之前找到她。";
+		next;
+		mes "[慈谦]";
+		mes "请去洞穴那里，看看无妍和士兵是否已经出来了。";
+		mes "有个年轻的学者跟着士兵去了，但她看起来完全不可靠。";
+		next;
+		mes "[慈谦]";
+		mes "和那个学者谈谈，也许他能告诉你一些情况。";
+		setquest 7776;
+		illusion_moonlight = 1;
+		end;
+	}
+	if(illusion_moonlight == 1){
+		mes "[慈谦]";
+		mes "我希望士兵能在她深入废弃村庄之前找到她。";
+		next;
+		mes "[慈谦]";
+		mes "请去洞穴那里，看看无妍和士兵是否已经出来了。";
+		mes "有个年轻的学者跟着士兵去了，但她看起来完全不可靠。";
+		next;
+		mes "[慈谦]";
+		mes "和那个学者谈谈，也许他能告诉你一些情况。";
+		close;
+	}
+	if(illusion_moonlight < 6){
+		mes "[慈谦]";
+		mes "也许是时候把事情交给年轻一代了。";
+		mes "我们这些老家伙无能为力。";
+		close;
+	}
+}
+pay_arche,48,137,4	script	年轻学者#illusion_moonlight	4_F_03,{
+	if(illusion_moonlight == 0){ 
+        npctalk "他们为什么还没出来……","",bc_self; 
+        end; 
+    }
+	if(illusion_moonlight == 1){
+		npctalk "他们为什么还没出来……","",bc_self;
+		mes "[年轻学者]";
+        mes "啊，今天一定是我的幸运日！","正当我需要的时候，出现了一位冒险者！";
+        next;
+        mes "[年轻学者]";
+        mes "打扰一下。","我听说冒险者会为别人做很多事情。是真的吗？";
+        next;
+        if(select("是的，但我现在很忙。:拒绝。"))
+        mes "[年轻学者]";
+        mes "……哦，这样啊。","你一定很忙。","抱歉打扰你了。","顺便问一下，你来这里有什么事吗？";
+        next;
+        if(select("你见过一个叫无妍的人吗？"))
+        mes "[年轻学者]";
+        mes "无妍？你是指灵魂连接者无妍吗？","嗯，严格来说，她还是个学徒，但这不重要。";
+        next;
+        mes "[年轻学者]";
+        mes "我现在正在等她。","她跑进洞穴里了，好像被什么东西附身了一样。";
+        next;
+        mes "[年轻学者]";
+        mes "正熙？我是说，一个士兵跟着她进去了，但两个人都还没出来。","我正在犹豫是否应该进去找他们。";
+        next;
+        mes "[年轻学者]";
+        mes "希望他们俩没事。";
+		classchange 4_M_PAY_SOLDIER,"斐扬士兵#archer_dummy",bc_self;
+		classchange 4_F_TAEKWON,"无妍#archer_dummy",bc_self;
+        sleep2 2000;
+        npctalk "他们在那儿！他们看起来没事！","年轻学者#illusion_moonlight",bc_self;
+        sleep2 2000;
+        npctalk "呃，我不想再修炼了！","无妍#archer_dummy",bc_self;
+        sleep2 2000;
+        npctalk "……","斐扬士兵#archer_dummy",bc_self;
+        next;
+		mes "[无妍]";
+		mes "沧海，你在这里做什么？";
+        npctalk "我很担心你……","年轻学者#moonlight",bc_self;
+        next;
+        mes "[无妍]";
+        mes "你担心我，但你就只愿意跟到这里？","算了。不管我多惨，都不需要你帮忙！";
+        sleep2 2000;
+        npctalk "好了，够了。","斐扬士兵#archer_dummy",bc_self;
+        sleep2 2000;
+        npctalk "这……这不公平……","年轻学者#illusion_moonlight",bc_self;
+        next;
+        npctalk "再见！","无妍#archer_dummy",bc_self;
+        mes "[无妍]";
+        mes "啊，我不干了。去告诉那些老家伙吧！";
+        next;
+        npctalk "唉。我去追她。你去告诉长老们，好吗？","斐扬士兵#archer_dummy",bc_self;
+        sleep2 1500;
+		classchange HIDDEN_WARP_NPC,"斐扬士兵#archer_dummy",bc_self;
+		classchange HIDDEN_WARP_NPC,"无妍#archer_dummy",bc_self;
+        mes "[年轻学者]";
+        mes "那是……！","她没告诉我们发生了什么就走了。";
+        next;
+        mes "[年轻学者]";
+        mes "啊，正熙！","对了冒险者，你刚才不是在找无妍吗？";
+        next;
+        if(select("我想我得走了。"))
+        mes "[年轻学者]";
+        mes "无妍一定是去了^0000FF斐扬离宫^000000。","我要去那里，你想和我一起去吗？";
+        next;
+        if(select("和他一起去。:分开走。") == 2){  
+            mes "[年轻学者]";
+            mes "无妍一定是去了";
+            mes "^0000FF斐扬离宫^000000。";
+            mes "你为什么不去和她谈谈呢？";
+            mes "我去告诉长老们。";
+            illusion_moonlight = 2;
+            completequest 7776;
+            setquest 7777;
+            end;
+        }
+		mes "[年轻学者]";
+		mes "那我们就去^0000FF斐扬离宫^000000吧。";
+        illusion_moonlight = 2;
+        completequest 7776;
+        setquest 7777;
+        close2;
+        warp "payon",105,320;
+        end;	
+	}
+	if(illusion_moonlight == 2){
+		mes "[年轻学者]";
+		mes "无妍一定是去了";
+		mes "^0000FF斐扬离宫^000000。";
+		mes "你为什么不去和她谈谈呢？";
+		mes "我去告诉长老们。";
+		close;
+	}
+	if(illusion_moonlight < 6){
+		mes "[年轻学者]";
+		mes "传说有一只九尾狐悟道成为了神圣的生物，月光之花就是从她那里降临的。我认为这个故事值得研究。";
+		close;
+	}
+	if(illusion_moonlight >= 6){
+		mes "[年轻学者]";
+		mes "我们去调查废弃村庄吧！","你想和我一起去吗？";
+		next;
+		if(select("和他一起去。:分开走。") == 2){
+			mes "[年轻学者]";
+			mes "我会叫上正熙，我们很快就跟上你。";
+			close;
+		}
+		mes "[年轻学者]";
+		mes "我们走吧！";
+		close2;
+		warp "pay_dun03",145,43;
+		end;
+	}
+	
+	
+OnInit:
+	questinfo 7777,QTYPE_QUEST;
+	setquestinfo_req 7777,7776,1;
+	end;
+}
+payon_in03,33,95,3	script	无妍#moonlight_in	4_F_TAEKWON,{
+	if(illusion_moonlight < 2){
+		mes "[无妍]";
+		mes "如果你找老师，她在另一个房间。";
+		close;
+	}
+	if(illusion_moonlight == 2){
+		pcblockall getcharid(3),1;
+		sleep2 2000;
+		npctalk "不管你说什么，我都不干了。","无妍#moonlight_in",bc_self;
+		sleep2 2000;
+		npctalk "这是我第三次做噩梦了。我受不了了！","无妍#moonlight_in",bc_self;
+		sleep2 2000;
+		unittalk getcharid(3),"什么噩梦？",bc_self;
+		npctalk "什么噩梦？","年轻学者#moonlight_in",bc_self;
+		sleep2 2000;
+		npctalk "关于狐狸的噩梦？九条尾巴和月光花？","无妍#moonlight_in",bc_self;
+		sleep2 2000;
+		npctalk "那些噩梦太可怕了。我不想再经历了。","无妍#moonlight_in",bc_self;
+		sleep2 2000;
+		npctalk "但我们没有别人来执行仪式了。","慈谦#moonlight_in",bc_self;
+		sleep2 2000;
+		npctalk "每个人试了一次就放弃了。你试了三次。","慈谦#moonlight_in",bc_self;
+		sleep2 2000;
+		npctalk "慈谦，这次发生在我身上的不只是噩梦。","无妍#moonlight_in",bc_self;
+		sleep2 2000;
+		npctalk "这和我之前两次执行仪式时不一样。","无妍#moonlight_in",bc_self;
+		sleep2 2000;
+		npctalk "怎么不一样？","年轻学者#moonlight_in",bc_self;
+		sleep2 2000;
+		npctalk "……","无妍#moonlight_in",bc_self;
+		sleep2 2000;
+		npctalk "感觉就像噩梦正在现实中发生一样。","无妍#moonlight_in",bc_self;
+		sleep2 2000;
+		npctalk "你是什么意思？你只是想安抚愤怒的九尾狐灵魂而已。","慈谦#moonlight_in",bc_self;
+		sleep2 2000;
+		npctalk "你在洞穴里看到了什么？","慈谦#moonlight_in",bc_self;
+		sleep2 2000;
+		npctalk "我无法解释我看到了什么。你必须亲眼看到才能相信。","无妍#moonlight_in",bc_self;
+		sleep2 2000;
+		npctalk "我们需要一个强大的人去那里，比如那边的那个冒险者，应该进洞穴去看看。","无妍#moonlight_in",bc_self;
+		completequest 7777;
+		setquest 7778;
+		illusion_moonlight = 3;
+		pcblockall getcharid(3),0;
+		end;
+	}
+	if(illusion_moonlight == 3){
+		mes "[无妍]";
+		mes "好吧，我告诉你这个故事。";
+		mes "斐扬洞穴曾经是一个村庄的一部分，后来被山体滑坡掩埋了。";
+		next;
+		mes "[无妍]";
+		mes "如你所料，很多人被一起埋在了下面，他们的灵魂在洞穴里游荡。";
+		next;
+		mes "[无妍]";
+		mes "其中一些是九尾狐。这些狐狸的愤怒非同寻常。";
+		mes "这就是我们定期举行仪式的原因。";
+		next;
+		mes "[无妍]";
+		mes "但现在的问题是，";
+		mes "狐狸灵魂的怨恨随着时间的推移越来越深，没有人知道原因。";
+		mes "也许仪式就是它们生气的原因，它并没有像我们希望的那样起作用。";
+		next;
+		mes "[无妍]";
+		mes "而且，每次我执行仪式时，我都会梦到怨恨的灵魂和哀号的九尾狐。";
+		next;
+		mes "[无妍]";
+		mes "灵魂连接者以与灵魂沟通为生，做噩梦是很正常的。";
+		next;
+		mes "[无妍]";
+		mes "所以当我第一次做噩梦时，我以为和其他情况一样。";
+		mes "但现在我知道区别了，这也和我的健康状况无关。";
+		next;
+		mes "[无妍]";
+		mes "不管是什么原因激怒了九尾狐的灵魂。";
+		mes "它让我失去了理智，把我送进了那个废弃的村庄。";
+		next;
+		mes "[无妍]";
+		mes "而且，我看到了什么东西。";
+		mes "那是另一个世界的影像，与我们的世界不同。";
+		mes "我们必须关闭那个地方，这样就没有人能进入它了。";
+		next;
+		mes "[无妍]";
+		mes "我有一种不安的感觉，一场可怕的事情即将发生。";
+		mes "或者也许它已经在发生了……";
+		next;
+		mes "[无妍]";
+		mes "我看到的模糊影像与地狱无异。";
+		mes "那是我上次执行仪式之后看到的。";
+		next;
+		mes "[无妍]";
+		mes "我求求你，别再让我回去做那个了。";
+		mes "我的精神不够强大，无法承受这样的噩梦。";
+		next;
+		mes "[无妍]";
+		mes "更不用说洞穴里正在发生的事情了。";
+		next;
+		mes "[无妍]";
+		mes "如果你想去，你必须独自一人去亲眼看看。";
+		mes "我还带着我试图净化的狐珠。你准备好了就告诉我。";
+		completequest 7778;
+		setquest 7779;
+		illusion_moonlight = 4;
+		end;
+	}
+	if(illusion_moonlight == 4){
+		mes "[无妍]";
+		mes "你准备好了吗？";
+		next;
+		if(select("是的。:还没。") == 2){
+			mes "[无妍]";
+			mes "准备好了就告诉我。";
+			close;
+		}
+		mes "[无妍]";
+		mes "好的，这个狐珠还没有完全净化。","把它放在你手里。";
+		next;
+		mes "[无妍]";
+		mes "放松……将你的注意力集中在它上面……敞开心扉感受它的能量。";
+		close2;
+		pcblockall getcharid(3),1;
+		npctalk "游荡的灵魂们，倾听并注视吧！","",bc_self;
+		specialeffect 513;
+		specialeffect2 334;
+		sleep2 1500;
+		specialeffect 368;
+		specialeffect 550;
+		sleep2 1500;
+		specialeffect 550;
+		npctalk "望向冥河的对岸。","",bc_self;
+		sleep2 250;
+		classchange 1180,"九尾灵魂#01",bc_self;
+		specialeffect 368,AREA,"九尾灵魂#01";
+		specialeffect 550,AREA,"九尾灵魂#01";
+		sleep2 250;
+		classchange 1180,"九尾灵魂#02",bc_self;
+		specialeffect 368,AREA,"九尾灵魂#02";
+		specialeffect 550,AREA,"九尾灵魂#02";
+		npctalk "死！","九尾灵魂#02",bc_self;
+		sleep2 250;
+		classchange 1180,"九尾灵魂#03",bc_self;
+		specialeffect 368,AREA,"九尾灵魂#03";
+		specialeffect 550,AREA,"九尾灵魂#03";
+		sleep2 250;
+		classchange 1180,"九尾灵魂#04",bc_self;
+		specialeffect 368,AREA,"九尾灵魂#04";
+		specialeffect 550,AREA,"九尾灵魂#04";
+		sleep2 2000;
+		npctalk "望向冥河的对岸。","",bc_self;
+		npctalk "死！","九尾灵魂#01",bc_self;
+		specialeffect 550,AREA,"九尾灵魂#03";
+		specialeffect 550,AREA,"九尾灵魂#03";
+		specialeffect 550,AREA,"九尾灵魂#03";
+		specialeffect 550,AREA,"九尾灵魂#03";
+		sleep2 2000;
+		npctalk "可怜的魂灵，遮住你们的眼睛，堵住你们的耳朵。","",bc_self;
+		npctalk "死！","九尾灵魂#02",bc_self;
+		specialeffect 550,AREA,"九尾灵魂#03";
+		specialeffect 550,AREA,"九尾灵魂#03";
+		specialeffect 550,AREA,"九尾灵魂#03";
+		specialeffect 550,AREA,"九尾灵魂#03";
+		sleep2 2000;
+		npctalk "离开这个领域。","",bc_self;
+		npctalk "死！","九尾灵魂#03",bc_self;
+		specialeffect 550,AREA,"九尾灵魂#03";
+		specialeffect 550,AREA,"九尾灵魂#03";
+		specialeffect 550,AREA,"九尾灵魂#03";
+		specialeffect 550,AREA,"九尾灵魂#03";		
+		sleep2 2000;
+		npctalk "卸下你的负担。","",bc_self;
+		npctalk "死！！","九尾灵魂#01",bc_self;
+		npctalk "死！！","九尾灵魂#02",bc_self;
+		npctalk "死！！","九尾灵魂#03",bc_self;
+		npctalk "死！！","九尾灵魂#04",bc_self;
+		specialeffect 550,AREA,"九尾灵魂#03";
+		specialeffect 550,AREA,"九尾灵魂#03";
+		specialeffect 550,AREA,"九尾灵魂#03";
+		specialeffect 550,AREA,"九尾灵魂#03";		
+		sleep2 2000;
+		npctalk "飞向河的对岸吧。","",bc_self;
+		npctalk "死死死！！","九尾灵魂#02",bc_self;
+		sleep2 250;
+		npctalk "死！","九尾灵魂#01",bc_self;
+		sleep2 250;
+		npctalk "死！","九尾灵魂#03",bc_self;
+		sleep2 250;
+		npctalk "死！","九尾灵魂#04",bc_self;
+		sleep2 1000;
+		specialeffect2 445;
+		sleep2 250;
+		illusion_moonlight = 5;
+		completequest 7779;
+		setquest 7780;
+		pcblockall getcharid(3),0;
+		warp "pay_dun03",145,43;
+		end;
+	}
+	if(illusion_moonlight == 5){
+		mes "[无妍]";
+		mes "现在你知道我经历了什么。","如果你想进一步调查，你必须去那个废弃的村庄。";
+		next;
+		mes "[无妍]";
+		mes "如果你决定这么做，那会让某人非常高兴。可能因为他是个傻瓜。";
+		close;
+	}
+	if(illusion_moonlight < 9){
+		mes "[无妍]";
+		mes "如果你找老师，她在另一个房间。";
+		close;
+	}
+	if(illusion_moonlight == 9){
+		mes "[无妍]";
+		mes "我明白了。","所以它们成真了。","你不知道为什么，对吧？";
+		next;
+		mes "[无妍]";
+		mes "也许是因为现实与梦境之间的墙壁崩塌了。","否则，你怎么能进出别人的梦境呢？";
+		next;
+		mes "[无妍]";
+		mes "我知道它们是^0000FF月光之花所做的梦^000000。","我不知道它们是怎么变成现实的。我怀疑真的有人知道。";
+		next;
+		mes "[无妍]";
+		mes "据我所知，以前从未发生过这样的事情。如果我们想弄清楚，只能靠自己了。";
+		next;
+		mes "[无妍]";
+		mes "好吧，我会让沧海去弄明白的。","好了，那我最好去休息一下。";
+		next;
+		mes "[无妍]";
+		mes "现在我知道那些噩梦真的源自月光之花，我感觉好多了。","我终于可以睡觉了。";
+		next;
+		mes "[无妍]";
+		mes "一旦我们处理了这些噩梦，就不再需要更多的仪式了。","这是不是意味着我自由了？终于自由了！","我甚至不知道该怎么感谢你。","我在那里的时候发现了这些奇怪的石头。虽然不多，";
+		mes "但也许你能找到它们的用处？","非常感谢你，冒险者。";
+		illusion_moonlight = 10;
+		completequest 7788;
+		end;
+	}
+	mes "[无妍]";
+	mes "祝你和沧海调查顺利！","一旦噩梦消失，我们就不再需要举行仪式了！";
+	next;
+	mes "[无妍]";
+	mes "你怎么能确定，你问？","我不确定。嘿嘿。","它们可能不会完全消失。","谁知道呢？";
+	close;
+		
+OnInit:
+	questinfo 7778,QTYPE_QUEST;
+	setquestinfo_req 7778,7777,1;
+	questinfo 7779,QTYPE_QUEST;
+	setquestinfo_req 7779,7778,1;
+	questinfo 7780,QTYPE_QUEST;
+	setquestinfo_req 7780,7779,1;
+	end;
+}
+payon_in03,30,96,5	script	慈谦#moonlight_in	4_M_HUOLDARMY,{
+	if(illusion_moonlight < 2){
+		mes "[慈谦]";
+		mes "请在宫殿内注意礼仪。";
+		close;
+	}
+	if(illusion_moonlight == 2){
+		npctalk "无妍……如果你做不到，那就没人能做到了！","",bc_self;
+		end;
+	}
+	if(illusion_moonlight < 5){
+		npctalk "我们先听着吧。","",bc_self;
+		end;
+	}
+	if(illusion_moonlight == 5){
+		mes "[慈谦]";
+		mes "我们应该先掌握情况。","如果你能帮助我们，那就太好了，冒险者。";
+		close;
+	}
+	if(illusion_moonlight < 10){
+		mes "[慈谦]";
+		mes "请在宫殿内注意礼仪。";
+		close;
+	}
+	mes "[慈谦]";
+	mes "月光之花正在它们的噩梦中重现过去。","在某种程度上，它们也是受害者。";
+	next;
+	mes "[慈谦]";
+	mes "我会确保没有村民接近现实与梦境之间崩塌的墙壁。";
+	close;
+}
+
+payon_in03,33,93,1	script	年轻学者#moonlight_in	4_F_03,{
+	if(illusion_moonlight < 2){
+		mes "[年轻学者]";
+		mes "斐扬自古以来就是神圣生物的家园。","这是一个被群山与世界隔绝的小镇，斐扬人的思维方式与外界不同。";
+		close;
+	}
+	if(illusion_moonlight == 2){
+		npctalk "无妍真的很不高兴。我们应该问问她发生了什么事。","",bc_self;
+		end;
+	}
+	if(illusion_moonlight < 5){
+		npctalk "我们应该问问无妍发生了什么事。";
+		end;
+	}
+	if(illusion_moonlight == 5){
+		mes "[年轻学者]";
+		mes "这太糟糕了。","我不敢相信无妍不得不独自面对这一切。","那些狐狸一定比我想象的还要愤怒。";
+		next;
+		mes "[年轻学者]";
+		mes "我们需要进一步调查。我最好去那个废弃的村庄。";
+		close;
+	}
+	if(illusion_moonlight > 5){
+		mes "[年轻学者]";
+		mes "我打算留在废弃的村庄调查这种现象。","但我需要某种形式的保护。我会带正熙一起去。";
+		next;
+		mes "[年轻学者]";
+		mes "如果你能再次加入我们就太好了。在废弃村庄见。";
+		close;
+	}
+}
+
+
+//= Dummy
+pay_arche,44,133,7	script	斐扬士兵#archer_dummy	HIDDEN_WARP_NPC,{ end; }
+pay_arche,46,135,5	script	无妍#archer_dummy	HIDDEN_WARP_NPC,{ end; }
+payon_in03,30,96,5	script	九尾灵魂#01	HIDDEN_WARP_NPC,{ end; }
+payon_in03,35,96,3	script	九尾灵魂#02	HIDDEN_WARP_NPC,{ end; }
+payon_in03,30,93,7	script	九尾灵魂#03	HIDDEN_WARP_NPC,{ end; }
+payon_in03,35,93,1	script	九尾灵魂#04	HIDDEN_WARP_NPC,{ end; }
+pay_dun03,143,45,4	script	正熙#dun_dummy	HIDDEN_WARP_NPC,{ end; }
+pay_dun03,138,43,7	script	年轻学者#dun_dummy	HIDDEN_WARP_NPC,{ end; }
+
+//= Warp
+pay_dun03,140,46,0	script	微光传送门#illusion_moonlight	4_ENERGY_BLUE,{
+	if(illusion_moonlight < 5){
+		mes "- 空气中弥漫着奇怪的能量。 -";
+		mes "这让我感到焦虑。";
+		close;
+	}
+	if(illusion_moonlight == 5){ 
+		mes "空气中有一个微光闪烁的传送门。";
+		next;
+		classchange 4_F_03,"年轻学者#dun_dummy",bc_self;
+		classchange 4_M_PAY_SOLDIER,"正熙#dun_dummy",bc_self;
+		npctalk "*喘气* 你来了。","年轻学者#dun_dummy",bc_self;
+		mes "[年轻学者]";
+		mes "你突然消失让我很警觉。","你觉得这是不是无妍说的那些噩梦之一……";
+		next;
+		if(select("我得去弄清楚。"))
+		npctalk "我？如果我不想呢？","正熙#dun_dummy",bc_self;
+		mes "[年轻学者]";
+		mes "那么，你介意我跟着吗？","你不用担心我。","正熙可以保护我的安全。";
+		next;
+		npctalk "别……别碰任何东西！","正熙#dun_dummy",bc_self;
+		mes "[年轻学者]";
+		mes "那么……我该碰这个吗？";
+		illusion_moonlight = 6;
+		completequest 7780;
+		setquest 7781;
+		close2;
+		npctalk "啊啊啊啊——！","",bc_self;
+		specialeffect 885,AREA,"年轻学者#dun_dummy";
+		sleep 500;
+		classchange HIDDEN_WARP_NPC,"年轻学者#dun_dummy",bc_self;
+		sleep 2000;
+		npctalk "沧海！","正熙#dun_dummy",bc_self;
+		sleep 2000;
+		npctalk "那个粗心的笨蛋！","正熙#dun_dummy",bc_self;
+		specialeffect 885,AREA,"正熙#dun_dummy";
+		sleep 500;
+		classchange HIDDEN_WARP_NPC,"正熙#dun_dummy",bc_self;
+		end;
+	}
+	if(illusion_moonlight > 5){
+		mes "微光传送门的另一边有东西。","我该怎么办？";
+		next;
+		if(select("进入传送门。:退出。") == 2){
+			mes "退出调查。";
+			close;
+		}
+		warp "pay_d03_i",140,44;
+		end;
+	}
+	
+OnInit:
+	questinfo 7781,QTYPE_QUEST;
+	setquestinfo_req 7781,7780,1;
+	end;
+}
+pay_d03_i,140,46,0	script	微光传送门#illusion_moonlight_2	4_ENERGY_BLUE,{
+	mes "我可以回到废弃村庄。","我该怎么办？";
+	next;
+	if(select("退出。:不退出。") == 2){
+		end;
+	}
+	warp "pay_dun03",140,44;
+	end;
+}
+
+//= Illusion Dungeon
+pay_d03_i,149,45,4	script	学者沧海#illusion_moonlight	4_F_03,{
+	if(illusion_moonlight == 6){
+		mes "[沧海]";
+		mes "看看这个地方！","它看起来和我们刚才所在的废弃村庄一模一样，但是……又不一样！";
+		next;
+		mes "[沧海]";
+		mes "而且，这里的人和狐狸都有些不对劲，我还在他们中间看到了一个奇怪的法师。","万一他就是这起事件的元凶呢。";
+		next;
+		mes "[沧海]";
+		mes "这些狐狸、村民和愤怒的灵魂……","它们让我想起了村庄被山体滑坡掩埋的时候。";
+		next;
+		mes "[沧海]";
+		mes "我们需要四处寻找更多线索。","你会帮忙的，对吧？";
+		next;
+		mes "[沧海]";
+		mes "准备好了就告诉我。";
+		illusion_moonlight = 7;
+		completequest 7781;
+		end;
+	}
+	if(illusion_moonlight == 7){
+		mes "[沧海]";
+		mes "我和村民们谈过了，","他们中的很多人都告诉我关于某个奇怪法师的事。";
+		next;
+		mes "[沧海]";
+		mes "他们说无论他走到哪里，都会施展强大的法术，正是他的一个法术震动了大地，导致了致命的山体滑坡。结果，很多村民和狐狸都死了。";
+		next;
+		mes "[沧海]";
+		mes "我确信那个法师就是这些肆虐的噩梦的罪魁祸首。","也许如果我们消除了它们的根源，噩梦就会停止实体化。";
+		next;
+		mes "[沧海]";
+		mes "当然，我可能错了。","他可能只是噩梦中的另一个角色。";
+		next;
+		mes "[沧海]";
+		mes "我比任何人都想知道是什么撕裂了现实与梦境之间的墙壁。","也许其他地方也在发生这种事？";
+		next;
+		mes "[沧海]";
+		mes "总之，请处理掉这个地方的^0000FF真理巫师^000000。","是时候处理这个准现实了。";
+		next;
+		mes "[沧海]";
+		mes "他相当厉害。我不建议^0000FF单独与他战斗^000000。";
+		next;
+		if(select("我会的。:不，谢谢。") == 2){
+			mes "[沧海]";
+			mes "呃，那我得调查点别的了。","但我不会为此怨恨你。我保证。";
+			end;
+		}
+		mes "[沧海]";
+		mes "祝你好运。","那个巫师看起来很强大。","请小心。";
+		setquest 7782;
+		illusion_moonlight = 8;
+		end;
+	}
+	if(illusion_moonlight == 8){
+		switch(checkquest(7782,HUNTING)){
+			case -1:
+				mes "- 发生了未知错误。 -";
+				end;
+			case 0:
+			case 1:
+				mes "[沧海]";
+				mes "那个^0000FF悟道法师^000000看起来很危险。","请阻止他。";
+				end;
+			case 2:
+				mes "[沧海]";
+				mes "你果然名不虚传。","现在，让我们看看这对情况有什么影响。";
+				next;
+				mes "[沧海]";
+				mes "还记得无妍说过的话吗？","我是说关于狐狸的噩梦成真的事。";
+				next;
+				mes "[沧海]";
+				mes "我一边四处查看一边思考。","我想有可能我们是在一朵月光之花的梦境里。";
+				next;
+				mes "[沧海]";
+				mes "我不知道它是如何与现实连接起来的，","但我确定一件事：";
+				next;
+				mes "[沧海]";
+				mes "月光之花的灵魂仍然活在过去。","活在它们的村庄被掩埋的时候..";
+				next;
+				mes "[沧海]";
+				mes "它们死得如此凄惨，以至于无法前往冥界。","而某些东西点燃了它们压抑的愤怒。";
+				next;
+				mes "[沧海]";
+				mes "在这里，有我们在别处找不到的真相。","我想我会留在这里，直到我找到所有答案。";
+				next;
+				mes "[沧海]";
+				mes "请把这个消息告诉斐扬离宫的无妍。","正熙和我会进一步探索这个地方。";
+				next;
+				mes "[沧海]";
+				mes "希望我们能找到这种现象的答案。";
+				getitem 25271,1; //= 幻影石
+				erasequest 7782;
+				setquest 7783;
+				setquest 7788;
+				illusion_moonlight = 9;
+				end;
+		}
+	}
+	switch(checkquest(7783,PLAYTIME)){
+		case -1:
+			break;
+			
+		case 0:
+		case 1:
+			mes "[沧海]";
+			mes "现在我知道这不是那个废弃村庄了。","我们真的在一朵月光之花的噩梦里吗？";
+			next;
+			mes "[沧海]";
+			mes "无妍是这么说的。","它们的噩梦正在变成现实。";
+			next;
+			mes "[沧海]";
+			mes "这个地方值得认真研究。";
+			end;
+			
+		case 2:
+			erasequest 7783;
+			break;	
+	}
+	switch(checkquest(7782,HUNTING)){
+		case -1:
+			mes "[沧海]";
+			mes "我和村民们谈过了，","他们中的很多人都告诉我关于某个奇怪法师的事。";
+			next;
+			mes "[沧海]";
+			mes "他们说无论他走到哪里，都会施展强大的法术，正是他的一个法术震动了大地，导致了致命的山体滑坡。结果，很多村民和狐狸都死了。";
+			next;
+			mes "[沧海]";
+			mes "我确信那个法师就是这些肆虐的噩梦的罪魁祸首。","也许如果我们消除了它们的根源，噩梦就会停止实体化。";
+			next;
+			mes "[沧海]";
+			mes "当然，我可能错了。","他可能只是噩梦中的另一个角色。";
+			next;
+			mes "[沧海]";
+			mes "我比任何人都想知道是什么撕裂了现实与梦境之间的墙壁。","也许其他地方也在发生这种事？";
+			next;
+			mes "[沧海]";
+			mes "总之，请处理掉这个地方的^0000FF真理巫师^000000。","是时候处理这个准现实了。";
+			next;
+			mes "[沧海]";
+			mes "他相当厉害。我不建议^0000FF单独与他战斗^000000。";
+			next;
+			if(select("我会的。:不，谢谢。") == 2){
+				mes "[沧海]";
+				mes "呃，那我得调查点别的了。","但我不会为此怨恨你。我保证。";
+				end;
+			}
+			mes "[沧海]";
+			mes "祝你好运。","那个巫师看起来很强大。","请小心。";
+			setquest 7782;
+			end;
+		case 0:
+		case 1:
+			mes "[沧海]";
+			mes "那个^0000FF悟道法师^000000看起来很危险。","请阻止他。";
+			end;
+		case 2:
+			mes "[沧海]";
+			mes "你果然名不虚传。","现在，让我们看看这对情况有什么影响。";
+			next;
+			mes "[沧海]";
+			mes "希望我们能找到这种现象的答案。";
+			getitem 25271,1; //= 幻影石
+			erasequest 7782;
+			setquest 7783;
+			end;		
+	}		
+}
+pay_d03_i,152,45,4	script	士兵正熙#illusion_moonlight	4_M_PAY_SOLDIER,{
+	if(illusion_moonlight == 6){
+		mes "[正熙]";
+		mes "进来的时候我就知道最好紧跟着沧海。","我是对的。";
+		next;
+		mes "[正熙]";
+		mes "我从这些狐狸和鬼魂身上感觉到了非常不好的气息。","这可不妙。";
+		close;
+	}
+	if(illusion_moonlight > 6){
+		if(checkquest(7784,HUNTING) == 2){
+			mes "[正熙]";
+			mes "不管它们是真是假，它们都一样具有威胁性。","干得好。";
+			next;
+			mes "[正熙]";
+			mes "沧海对这个地方的调查快结束了。我最好准备离开。";
+			erasequest 7784;
+			setquest 7785;
+			getitem 25271,1; //= 幻影石
+			end;
+		}
+		if(checkquest(7786,HUNTING)  == 2){
+			mes "[正熙]";
+			mes "不管它们是真是假。","我很同情那个士兵。";
+			next;
+			mes "[正熙]";
+			mes "他只想保护别人，却在未能实现这个愿望的情况下死去了。","谢谢你帮助他们安息。";
+			erasequest 7786;
+			setquest 7787;
+			getitem 25271,1; //= 幻影石
+			end;
+		}
+		mes "[正熙]";
+		mes "还有另一个传送门，看起来和我们进来的那个一模一样。","我碰了它一下，它就把我送回了原来的废弃村庄。";
+		next;
+		if(select("关于愤怒的九尾狐。:关于愤怒的士兵。") == 1){
+			switch(checkquest(7785,PLAYTIME)){
+				case -1:
+					break;
+				case 0:
+				case 1:
+					mes "[正熙]";
+					mes "沧海说我们是在一朵月光之花的噩梦里。","它们可能不是真的，但如果它们对生者构成任何威胁，就必须处理掉。";
+					next;
+					mes "[正熙]";
+					mes "这和我对它们感到的同情无关。","现在失陪了，沧海和我要去调查其他地方了。";
+					end;
+				case 2:
+					erasequest 7785;
+					break;
+			}
+			switch(checkquest(7784,HUNTING)){
+				case -1:
+					mes "[正熙]";
+					mes "沧海因为那些愤怒的狐狸而难以调查这个地方。","如果你能处理掉它们，我将不胜感激。";
+					next;
+					if(select("接受:拒绝") == 2){
+						mes "[正熙]";
+						mes "那沧海就无法完全调查这个地方了。";
+						end;
+					}
+					mes "[正熙]";
+					mes "谢谢你。","我理解那些^0000FF狐狸为什么愤怒^000000，但这事必须做。";
+					setquest 7784;
+					end;
+					
+				case 0:
+				case 1:
+					mes "[正熙]";
+					mes "请狩猎这个地方附近的^0000FF愤怒九尾狐^000000。","这将确保沧海调查时的安全。";
+					close;
+			}
+		} else {
+			switch(checkquest(7787,PLAYTIME)){
+				case -1:
+					break;
+				case 0:
+				case 1:
+					mes "[正熙]";
+					mes "如果我们真的像沧海想的那样，是在月光之花的噩梦里，","那么那边那个愤怒的士兵一定是这个村庄的守卫。";
+					next;
+					mes "[正熙]";
+					mes "不管这是不是真的，看着我的祖先受苦是很难受的。","我最终可能会浪费我们的时间，但我想试着帮助他们安息。";
+					close;
+				case 2:
+					erasequest 7787;
+					break;
+			}
+			switch(checkquest(7786,HUNTING)){
+				case -1:
+					mes "[正熙]";
+					mes "这些士兵试图保护村民直到最后一刻，","结果和他们一起被埋了。难怪他们如此愤怒。";
+					next;
+					mes "[正熙]";
+					mes "你能行行好，让他们安息吗？";
+					next;
+					if(select("接受。:拒绝。") == 2){
+						mes "[正熙]";
+						mes "我真的很不想亲自对付它们，","但我想我不得不这么做。";
+						end;
+					}
+					mes "[正熙]";
+					mes "谢谢你。","我就把那些^0000FF愤怒的士兵^000000交给你了。","请送他们上天堂吧。";
+					setquest 7786;
+					end;
+					
+				case 0:
+				case 1:
+					mes "[正熙]";
+					mes "请处理掉这个地方的^0000FF愤怒士兵^000000。","我的意思是……送他们上天堂。";
+					close;
+			}
+		}
+	}
+}
+
+pay_d03_i,160,45,4	script	宝石工匠#illusion_moonlight	4_TOWER_17,{
+	mes "[宝石工匠]";
+	mes "你找我有事吗？";
+	next;
+	switch(select("你在这里做什么？:升级武器。:升级防具。")){
+		case 1:
+			mes "[宝石工匠]";
+			mes "我来到废弃村庄，","寻找一些材料。碰了一些奇怪的光，然后我就到这里了。";
+			next;
+			mes "[宝石工匠]";
+			mes "我决定在这里呆一会儿。我想只要紧跟着这个士兵就是安全的。","我有个提议。我想要一些只能在这个地方找到的材料。";
+			next;
+			mes "[宝石工匠]";
+			mes "帮我把它们弄来，作为交换，我会帮你提升装备。只是让你知道，我只能提升某些类型。";
+			next;
+			mes "[宝石工匠]";
+			mes "如果你有兴趣，我们可以谈谈我们交易的细节。";
+			close;
+			
+		case 2:
+			mes "[宝石工匠]";
+			mes "以下是我能处理的装备列表。";
+			for(.@i = 0; .@i < getarraysize(.weapon_upgrade$); .@i += 3){
+				mes "<ITEM>"+getitemname(atoi(.weapon_upgrade$[.@i]))+"<INFO>"+atoi(.weapon_upgrade$[.@i])+"</INFO></ITEM>";
+			}
+			next;
+			mes "[宝石工匠]";
+			mes "确保^0000FF你的装备至少精炼到+7^000000再带给我。","这是最低要求，我的升级服务才能对你的装备产生可见的效果。";
+			next;
+			mes "[宝石工匠]";
+			mes "确保你^0000FF装备着你想提升的那件物品^000000。","否则，我无法评估它的状况。";
+			next;
+			mes "[宝石工匠]";
+			mes "你可能已经猜到了，之后你的装备会变成新的东西。","换句话说，^0000FF它会失去目前的精炼等级、卡片和附魔^000000。";
+			next;
+			mes "[宝石工匠]";
+			mes "而且我需要^0000FF幻影石和一些其他材料^000000来升级你的装备。","选一件你想要的物品，我会告诉你我需要什么。";
+			next;
+			for(.@i = 0; .@i < getarraysize(.weapon_upgrade$); .@i += 3){
+				.@menu$ += getitemname(atoi(.weapon_upgrade$[.@i])) + ":";
+			}
+			.@s = (select(.@menu$) - 1) * 3;
+			mes "[宝石工匠]";
+			mes "对于那件装备，我需要以下材料。";
+			mes "^0000FF+7 " + getitemname(atoi(.weapon_upgrade$[.@s+1])) +"^000000";
+			getinventorylist(getcharid(0));
+			for(.@i = 0; .@i < @inventorylist_count; .@i++){
+				if(@inventorylist_id[.@i] !=  atoi(.weapon_upgrade$[.@s+1])){ 
+					continue;
+				}
+				if(@inventorylist_refine[.@i] >= 7){
+					.@index = .@i;
+					.@weapon_check = 1;
+					break;
+				} else {
+					continue;
+				}	
+			}
+			explode(.@data$,.weapon_upgrade$[.@s+2],",");
+			for(.@i = 0; .@i < getarraysize(.@data$); .@i += 2){
+				if(countitem(atoi(.@data$[.@i])) < atoi(.@data$[.@i+1])) .@missing += 1;
+				mes "^0000FF"+.@data$[.@i+1]+ " " +getitemname(atoi(.@data$[.@i]))+"^000000";
+			}
+			mes "你想继续吗？";
+			next;
+			if(select("继续。:我去准备材料。") == 2){
+				mes "[宝石工匠]";
+				mes "准备好了再来。";
+				close;
+			}
+			if(.@weapon_check < 1 || .@missing > 0){
+				mes "[宝石工匠]";
+				mes "你没有所有的材料";
+				end;
+			}
+			delitem2 @inventorylist_id[.@index],1,@inventorylist_identify[.@index],@inventorylist_refine[.@index],@inventorylist_attribute[.@index],@inventorylist_card1[.@index],@inventorylist_card2[.@index],@inventorylist_card3[.@index],@inventorylist_card4[.@index]; 
+			for(.@i = 0; .@i < getarraysize(.@data$); .@i += 2){
+				delitem atoi(.@data$[.@i]),atoi(.@data$[.@i+1]);
+			}
+			mes "[宝石工匠]";
+			mes "这是你升级后的装备。";
+			getitem atoi(.weapon_upgrade$[.@s]),1;
+			end;
+			
+		case 3:
+			mes "[宝石工匠]";
+			mes "以下是我能处理的装备列表。";
+			for(.@i = 0; .@i < getarraysize(.armor_upgrade$); .@i += 3){
+				mes "<ITEM>"+getitemname(atoi(.armor_upgrade$[.@i]))+"<INFO>"+atoi(.armor_upgrade$[.@i])+"</INFO></ITEM>";
+			}
+			next;
+			mes "[宝石工匠]";
+			mes "确保^0000FF你的装备至少精炼到+7^000000再带给我。","这是最低要求，我的升级服务才能对你的装备产生可见的效果。";
+			next;
+			mes "[宝石工匠]";
+			mes "确保你^0000FF装备着你想提升的那件物品^000000。","否则，我无法评估它的状况。";
+			next;
+			mes "[宝石工匠]";
+			mes "你可能已经猜到了，之后你的装备会变成新的东西。","换句话说，^0000FF它会失去目前的精炼等级、卡片和附魔^000000。";
+			next;
+			mes "[宝石工匠]";
+			mes "而且我需要^0000FF幻影石和一些其他材料^000000来升级你的装备。","选一件你想要的物品，我会告诉你我需要什么。";
+			next;
+			for(.@i = 0; .@i < getarraysize(.armor_upgrade$); .@i += 3){
+				.@menu$ += getitemname(atoi(.armor_upgrade$[.@i])) + ":";
+			}
+			.@s = (select(.@menu$) - 1) * 3;
+			mes "[宝石工匠]";
+			mes "对于那件装备，我需要以下材料。";
+			mes "^0000FF+7 " + getitemname(atoi(.armor_upgrade$[.@s+1])) +"^000000";
+			getinventorylist(getcharid(0));
+			for(.@i = 0; .@i < @inventorylist_count; .@i++){
+				if(@inventorylist_id[.@i] !=  atoi(.armor_upgrade$[.@s+1])){ 
+					continue;
+				}
+				if(@inventorylist_refine[.@i] >= 7){
+					.@index = .@i;
+					.@weapon_check = 1;
+					break;
+				} else {
+					continue;
+				}	
+			}
+			explode(.@data$,.armor_upgrade$[.@s+2],",");
+			for(.@i = 0; .@i < getarraysize(.@data$); .@i += 2){
+				if(countitem(atoi(.@data$[.@i])) < atoi(.@data$[.@i+1])) .@missing += 1;
+				mes "^0000FF"+.@data$[.@i+1]+ " " +getitemname(atoi(.@data$[.@i]))+"^000000";
+			}
+			mes "你想继续吗？";
+			next;
+			if(select("继续。:我去准备材料。") == 2){
+				mes "[宝石工匠]";
+				mes "准备好了再来。";
+				close;
+			}
+			if(.@weapon_check < 1 || .@missing > 0){
+				mes "[宝石工匠]";
+				mes "你没有所有的材料";
+				end;
+			}
+			delitem2 @inventorylist_id[.@index],1,@inventorylist_identify[.@index],@inventorylist_refine[.@index],@inventorylist_attribute[.@index],@inventorylist_card1[.@index],@inventorylist_card2[.@index],@inventorylist_card3[.@index],@inventorylist_card4[.@index]; 
+			for(.@i = 0; .@i < getarraysize(.@data$); .@i += 2){
+				delitem atoi(.@data$[.@i]),atoi(.@data$[.@i+1]);
+			}
+			mes "[宝石工匠]";
+			mes "这是你升级后的装备。";
+			getitem atoi(.armor_upgrade$[.@s]),1;
+			end;
+	}
+	end;
+	
+OnInit:
+	setarray .weapon_upgrade$,
+	26109,1648,"25271,30,25256,100",
+	28725,1234,"25271,30,25256,100",
+	16063,1525,"25271,10,25256,20",
+	26007,1477,"25271,10,25256,100";
+	setarray .armor_upgrade$,
+	19209,2277,"25271,10,25257,100",
+	19210,2285,"25271,10,25258,100",
+	15195,15012,"25271,10,25256,100",
+	20838,2504,"25271,10,23228,100",
+	22133,2404,"25271,10,23228,100";
+	end;
+	
+}
+
+-	script	illusion_mob#moonlight	-1,{
+	OnInit:
+		monster "pay_d03_i",0,0,"愤怒九尾狐",3759,15,strnpcinfo(0)+"::OnSummonMVP";
+		monster "pay_d03_i",55,75,"真理巫师",3764,1,strnpcinfo(0)+"::OnSummonWizard";
+		end;
+		
+	OnSummonMVP:
+		monster "pay_d03_i",0,0,"愤怒九尾狐",3759,1,strnpcinfo(0)+"::OnSummonMVP";
+		$illusion_mvp += 1;
+		if($illusion_mvp == 1000){
+			mapannounce "pay_d03_i","愤怒月光之花 : 谁敢再欺负我们？他们麻烦大了。",bc_map;
+			getmapxy(.@map$,.@x,.@y,UNITTYPE_PC);
+			monster "pay_d03_i",.@x,.@y,"愤怒月光之花",3758,1;
+			$illusion_mvp = 0;
+		}
+		end;
+		
+	OnSummonWizard:
+		monster "pay_d03_i",55,75,"真理巫师",3764,1,strnpcinfo(0)+"::OnSummonWizard";
+		end;
+}
+
+pay_d03_i,0,0	monster	诅咒木乃伊	3760,20,5000
+pay_d03_i,0,0	monster	诅咒爆钻怪	3761,20,5000
+pay_d03_i,0,0	monster	诅咒兽人女战士	3762,20,5000
+pay_d03_i,0,0	monster	愤怒士兵	3763,10,5000
+pay_d03_i,0,0	monster	狂暴英雄	3765,5,5000
