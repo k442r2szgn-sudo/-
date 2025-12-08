@@ -1,0 +1,277 @@
+
+-	script	Items_Conf	-1,{
+
+// ==================== 初始化部分 ====================
+OnInit:
+	// ==================== 进化规则配置 ====================
+	// 格式：物品ID, 进化模式, 怪物ID, 进化所需数量/经验
+	// 怪物ID为111表示任意怪物都可以
+	
+	// 正确配置：1201 -> 1207，需要击杀1只1002魔物进化1%
+	callsub Ids, 1201, 1, 1002, 100, 1207, 1, 2, 0;
+	// 参数说明：
+	// 1201 - 起始物品ID
+	// 1 - 进化模式：1=按击杀数量
+	// 1002 - 需要击杀的怪物ID
+	// 100 - 需要击杀100只怪物才能进化（100%）
+	// 1207 - 目标物品ID
+	// 1 - 进化模式：1=按击杀数量
+	// 2 - 需要击杀的怪物ID（进化终点，无需继续进化）
+	// 0 - 进化所需数量（0表示进化终点）
+	
+	// ==================== 自动进化设置 ====================
+	.auto = 1;	// 1=自动进化，0=手动进化
+	
+	// ==================== 公告颜色设置 ====================
+	setarray .c$[0],	"4db557",	// 进度公告颜色（绿色）
+				"d43438",	// 开始进化颜色（红色）
+				"4da5b5";	// 进化完成颜色（蓝色）
+	
+	// ==================== 检查的装备槽位 ====================
+	/* slots to check.
+	EQI_ACC_L (0)             - Accessory 1
+	EQI_ACC_R (1)             - Accessory 2
+	EQI_SHOES (2)             - Footgear (shoes, boots)
+	EQI_GARMENT (3)           - Garment (mufflers, hoods, manteaux)
+	EQI_HEAD_LOW (4)          - Lower Headgear (beards, some masks)
+	EQI_HEAD_MID (5)          - Middle Headgear (masks, glasses)
+	EQI_HEAD_TOP (6)          - Upper Headgear
+	EQI_ARMOR (7)             - Armor (jackets, robes)
+	EQI_HAND_L (8)            - Left hand (weapons, shields)
+	EQI_HAND_R (9)            - Right hand (weapons)
+	EQI_COSTUME_HEAD_TOP (10) - Upper Costume Headgear
+	EQI_COSTUME_HEAD_MID (11) - Middle Costume Headgear
+	EQI_COSTUME_HEAD_LOW (12) - Lower Costume Headgear
+	EQI_COSTUME_GARMENT (13)  - Costume Garment
+	EQI_AMMO (14)    		  - Arrow/Ammunition
+	EQI_SHADOW_ARMOR (15)     - Shadow Armor
+	EQI_SHADOW_WEAPON (16)    - Shadow Weapon
+	EQI_SHADOW_SHIELD (17)    - Shadow Shield
+	EQI_SHADOW_SHOES (18)     - Shadow Shoes
+	EQI_SHADOW_ACC_R (19)     - Shadow Accessory 2
+	EQI_SHADOW_ACC_L (20)     - Shadow Accessory 1
+	*/
+
+	setarray .slots[0], EQI_HAND_R;	// 检查右手武器槽
+	
+	// ==================== 变量初始化 ====================
+	.w1 = 0;	// 进化组计数器
+	
+	end ;
+
+// ==================== 子程序：Ids - 设置进化规则 ====================
+Ids:
+	// 使用原始逻辑：每4个参数为一组
+	.@index = .w1;
+	.w1++;
+	
+	// 遍历所有传入的参数（每4个为一组）
+	for ( .@args = getargcount ( ); .@a < .@args ; .@a+=4 )
+	{
+		.@i = ++.w2[.@index];
+		
+		// 动态设置变量，存储进化规则
+		setd ".a1"+ .w1 +"_"+ .@i, getarg ( .@a );		// 物品ID
+		setd ".a2"+ .w1 +"_"+ .@i, getarg ( .@a + 1 );	// 进化模式
+		setd ".a3"+ .w1 +"_"+ .@i, getarg ( .@a + 2 );	// 怪物ID
+		setd ".a4"+ .w1 +"_"+ .@i, getarg ( .@a + 3 );	// 进化所需数值
+	}
+	return ;
+
+// ==================== 事件：击杀怪物时触发 ====================
+OnNPCKillEvent:
+	// 调试信息
+	debugmes "击杀怪物ID: " + killedrid;
+	
+	// 缓存优化
+	if ( @wing[0] && isequipped ( @wing[0] ) )
+	{
+		.@c  = 1;
+		.@e  = @wing[0];
+		.@w  = @wing[1];
+		.@id = @wing[2];
+		debugmes "使用缓存：物品ID=" + .@e + "，组=" + .@w + "，序号=" + .@id;
+	}
+	else
+	{
+		// 遍历所有指定的装备槽位
+		for ( .@size = getarraysize ( .slots ); .@a < .@size && !.@c ; .@a++ )
+		{
+			.@e = getequipid ( .slots[.@a] );
+			if ( .@e < 0 )
+				continue ;
+			
+			debugmes "检查槽位" + .slots[.@a] + "，装备ID=" + .@e;
+			
+			.@id = 0;
+			.@w = 1;
+			
+			// 在所有进化组中查找当前装备
+			while ( .@id++ <= .w2[.@w - 1] && !.@c )
+			{
+				if ( .@id > .w2[.@w - 1] )
+				{
+					.@id = 1;
+					.@w++;
+				}
+				
+				if ( .@e == getd ( ".a1"+ .@w +"_"+ .@id ) )
+				{
+					debugmes "找到匹配配置：组" + .@w + "，序号" + .@id;
+					debugmes "配置怪物ID：" + getd ( ".a3"+ .@w +"_"+ .@id );
+					debugmes "当前怪物ID：" + killedrid;
+					
+					if ( getd ( ".a4"+ .@w +"_"+ .@id ) > 0 && 
+					     ( killedrid == getd ( ".a3"+ .@w +"_"+ .@id ) || 
+					       getd ( ".a3"+ .@w +"_"+ .@id ) < 1001 ) )
+					{
+						.@c = 1;
+						setarray @wing[0], .@e, .@w, .@id;
+						debugmes "条件满足，开始进化计数";
+					}
+				}
+			}
+		}
+	}
+	
+	// 如果找到了可进化的装备
+	if ( .@c )
+	{
+		debugmes "处理进化：物品=" + .@e + "，模式=" + getd ( ".a2"+ .@w +"_"+ .@id );
+		
+		// 模式1：按击杀数量计算
+		if ( getd ( ".a2"+ .@w +"_"+ .@id ) == 1 )
+		{
+			// 获取当前击杀计数
+			.@amount = getd ( "mobs_"+ .@e );
+			// 增加击杀计数
+			setd "mobs_"+ .@e, .@amount + 1;
+			
+			debugmes "当前击杀计数：" + getd ( "mobs_"+ .@e );
+			debugmes "进化所需数量：" + getd ( ".a4"+ .@w +"_"+ .@id );
+			
+			// 获取所需数量
+			.@required = getd ( ".a4"+ .@w +"_"+ .@id );
+			
+			// 计算当前进度百分比
+			.@current_percent = getd ( "mobs_"+ .@e ) * 100 / .@required;
+			
+			// 设置进化进度
+			setd "evo"+ .@e, .@current_percent;
+			
+			debugmes "当前进化进度：" + .@current_percent + "%";
+		}
+		// 模式2：按经验值计算
+		else if ( getd ( ".a2"+ .@w +"_"+ .@id ) == 2 )
+		{
+			// 获取当前经验值
+			.@amount = getd ( "exp_"+ .@e );
+			// 增加经验值（被击杀怪物的基础经验）
+			setd "exp_"+ .@e, .@amount + strmobinfo ( 6, killedrid );
+			
+			// 如果未达到进化要求，结束处理
+			if ( getd ( "exp_"+ .@e ) < getd ( ".a4"+ .@w +"_"+ .@id ) ) 
+				end ;
+			
+			// 达到要求，增加进化百分比
+			setd "evo"+ .@e, getd ( "evo"+ .@e ) + 1;
+			// 重置经验值
+			setd "exp_"+ .@e, 0;
+		}
+		else
+		{
+			debugmes "Script Items_Evo, error: wrong mode.";
+		}
+		
+		// 显示当前进化百分比
+		.@current_percent = getd ( "evo"+ .@e );
+		debugmes "当前进化百分比：" + .@current_percent + "%";
+		
+		// 显示进化进度公告
+		announce getitemname ( .@e ) + " 当前进度: " + .@current_percent + "%", 
+		         bc_self, "0x" + .c$[0];
+		
+		// 播放特效
+		specialeffect2 58;
+		sleep2 200;
+		specialeffect2 383;
+		
+		// 如果进化进度达到100%且设置为自动进化
+		if ( .@current_percent >= 100 && .auto )
+		{
+			debugmes "达到100%，开始进化";
+			
+			// 播放进化特效序列
+			specialeffect2 263;
+			sleep2 500;
+			specialeffect2 377;
+			sleep2 300;
+			specialeffect2 542;
+			sleep2 300;
+			
+			// 显示开始进化公告
+			announce getitemname ( .@e ) + " 开始进化！", bc_self, "0x" + .c$[1];
+			
+			// 进化过程中的特效
+			.@i = 3;
+			while ( .@i-- )
+			{
+				specialeffect2 521;
+				sleep2 900;
+			}
+			
+			// 最终进化特效
+			specialeffect2 463;
+			sleep2 200;
+			specialeffect2 665;
+			sleep2 500;
+			
+			// 保存当前装备的精炼值和卡片
+			setarray .@card[1], 
+				getequipcardid ( .slots[.@a], 0 ), 
+				getequipcardid ( .slots[.@a], 1 ), 
+				getequipcardid ( .slots[.@a], 2 ), 
+				getequipcardid ( .slots[.@a], 3 );
+			.@refine = getequiprefinerycnt ( .slots[.@a] );
+			
+			debugmes "原装备精炼：" + .@refine;
+			debugmes "卡片1：" + .@card[1] + "，卡片2：" + .@card[2];
+			
+			// 获取目标物品ID（下一序号物品）
+		.@target_id = getd ( ".a1"+ .@w +"_"+ ( .@id + 1 ) );
+		debugmes "目标物品ID：" + .@target_id;
+		
+		// 检查是否是有效的目标物品（非0）
+		if ( .@target_id == 0 )
+		{
+			debugmes "错误：目标物品ID为0，进化链可能已结束";
+			end;
+		}
+		
+		// 删除旧装备，给予新装备（保持精炼和卡片）
+		delitem .@e, 1;
+		getitem2 .@target_id, 1, 1, .@refine, 0, 
+		         .@card[1], .@card[2], .@card[3], .@card[4];
+		
+		// 自动装备新物品
+		equip .@target_id;
+		
+		// 重置进化进度和击杀计数
+		setd "evo"+ .@e, 0;
+		setd "mobs"+ .@e, 0;
+		
+		// 清除缓存
+		deletearray @wing;
+		
+		// 显示进化完成公告
+		announce "恭喜！" + getitemname ( .@e ) + " 已进化为 " + 
+		         getitemname ( .@target_id ) + "！", 
+		         bc_self, "0x" + .c$[2];
+		}
+	}
+	else
+	{
+		debugmes "未找到可进化的装备";
+	}
+	end ;
+}
