@@ -1,7 +1,7 @@
 //============================================
 // 自动装备检测与战力排行系统（数据库驱动版）
 // 版本: 4.1
-// 作者:二十
+// 作者: 增加卡片战力计算
 //============================================
 
 // 创建必要的数据库表
@@ -181,7 +181,6 @@
 //============================================
 // 主NPC - 战力检测系统
 //============================================
-
 1@pop3,56,43,2	script	战力检测	100,{
     mes "[战力检测系统]";
     mes "欢迎使用全自动战力检测系统！";
@@ -191,7 +190,7 @@
     next;
     
     // 修改选项列表，添加镜像管理和奖励发放选项
-    switch(select("更新并查看我的战力", "查看战力排行榜", "查看我的卡片详情", "管理员: 更新战力榜镜像", "管理员: 发放战力榜奖励", "关闭")) {
+    switch(select("更新并查看我的战力", "查看战力排行榜", "查看我的卡片详情", "更新战力榜镜像", "发放战力榜奖励", "关闭")) {
     case 1:
         set .@total_score, callfunc("PowerUpdatePlayer", getcharid(0));
         callfunc "PowerDisplayPlayerDetails", getcharid(0);
@@ -278,7 +277,7 @@ function	script	PowerUpdateEquipmentData	{
     set .@char_id, getarg(0);
     set .@char_name$, strcharinfo(0);
     
-    // 20组装备位置检测
+    // 20组装备位置检测（包含4个时装装备槽位和6个影子装备槽位）
     setarray .@equip_slots[0], EQI_HEAD_TOP, EQI_HEAD_MID, EQI_HEAD_LOW, EQI_HAND_R, EQI_ARMOR, 
                               EQI_GARMENT, EQI_HAND_L, EQI_SHOES, EQI_ACC_L, EQI_ACC_R,
                               EQI_COSTUME_HEAD_TOP, EQI_COSTUME_HEAD_MID, EQI_COSTUME_HEAD_LOW, 
@@ -353,12 +352,14 @@ function	script	PowerUpdateCardDetails	{
     // 清空该玩家的旧卡片记录
     query_sql "DELETE FROM power_equipment_cards WHERE char_id = " + .@char_id;
     
-    // 20组装备位置检测
+    // 14组装备位置检测（包含4个时装装备槽位）
     setarray .@equip_slots[0], EQI_HEAD_TOP, EQI_HEAD_MID, EQI_HEAD_LOW, EQI_HAND_R, EQI_ARMOR, 
-                              EQI_GARMENT, EQI_HAND_L, EQI_SHOES, EQI_ACC_L, EQI_ACC_R;
+                              EQI_GARMENT, EQI_HAND_L, EQI_SHOES, EQI_ACC_L, EQI_ACC_R,
+                              EQI_COSTUME_HEAD_TOP, EQI_COSTUME_HEAD_MID, EQI_COSTUME_HEAD_LOW, EQI_COSTUME_GARMENT;
     
     setarray .@equip_names$[0], "头上", "头中", "头下", "武器", "盔甲", 
-                               "披风", "副手", "鞋子", "左饰品", "右饰品";
+                               "披风", "副手", "鞋子", "左饰品", "右饰品",
+                               "时装头上", "时装头中", "时装头下", "时装披风";
     
     // 检查每个装备的卡片
     for (set .@i, 0; .@i < getarraysize(.@equip_slots); set .@i, .@i + 1) {
@@ -398,9 +399,10 @@ function	script	PowerCalculateCardScore	{
     set .@char_id, getarg(0);
     set .@total_card_score, 0;
     
-    // 20组装备位置检测
+    // 14组装备位置检测（包含4个时装装备槽位）
     setarray .@equip_slots[0], EQI_HEAD_TOP, EQI_HEAD_MID, EQI_HEAD_LOW, EQI_HAND_R, EQI_ARMOR, 
-                              EQI_GARMENT, EQI_HAND_L, EQI_SHOES, EQI_ACC_L, EQI_ACC_R;
+                              EQI_GARMENT, EQI_HAND_L, EQI_SHOES, EQI_ACC_L, EQI_ACC_R,
+                              EQI_COSTUME_HEAD_TOP, EQI_COSTUME_HEAD_MID, EQI_COSTUME_HEAD_LOW, EQI_COSTUME_GARMENT;
     
     for (set .@i, 0; .@i < getarraysize(.@equip_slots); set .@i, .@i + 1) {
         if (getequipid(.@equip_slots[.@i]) > 0) {
@@ -441,9 +443,10 @@ function	script	PowerUpdatePlayer	{
     set .@total_score, 0;
     set .@equipped_count, 0;
     
-    // 20组装备位置检测
+    // 14组装备位置检测（包含4个时装装备槽位）
     setarray .@equip_slots[0], EQI_HEAD_TOP, EQI_HEAD_MID, EQI_HEAD_LOW, EQI_HAND_R, EQI_ARMOR, 
-                              EQI_GARMENT, EQI_HAND_L, EQI_SHOES, EQI_ACC_L, EQI_ACC_R;
+                              EQI_GARMENT, EQI_HAND_L, EQI_SHOES, EQI_ACC_L, EQI_ACC_R,
+                              EQI_COSTUME_HEAD_TOP, EQI_COSTUME_HEAD_MID, EQI_COSTUME_HEAD_LOW, EQI_COSTUME_GARMENT;
     
     for (set .@i, 0; .@i < getarraysize(.@equip_slots); set .@i, .@i + 1) {
         if (getequipid(.@equip_slots[.@i]) > 0) {
@@ -976,7 +979,7 @@ function	script	PowerSendRankRewards	{
             
             if(.@special_item_id > 0) {
                 set .@item_amount, 1; // 每个道具发放1个
-                mail .@cid, "战力排行系统", "战力榜特殊道具奖励", "这是您的特殊道具奖励（ID:" + .@special_item_id + "）！", 0, .@special_item_id, .@item_amount;
+                mail .@cid, "战力排行系统", "战力榜特殊道具奖励", "这是属于您的特殊道具奖励！", 0, .@special_item_id, .@item_amount;
             }
             
             debugmes "[战力系统] 已向战力榜第" + (.@i + 1) + "名 " + .@name$ + " 发放奖励（包含道具ID " + .@special_item_id + "）";
@@ -1021,22 +1024,22 @@ OnInit:
 }
 
 //============================================
-// 卡片配置管理NPC（新增）
+// 卡片与道具配置管理NPC（增强版）
 //============================================
 
-1@pop3,60,43,2	script	卡片配置管理	100,{
+1@pop3,60,43,2	script	卡片道具配置管理	100,{
     if (getgmlevel() < 60) {
         mes "[权限错误]";
-        mes "只有管理员可以配置卡片系统。";
+        mes "只有管理员可以配置战力系统。";
         close;
     }
     
-    mes "[卡片配置管理]";
-    mes "管理卡片战力配置";
+    mes "[卡片与道具配置管理]";
+    mes "管理卡片和道具战力配置";
     mes "==============================";
     next;
     
-    switch(select("查看卡片配置", "添加/更新卡片配置", "批量导入卡片配置", "返回")) {
+    switch(select("查看卡片配置", "添加/更新卡片配置", "查看道具配置", "添加/更新道具配置", "返回")) {
     case 1:
         mes "[卡片配置列表]";
         mes "显示前50条卡片配置记录:";
@@ -1112,12 +1115,90 @@ OnInit:
         close;
         
     case 3:
-        mes "[批量导入卡片配置]";
-        mes "此功能需要手动SQL导入。";
-        mes "请使用SQL工具导入卡片配置数据。";
+        mes "[道具配置列表]";
+        mes "显示前50条道具配置记录:";
+        
+        set .@count, query_sql("SELECT item_id, item_name, base_score, equip_type FROM power_item_config ORDER BY item_id ASC LIMIT 50", 
+                              .@item_ids, .@item_names$, .@base_scores, .@equip_types$);
+        
+        if (.@count == 0) {
+            mes "暂无道具配置数据。";
+        } else {
+            for (set .@i, 0; .@i < .@count; set .@i, .@i + 1) {
+                mes .@item_ids[.@i] + ": " + .@item_names$[.@i] + " = " + .@base_scores[.@i] + "分 (" + .@equip_types$[.@i] + ")";
+            }
+        }
         close;
         
     case 4:
+        mes "[添加/更新道具配置]";
+        mes "请输入道具ID:";
+        input .@item_id;
+        
+        if (.@item_id <= 0) {
+            mes "无效的道具ID。";
+            close;
+        }
+        
+        set .@item_name$, getitemname(.@item_id);
+        if (.@item_name$ == "") {
+            mes "道具ID不存在。";
+            close;
+        }
+        
+        mes "道具名称: " + .@item_name$;
+        mes "当前基础分数: ";
+        
+        set .@current_score, 100;
+        set .@current_type$, "normal";
+        set .@current_refine, 20;
+        set .@result, query_sql("SELECT base_score, equip_type, refine_multiplier FROM power_item_config WHERE item_id = " + .@item_id, .@current_score, .@current_type$, .@current_refine);
+        
+        if (.@result > 0) {
+            mes .@current_score;
+            mes "当前类型: " + .@current_type$;
+            mes "当前精炼系数: " + .@current_refine;
+        } else {
+            mes "无配置（默认100分）";
+        }
+        
+        mes "请输入新的基础分数:";
+        input .@new_score;
+        
+        if (.@new_score < 0) {
+            mes "分数不能为负数。";
+            close;
+        }
+        
+        mes "请输入精炼系数（默认20）:";
+        input .@refine_multiplier;
+        
+        if (.@refine_multiplier <= 0) {
+            set .@refine_multiplier, 20;
+        }
+        
+        mes "选择装备类型:";
+        next;
+        set .@type_choice, select("普通装备", "武器", "防具", "饰品", "时装", "影装");
+        
+        set .@equip_type$, "normal";
+        if (.@type_choice == 2) set .@equip_type$, "weapon";
+        if (.@type_choice == 3) set .@equip_type$, "armor";
+        if (.@type_choice == 4) set .@equip_type$, "accessory";
+        if (.@type_choice == 5) set .@equip_type$, "costume";
+        if (.@type_choice == 6) set .@equip_type$, "shadow";
+        
+        query_sql "REPLACE INTO power_item_config (item_id, item_name, base_score, refine_multiplier, equip_type) VALUES (" + 
+                 .@item_id + ", '" + .@item_name$ + "', " + .@new_score + ", " + .@refine_multiplier + ", '" + .@equip_type$ + "')";
+        
+        mes "配置已保存！";
+        mes "道具: " + .@item_name$;
+        mes "基础分数: " + .@new_score;
+        mes "精炼系数: " + .@refine_multiplier;
+        mes "装备类型: " + .@equip_type$;
+        close;
+        
+    case 5:
         close;
     }
 }
